@@ -28,6 +28,8 @@ from app.core.policy import (
     has_global_or_principal_access_for_unit,
     require_plan_scope_for_report,
 )
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
@@ -35,7 +37,6 @@ from app.models.module_type import (
 )
 from app.models.unit import Unit
 from app.models.user import GlobalScope, User
-from app.modules.emissions.registry import is_additional_breakdown_emission
 from app.modules.emissions.taxonomy import EmissionType
 from app.modules.headcount import (
     HeadcountItemResponse,
@@ -161,22 +162,46 @@ async def resolve_write_scope(
     )
 
 
+async def _is_explore_report(db: AsyncSession, report: CarbonReportRead) -> bool:
+    """Whether ``report`` is a Simulator Explore sandbox.
+
+    The project row is already in the session identity map — the module
+    permission gate loaded it moments earlier — so this is not a second query.
+    """
+    if report.carbon_project_id is None:
+        return False
+    project = await db.get(CarbonProject, report.carbon_project_id)
+    return (
+        project is not None
+        and project.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE
+    )
+
+
 async def _get_professional_travel_institutional_id_filter(
     *,
     db: AsyncSession,
-    unit_id: int,
+    report: CarbonReportRead,
     current_user: User,
     data_entry_type_id: DataEntryTypeEnum,
 ) -> str | None:
-    """Return the institutional scope for professional-travel data access."""
+    """Return the institutional scope for professional-travel data access.
+
+    ``None`` means no own-rows filter. An Explore sandbox is private to its
+    creator (#2293), so every travel row in it is already the caller's own —
+    and the roster-less sandbox stamps the "other traveler" sentinel on new
+    trips, which an own-rows filter would hide from the standard user who
+    just added them (#2752).
+    """
     is_travel_type = data_entry_type_id in (
         DataEntryTypeEnum.plane,
         DataEntryTypeEnum.train,
     )
     if not is_travel_type:
         return None
+    if await _is_explore_report(db, report):
+        return None
 
-    unit = await db.get(Unit, unit_id)
+    unit = await db.get(Unit, report.unit_id)
     has_full_access = _has_global_or_principal_access_for_unit(
         current_user=current_user,
         unit=unit,
@@ -216,6 +241,41 @@ def _hide_planner_snapshots_for_viewer(
             current_user=current_user,
             unit=unit,
         )
+    )
+
+
+def _module_totals(
+    stats: dict | None, *, is_headcount: bool, hide_planner_snapshots: bool
+) -> ModuleTotals:
+    """Headline figures read off the persisted module stats (#2706).
+
+    No live aggregate: the pipeline and every interactive write persist
+    ``carbon_report_modules.stats``, so the GET only reads. Stats written
+    before #2706 lack the headline keys — a loud 503 until the admin
+    recompute-stats trigger has re-derived them, never a silent zero.
+    """
+    total_kg: float | None = None
+    total_fte: float | None = None
+    if stats is not None and is_headcount:
+        total_fte = stats["total_fte"]
+    if stats is not None and not is_headcount:
+        try:
+            total_kg = stats["total_excluding_additional"]
+            if hide_planner_snapshots:
+                total_kg -= stats["planner_snapshot_kg"]
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Module stats predate #2706 — run the admin "
+                    "recompute-stats trigger to re-derive them"
+                ),
+            ) from exc
+    return ModuleTotals(
+        total_kg_co2eq=total_kg,
+        total_tonnes_co2eq=total_kg / 1000.0 if total_kg is not None else None,
+        total_annual_consumption_kwh=None,
+        total_annual_fte=total_fte,
     )
 
 
@@ -319,7 +379,9 @@ async def get_module(
     )
     carbon_report_module_id = module.id
     travel_institutional_id_filter: str | None = None
-    if ModuleTypeEnum[module_key] == ModuleTypeEnum.professional_travel:
+    is_travel_module = ModuleTypeEnum[module_key] == ModuleTypeEnum.professional_travel
+    # Explore sandboxes are per-user already — no own-rows filter (#2752).
+    if is_travel_module and not await _is_explore_report(db, report):
         if not _has_global_or_principal_access_for_unit(
             current_user=current_user,
             unit=unit,
@@ -335,43 +397,11 @@ async def get_module(
         exclude_planner_snapshots=hide_for_viewer,
     )
 
-    # if headcount compute FTE here
-    total_annual_fte = None
-    total_kg_co2eq = None
-    if module_id == "headcount":
-        # #2050 Track J: one round trip, not three. These asked the same
-        # table for the same field over the same module; on dev a round
-        # trip costs ~160ms, so the count was the cost (Track G2).
-        fte = await DataEntryService(db).get_headcount_fte_breakdown(
-            carbon_report_module_id=carbon_report_module_id,
-        )
-        total_annual_fte = fte.total_fte
-        module_data.stats = {
-            **fte.member_fte_by_sius_code,
-            "student": fte.student_fte,
-        }
-    else:
-        module_data.stats = await DataEntryEmissionService(db).get_stats(
-            carbon_report_module_id=carbon_report_module_id,
-            exclude_planner_snapshots=hide_for_viewer,
-        )
-
-        total_kg_co2eq = (
-            sum(
-                v
-                for k, v in module_data.stats.items()
-                if v is not None and not is_additional_breakdown_emission(int(k))
-            )
-            if module_data.stats
-            else None
-        )
-    module_data.totals = ModuleTotals(
-        total_kg_co2eq=total_kg_co2eq,
-        total_tonnes_co2eq=total_kg_co2eq / 1000.0
-        if total_kg_co2eq is not None
-        else None,
-        total_annual_consumption_kwh=None,
-        total_annual_fte=total_annual_fte,
+    module_data.stats = module.stats
+    module_data.totals = _module_totals(
+        module.stats,
+        is_headcount=module_id == "headcount",
+        hide_planner_snapshots=hide_for_viewer,
     )
     if not module_data:
         raise HTTPException(
@@ -702,7 +732,7 @@ async def get_professional_travel_trips_map(
     # the repo method.
     institutional_id_filter = await _get_professional_travel_institutional_id_filter(
         db=db,
-        unit_id=report.unit_id,
+        report=report,
         current_user=current_user,
         data_entry_type_id=DataEntryTypeEnum.train,
     )
@@ -788,7 +818,7 @@ async def get_submodule(
         )
     institutional_id_filter = await _get_professional_travel_institutional_id_filter(
         db=db,
-        unit_id=report.unit_id,
+        report=report,
         current_user=current_user,
         data_entry_type_id=DataEntryTypeEnum(data_entry_type_id),
     )

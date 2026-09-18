@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import {
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
+import {
   computed,
   nextTick,
   onBeforeUnmount,
@@ -460,7 +464,7 @@ const downloadPNG = () => {
               class="additional-col additional-placeholder additional-placeholder--wide"
             >
               <div class="placeholder-content">
-                <q-icon name="o_info" size="md" color="negative" />
+                <q-icon :name="outlinedInfo" size="md" color="negative" />
                 <div class="text-subtitle1 text-weight-medium q-mt-sm">
                   {{ $t('results_additional_validate_headcount_title') }}
                 </div>
@@ -476,7 +480,7 @@ const downloadPNG = () => {
               class="additional-col additional-placeholder additional-placeholder--wide"
             >
               <div class="placeholder-content">
-                <q-icon name="o_info" size="md" color="negative" />
+                <q-icon :name="outlinedInfo" size="md" color="negative" />
                 <div class="text-subtitle1 text-weight-medium q-mt-sm">
                   {{ $t('results_additional_headcount_no_data_title') }}
                 </div>
@@ -654,7 +658,7 @@ const downloadPNG = () => {
                     {{ $t('charts-waste-category') }}
                     <q-icon
                       v-if="!printMode"
-                      name="o_info"
+                      :name="outlinedInfo"
                       size="xs"
                       class="q-ml-xs text-primary"
                     >
@@ -747,7 +751,7 @@ const downloadPNG = () => {
               class="additional-col additional-placeholder"
             >
               <div class="placeholder-content">
-                <q-icon name="o_info" size="md" color="negative" />
+                <q-icon :name="outlinedInfo" size="md" color="negative" />
                 <div class="text-subtitle1 text-weight-medium q-mt-sm">
                   {{ $t('results_additional_validate_buildings_title') }}
                 </div>
@@ -763,7 +767,7 @@ const downloadPNG = () => {
               class="additional-col additional-placeholder"
             >
               <div class="placeholder-content">
-                <q-icon name="o_info" size="md" color="negative" />
+                <q-icon :name="outlinedInfo" size="md" color="negative" />
                 <div class="text-subtitle1 text-weight-medium q-mt-sm">
                   {{ $t('results_additional_buildings_no_data_title') }}
                 </div>
@@ -780,7 +784,7 @@ const downloadPNG = () => {
                   {{ $t('charts-embodied-energy-category') }}
                   <q-icon
                     v-if="!printMode"
-                    name="o_info"
+                    :name="outlinedInfo"
                     size="xs"
                     class="q-ml-xs text-primary"
                   >
@@ -861,7 +865,7 @@ const downloadPNG = () => {
             unelevated
             no-caps
             outline
-            icon="o_download"
+            :icon="outlinedDownload"
             :label="$t('common_download_as_png')"
             size="xs"
             dense

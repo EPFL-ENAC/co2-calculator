@@ -12,11 +12,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.location import Location, TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
+from tests.conftest import make_emission
 
 
 async def _seed_module(db_session: AsyncSession) -> int:
@@ -86,8 +86,8 @@ async def _seed_plane(
     await db_session.flush()
     assert entry.id is not None
     db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.professional_travel__plane.value,
             kg_co2eq=kg_co2eq,
         )
@@ -124,8 +124,8 @@ async def _seed_train(
     await db_session.flush()
     assert entry.id is not None
     db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
+        make_emission(
+            entry,
             emission_type_id=EmissionType.professional_travel__train.value,
             kg_co2eq=kg_co2eq,
         )

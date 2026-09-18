@@ -20,7 +20,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
-from app.api.deps import get_current_user, get_current_user_detached, get_db
+from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.policy import (
     check_module_permission,
@@ -256,28 +256,28 @@ async def _check_job_scope(
 ) -> None:
     """Per-job permission gate (unit-scoped jobs only).
 
-    Layered on top of the existing ``backoffice.configuration.*`` global
-    gate so a user with backoffice access still has to clear the per-module
-    scope when a job is pinned to a specific unit (``MODULE_UNIT_SPECIFIC``).
-
     Jobs that are cross-unit (``MODULE_PER_YEAR`` aggregation/recalc) or
     unscoped (``unit_sync``, factor ingests not pinned to a module) are
-    gated by the global permission alone — the per-module path doesn't
-    apply.  Unit-scoped backoffice users only hold
-    ``modules.X/<institutional_id>`` permissions, so calling
-    ``check_module_permission(institutional_id=None)`` for a cross-unit
-    job would deny everyone except the (rare) operator with an unscoped
-    ``modules.X`` permission.
+    gated by the caller's route-level permission alone — there is no unit
+    to check.  A unit-pinned job (``MODULE_UNIT_SPECIFIC``) requires
+    ``modules.<name>/<unit>`` for that unit, or ``backoffice.configuration``
+    — the same bypass ``/dispatch`` grants, since backoffice roles hold no
+    ``modules.*`` keys and would otherwise be locked out of the unit-targeted
+    jobs they create (and of the ops-console Recover button).
     """
     if job.module_type_id is None:
         return
     institutional_id = await _institutional_id_for_job(job, db)
     if institutional_id is None:
-        # MODULE_PER_YEAR or unresolvable scope — the global
-        # backoffice.configuration gate already ran upstream via
-        # require_permission(...) and is the right granularity here.
         # TODO(#459): once sub-perimeter scoping ships, derive a
         # broader scope set from the job's module + year and tighten.
+        return
+    backoffice_action = "view" if action == "view" else "edit"
+    if has_permission(
+        current_user.calculate_permissions(),
+        "backoffice.configuration",
+        backoffice_action,
+    ):
         return
     await check_module_permission(
         current_user,
@@ -301,34 +301,15 @@ async def _check_pipeline_scope_from_jobs(
     avoids a redundant ``list_jobs_by_pipeline_id`` round-trip on every
     poll iteration).
 
-    Picks the parent job to derive ``(module_type_id, institutional_id)``:
-    prefer the latest ``aggregation`` job (the chain terminator that pins
-    the module + year scope), otherwise fall back to any job in the
-    pipeline so factor-only chains still resolve.
+    The scope is the root job's (lowest id, id-ascending list): it is the
+    one ``/dispatch`` gated, and the only one that carries the unit —
+    fan-out children (``emission_recalc``, ``aggregation``) are minted
+    ``MODULE_PER_YEAR`` with no ``entity_id``, so anchoring on them would
+    drop the unit scope the moment a pipeline fans out (#2654).
     """
     if not jobs:
         return
-    parent = next(
-        (j for j in reversed(jobs) if j.job_type == "aggregation"),
-        jobs[0],
-    )
-    await _check_job_scope(parent, current_user, db, action=action)
-
-
-async def _check_pipeline_scope(
-    pipeline_id: UUID,
-    current_user: User,
-    db: AsyncSession,
-    *,
-    action: str = "view",
-) -> None:
-    """Per-pipeline permission gate (fetches the job list itself).
-
-    Prefer ``_check_pipeline_scope_from_jobs`` when the caller has
-    already loaded the pipeline's jobs.
-    """
-    jobs = await DataIngestionRepository(db).list_jobs_by_pipeline_id(pipeline_id)
-    await _check_pipeline_scope_from_jobs(jobs, current_user, db, action=action)
+    await _check_job_scope(jobs[0], current_user, db, action=action)
 
 
 router = APIRouter()
@@ -1229,8 +1210,16 @@ async def list_workers(
     # moved to ``DateTime(timezone=True)``) doesn't explode the
     # comparison — see ``as_utc``.  Production never serves
     # naive rows; this is purely defensive for long-lived dev DBs.
+    # #2853: API pods heartbeat too (their pod_ip feeds the cross-pod
+    # broadcast) but never claim a job; only job-running pods are workers.
     pods_all = (
-        (await db.execute(select(Pod).order_by(col(Pod.last_heartbeat_at).desc())))
+        (
+            await db.execute(
+                select(Pod)
+                .where(col(Pod.runs_jobs).is_(True))
+                .order_by(col(Pod.last_heartbeat_at).desc())
+            )
+        )
         .scalars()
         .all()
     )
@@ -1279,17 +1268,17 @@ async def list_workers(
 async def job_stream_by_id(
     job_id: int,
     request: Request,
-    current_user: User = Depends(get_current_user_detached),
+    current_user: User = Depends(get_current_user),
 ):
     """Server-Sent Events endpoint to stream a single job update in real-time.
 
     Polls the database for status changes and sends updates to the client.
     Stream ends when the job is completed, failed, or the client disconnects.
 
-    Session lifetime: no request-scoped session anywhere on this path. The
-    user is resolved by ``get_current_user_detached`` (its session closes
-    before the stream opens -- a ``get_db`` session would be held until the
-    stream ends, #2654), and a fresh ``SessionLocal()`` is opened per poll
+    Session lifetime: no pooled connection is held anywhere on this path.
+    ``get_current_user`` hands its connection back before the stream opens
+    (it used to be pinned until the stream ended, #2654, #2689), and a fresh
+    ``SessionLocal()`` is opened per poll
     iteration and closed before the sleep, so no pool slot is pinned for the
     full stream duration (minutes).  ``request.is_disconnected()`` is checked
     at the top of each iteration so client aborts surface immediately rather
@@ -1303,27 +1292,33 @@ async def job_stream_by_id(
             detail="Permission denied",
         )
 
-    # Up-front per-job scope check — drops a pool slot before the stream opens
-    # so cross-tenant subscriptions never hit the poll loop.
+    # Up-front 404 + per-job scope check — drops a pool slot before the
+    # stream opens so cross-tenant subscriptions never hit the poll loop.
+    # The 404 is symmetric with the pipeline stream and keeps the gate
+    # unconditional: a missing job used to skip it and open a stream.
     async with db_module.SessionLocal() as session:
         existing = await DataIngestionRepository(session).get_job_by_id(job_id)
-        if existing is not None:
-            # TODO(#459): tighten when sub-perimeter scoping ships
-            await _check_job_scope(existing, current_user, session, action="view")
-            # #1764 — _check_job_scope no-ops on jobs it can't narrow to a
-            # unit (MODULE_PER_YEAR and friends); this stream ships the
-            # job's full raw meta, so those need the same backoffice gate
-            # POST /sync/dispatch's global-dispatch path already requires.
-            institutional_id = await _institutional_id_for_job(existing, session)
-            if institutional_id is None and not has_permission(
-                current_user.calculate_permissions(),
-                "backoffice.configuration",
-                "view",
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Permission denied",
-                )
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found",
+            )
+        # TODO(#459): tighten when sub-perimeter scoping ships
+        await _check_job_scope(existing, current_user, session, action="view")
+        # #1764 — _check_job_scope no-ops on jobs it can't narrow to a
+        # unit (MODULE_PER_YEAR and friends); this stream ships the
+        # job's full raw meta, so those need the same backoffice gate
+        # POST /sync/dispatch's global-dispatch path already requires.
+        institutional_id = await _institutional_id_for_job(existing, session)
+        if institutional_id is None and not has_permission(
+            current_user.calculate_permissions(),
+            "backoffice.configuration",
+            "view",
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied",
+            )
 
     async def event_generator():
         last_status = None
@@ -1761,13 +1756,13 @@ async def get_pipeline_jobs(
 async def pipeline_stream_by_id(
     pipeline_id: UUID,
     request: Request,
-    current_user: User = Depends(get_current_user_detached),
+    current_user: User = Depends(get_current_user),
 ):
     """Server-Sent Events stream for every job sharing a ``pipeline_id``.
 
-    Gated like ``require_module_or_config_view`` but on the detached user
-    dependency: see ``job_stream_by_id`` for why a stream must not hold a
-    ``get_db`` session (#2654).
+    Gated like ``require_module_or_config_view`` but inline: see
+    ``job_stream_by_id`` for why a stream must not hold a pooled
+    connection (#2654).
 
     Plan 310D — the frontend stale-stats UX subscribes here when a module's
     carbon-report response surfaces a ``current_pipeline_id``.  Each tick
@@ -1836,8 +1831,7 @@ async def pipeline_stream_by_id(
             # between ticks.  The previous implementation captured
             # ``Depends(get_db)`` for the entire generator lifetime, pinning
             # one slot per subscriber for the whole stream (minutes) -- and
-            # the auth dependency did the same until #2654, see
-            # ``get_current_user_detached``.
+            # the auth dependency did the same until #2654/#2689.
             async with db_module.SessionLocal() as session:
                 repo = DataIngestionRepository(session)
                 jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
@@ -2196,6 +2190,24 @@ async def recover_job(
             entity_id=scope_row.entity_id,
         )
         await _check_job_scope(scope_job, current_user, db, action="sync")
+        # #2700 Part 2 — MODULE_UNIT_SPECIFIC uploads are append-only with
+        # no delete-before-insert and almost no DB uniqueness constraint on
+        # data_entries, and data_session commits per INGEST_COPY_BATCH_SIZE
+        # batch rather than once at the end — so a dead job may already
+        # have partially committed. Resetting it here would let the same
+        # unsafe re-COPY the auto-recovery sweep also refuses to do (see
+        # sweep_stuck_running_jobs). Same block, same reason, both paths.
+        if scope_row.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This upload cannot be recovered automatically — it has "
+                    "no duplicate protection against a partial prior "
+                    "attempt. Verify data_entries for this report against "
+                    "the source file, delete any rows the dead job may "
+                    "have already written, then re-upload."
+                ),
+            )
     recovered = await repo.recover_job(job_id, settings.STALE_JOB_TIMEOUT_MINUTES)
     if not recovered:
         raise HTTPException(

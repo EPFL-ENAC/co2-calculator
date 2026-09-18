@@ -62,6 +62,10 @@ def schedule_job(job: DataIngestionJob, pod_id: str) -> None:
     from app.tasks._background import fire_and_forget
 
     _IN_FLIGHT_JOB_IDS.add(job_id)
+    # Logged here, after the guard: the sweep re-selects a NOT_STARTED row
+    # every tick while its dispatch is still queued on the DB, and logging
+    # in the loop printed "scheduling" every 2 s for a job dispatched once.
+    logger.info(f"Poller: dispatching job {job_id}")
     task = fire_and_forget(dispatch_job(job, pod_id), name=f"dispatch-{job_id}")
     task.add_done_callback(functools.partial(_clear_in_flight, job_id))
 
@@ -149,7 +153,6 @@ async def poll_pending_jobs() -> None:
                 stmt = _pending_runner_jobs_query(settings.POLLER_BATCH_LIMIT)
                 jobs = (await session.execute(stmt)).scalars().all()
                 for job in jobs:
-                    logger.info(f"Poller: scheduling orphaned job {job.id}")
                     schedule_job(job, POD_ID)
         except Exception as exc:
             logger.warning(f"Poller iteration failed: {exc}", exc_info=True)

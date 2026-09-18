@@ -29,6 +29,16 @@ logger = get_logger(__name__)
 
 _BACKGROUND_TASKS: set[asyncio.Task] = set()
 
+# Flipped by ``cancel_background_tasks``: from then on a cancelled task is
+# the expected outcome, not the "silently dropped work" a cancellation
+# means at any other time.
+_SHUTTING_DOWN = False
+
+# How long the lifespan waits for cancelled jobs to hand their rows back
+# (one rollback and one UPDATE each). The worker's
+# terminationGracePeriodSeconds must exceed this plus engine.dispose().
+JOB_HANDBACK_SECONDS = 20.0
+
 
 def fire_and_forget(coro: Coroutine, *, name: str | None = None) -> asyncio.Task:
     """Schedule ``coro`` and hold a strong reference until it finishes.
@@ -92,9 +102,30 @@ async def wait_for_background_tasks(timeout: float = 600.0) -> None:
         await asyncio.wait(pending, timeout=remaining)
 
 
+async def cancel_background_tasks(timeout: float = JOB_HANDBACK_SECONDS) -> int:
+    """Shutdown (#2696): cancel every in-flight task and wait for it to
+    finish handing back. Returns how many were still running. A task
+    that outlives ``timeout`` is left to die with the process; its row is
+    then the stale sweep's, as before.
+    """
+    global _SHUTTING_DOWN
+    _SHUTTING_DOWN = True
+    pending = {task for task in _BACKGROUND_TASKS if not task.done()}
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.wait(pending, timeout=timeout)
+    return len(pending)
+
+
 def _on_done(task: asyncio.Task) -> None:
     _BACKGROUND_TASKS.discard(task)
     if task.cancelled():
+        if _SHUTTING_DOWN:
+            logger.info(
+                f"fire_and_forget task {task.get_name()!r} cancelled at shutdown"
+            )
+            return
         # Loud on purpose: a silently-cancelled fire-and-forget task is
         # indistinguishable from "task never ran" in the logs, which makes
         # stuck DataIngestionJob rows nearly impossible to diagnose.  If

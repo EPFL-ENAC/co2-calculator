@@ -15,3 +15,10 @@ export enum IngestionResult {
   WARNING = 1,
   ERROR = 2,
 }
+
+export enum TargetType {
+  DATA_ENTRIES = 0,
+  FACTORS = 1,
+  REDUCTION_OBJECTIVES = 2,
+  REFERENCE_DATA = 3,
+}

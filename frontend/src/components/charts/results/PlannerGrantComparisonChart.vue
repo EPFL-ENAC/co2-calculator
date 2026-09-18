@@ -1,49 +1,64 @@
 <template>
-  <div :class="isPrintMode ? 'q-pa-none' : 'q-pa-lg'">
-    <div class="row items-center justify-between q-mb-md">
-      <div
-        class="text-weight-medium"
-        :class="isPrintMode ? 'text-body1' : 'text-h5'"
-      >
+  <!-- Same card, header and download footer as ModuleCarbonFootprintChart,
+       so the two results charts read alike (#2071). -->
+  <q-card flat class="container container--pa-none full-width">
+    <q-card-section
+      class="flex justify-between items-center q-pr-lg"
+      :class="{ 'q-pb-none': isPrintMode }"
+    >
+      <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
         {{ title }}
-      </div>
+      </span>
       <q-checkbox
-        v-if="!isPrintMode"
-        v-model="showAdditional"
+        v-if="!isPrintMode && props.viewAdditionalData === undefined"
+        v-model="toggleAdditional"
         :label="$t('results_module_carbon_toggle_additional_data')"
-        size="sm"
-        dense
+        size="xs"
+        color="accent"
       />
-    </div>
-    <v-chart
-      ref="chartRef"
-      class="planner-grant-comparison-chart"
-      :class="{ 'planner-grant-comparison-chart--print': isPrintMode }"
-      :option="chartOption"
-      autoresize
-    />
-    <div v-if="!isPrintMode" class="row q-gutter-sm q-mt-sm">
+    </q-card-section>
+    <q-card-section class="flex justify-center items-center">
+      <v-chart
+        ref="chartRef"
+        class="planner-grant-comparison-chart"
+        :class="{ 'planner-grant-comparison-chart--print': isPrintMode }"
+        :option="chartOption"
+        autoresize
+      />
+    </q-card-section>
+    <q-separator v-if="!isPrintMode" />
+    <q-card-section
+      v-if="!isPrintMode"
+      class="flex justify-start q-gutter-x-sm"
+    >
       <q-btn
-        outline
+        unelevated
         no-caps
-        size="sm"
-        icon="o_download"
+        outline
+        :icon="outlinedDownload"
         :label="$t('common_download_as_png')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
         @click="downloadPNG"
       />
       <q-btn
-        outline
+        unelevated
         no-caps
-        size="sm"
-        icon="o_download"
+        outline
+        :icon="outlinedDownload"
         :label="$t('common_download_as_csv')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
         @click="downloadCSV"
       />
-    </div>
-  </div>
+    </q-card-section>
+  </q-card>
 </template>
 
 <script setup lang="ts">
+import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -60,13 +75,14 @@ import { useI18n } from 'vue-i18n';
 
 import {
   CHART_CATEGORY_COLOR_SCALES,
-  isHiddenResultsCategory,
   RESULTS_CATEGORY_LABEL_KEYS,
   RESULTS_SUBCATEGORY_LABEL_KEYS,
+  YEARS_DECAL,
+  isHiddenResultsCategory,
 } from '@/constant/charts';
 import type { EmissionBreakdownResponse } from '@/stores/modules';
 import { downloadEchartAsPng } from '@/utils/chartDownload';
-import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/download';
 import { withYearRange } from '@/utils/plannerYearRange';
 import { usePrintMode } from '@/composables/print/usePrintMode';
 
@@ -84,16 +100,22 @@ type CategoryRow = Record<string, unknown> & {
   parent_keys_order?: string[];
 };
 
-const props = defineProps<{
-  title: string;
-  grantBreakdown: EmissionBreakdownResponse | null;
-  yearsBreakdown: EmissionBreakdownResponse | null;
-  /** The plan's full range, shown after the Grant Proposal label. */
-  grantYearRange?: string;
-  /** The filled-years range, shown after the Effective label. */
-  effectiveYearRange?: string;
-  activeCategoriesOnly?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    title: string;
+    grantBreakdown: EmissionBreakdownResponse | null;
+    yearsBreakdown: EmissionBreakdownResponse | null;
+    /** The plan's full range, shown after the Grant Proposal label. */
+    grantYearRange?: string;
+    /** The filled-years range, shown after the Effective label. */
+    effectiveYearRange?: string;
+    activeCategoriesOnly?: boolean;
+    /** Page-owned Additional data toggle; when given, the chart's own is hidden. */
+    viewAdditionalData?: boolean;
+  }>(),
+  // Declared so an absent prop stays undefined instead of Boolean-cast to false.
+  { grantYearRange: '', effectiveYearRange: '', viewAdditionalData: undefined },
+);
 
 use([
   CanvasRenderer,
@@ -106,7 +128,10 @@ use([
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
 
-const showAdditional = ref(isPrintMode.value);
+const toggleAdditional = ref(isPrintMode.value);
+const showAdditional = computed(
+  () => props.viewAdditionalData ?? toggleAdditional.value,
+);
 
 // The Results charts' categories, in their shared order.
 const MAIN_CATEGORY_KEYS = [
@@ -180,22 +205,11 @@ function segmentLabel(segment: string): string {
   return key ? t(key) : segment;
 }
 
-const YEARS_DECAL = {
-  symbol: 'line',
-  rotation: Math.PI / 4,
-  dashArrayX: [1, 0],
-  dashArrayY: [4, 3],
-  color: 'rgba(255, 255, 255, 0.7)',
-};
-
 const grantLabel = computed(() =>
-  withYearRange(t('planner_project_grant_title'), props.grantYearRange ?? ''),
+  withYearRange(t('planner_project_grant_title'), props.grantYearRange),
 );
 const yearsLabel = computed(() =>
-  withYearRange(
-    t('planner_results_series_years'),
-    props.effectiveYearRange ?? '',
-  ),
+  withYearRange(t('planner_results_series_years'), props.effectiveYearRange),
 );
 
 function totalsOf(view: 'grant' | 'years'): number[] {
@@ -322,7 +336,8 @@ const chartOption = computed<EChartsOption>(() => {
       type: 'value',
       name: 't CO₂-eq',
       nameLocation: 'middle',
-      nameGap: 44,
+      nameMoveOverlap: true,
+      nameGap: 12,
     },
     series,
   };

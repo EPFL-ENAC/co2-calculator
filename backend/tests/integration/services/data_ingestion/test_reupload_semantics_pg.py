@@ -13,7 +13,7 @@ representative module-per-year scope:
    for the implementation.
 
 2. **Factor reupload dedup under concurrency**: with PR #1074's
-   ``uq_emission_recalc_active`` partial unique index, two factor
+   ``uq_emission_recalc_active_unscoped`` partial unique index, two factor
    reuploads firing the recalc chain back-to-back collapse to ONE
    active ``emission_recalc`` job — even when the two ``chain_job``
    calls run concurrently via ``asyncio.gather`` on separate sessions.
@@ -373,7 +373,7 @@ async def test_data_reupload_replaces_old_rows(pg_dsn, monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_factor_reupload_dedup_via_partial_unique_index(pg_dsn):
-    """Pin: with PR #1074's ``uq_emission_recalc_active`` partial
+    """Pin: with PR #1074's ``uq_emission_recalc_active_unscoped`` partial
     unique index in place, two ``chain_job(emission_recalc, dedup_config
     =EMISSION_RECALC_DEDUP)`` calls fired CONCURRENTLY for the same
     ``(module, det, year)`` collapse to ONE active row.
@@ -448,7 +448,7 @@ async def test_factor_reupload_dedup_via_partial_unique_index(pg_dsn):
         # async sessions backed by separate connections, the pre-check
         # SELECTs interleave with the INSERTs.  When both pre-checks
         # return empty, the second INSERT will trip
-        # ``uq_emission_recalc_active`` and the catch arm of
+        # ``uq_emission_recalc_active_unscoped`` and the catch arm of
         # ``_insert_child_with_dedup`` returns ``None``.
         results = await asyncio.gather(_fire_one_chain(), _fire_one_chain())
 
@@ -484,7 +484,7 @@ async def test_factor_reupload_dedup_via_partial_unique_index(pg_dsn):
     assert len(rows) == 1, (
         f"expected exactly 1 emission_recalc row after concurrent fan-out; "
         f"got {len(rows)} rows: {[(r.id, r.state) for r in rows]}.  If this "
-        "is 2, the partial unique index uq_emission_recalc_active is missing "
+        "is 2, the partial unique index uq_emission_recalc_active_unscoped is missing "
         "or the IntegrityError catch in _insert_child_with_dedup regressed."
     )
     assert rows[0].id == successful[0], (

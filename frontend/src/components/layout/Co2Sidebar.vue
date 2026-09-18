@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { matChevronLeft, matChevronRight } from '@quasar/extras/material-icons';
+import { outlinedArticle } from '@quasar/extras/material-icons-outlined';
 import { ref } from 'vue';
 import { NavItem } from '@/constant/navigation';
 import { useRouter } from 'vue-router';
@@ -37,7 +39,7 @@ function isItemDisabled(item: NavItem): boolean {
 <template>
   <div class="co2-sidebar" :class="{ 'co2-sidebar--collapsed': collapsed }">
     <div class="co2-sidebar-toggle" @click="collapsed = !collapsed">
-      <q-icon :name="collapsed ? 'chevron_right' : 'chevron_left'" size="xs" />
+      <q-icon :name="collapsed ? matChevronRight : matChevronLeft" size="xs" />
     </div>
     <q-list class="co2-sidebar-items">
       <q-item
@@ -70,7 +72,7 @@ function isItemDisabled(item: NavItem): boolean {
         target="_blank"
         clickable
       >
-        <q-icon name="o_article" size="sm" />
+        <q-icon :name="outlinedArticle" size="sm" />
         <q-item-label v-show="!collapsed" class="text-body2">{{
           $t('backoffice_documentation_button_label')
         }}</q-item-label>

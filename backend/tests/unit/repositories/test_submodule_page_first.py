@@ -26,12 +26,12 @@ from app.models.data_entry import (
     DataEntryStatusEnum,
     DataEntryTypeEnum,
 )
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions.taxonomy import EmissionType
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.data_entry import BaseModuleHandler
+from tests.conftest import make_emission
 
 
 async def _seed_purchase_module(db_session: AsyncSession, n_entries: int = 7) -> int:
@@ -80,8 +80,8 @@ async def _seed_purchase_module(db_session: AsyncSession, n_entries: int = 7) ->
     await db_session.flush()
     for i, entry in enumerate(entries):
         db_session.add(
-            DataEntryEmission(
-                data_entry_id=entry.id,
+            make_emission(
+                entry,
                 emission_type_id=EmissionType.purchases__it_equipment.value,
                 kg_co2eq=100.0 * (i + 1),
             )

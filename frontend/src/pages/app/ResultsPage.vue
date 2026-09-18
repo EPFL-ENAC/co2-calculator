@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { matDownload } from '@quasar/extras/material-icons';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import {
   computed,
   defineAsyncComponent,
@@ -639,7 +641,7 @@ const getUncertainty = (
           <div class="flex column justify-between">
             <q-btn
               color="info"
-              icon="download"
+              :icon="matDownload"
               :label="$t('results_download_pdf')"
               unelevated
               no-caps
@@ -745,8 +747,8 @@ const getUncertainty = (
 
           <q-separator />
 
-          <div class="results-charts-grid results-overview__charts">
-            <div class="results-charts-grid__main">
+          <div class="charts-grid results-overview__charts">
+            <div class="charts-grid__main">
               <template v-if="mountPrimaryCharts">
                 <ModuleCarbonFootprintChart
                   :breakdown-data="moduleStore.state.emissionBreakdown"
@@ -765,16 +767,16 @@ const getUncertainty = (
 
             <q-separator
               vertical
-              class="results-charts-grid__separator"
+              class="charts-grid__separator"
               aria-hidden="true"
             />
 
-            <div class="results-charts-grid__side">
+            <div class="charts-grid__side">
               <template v-if="!isModuleValidated(MODULES.Headcount)">
                 <q-card flat bordered class="validation-required-card">
                   <q-card-section class="validation-required-card__content">
                     <q-icon
-                      name="o_info"
+                      :name="outlinedInfo"
                       size="md"
                       color="info"
                       class="q-mb-md"
@@ -1000,7 +1002,7 @@ const getUncertainty = (
                           class="validation-required-card__content"
                         >
                           <q-icon
-                            name="o_info"
+                            :name="outlinedInfo"
                             size="md"
                             color="accent"
                             class="q-mb-md"
@@ -1205,51 +1207,6 @@ $combine-chip-padding-x: 1.125rem;
 
 :deep(.q-expansion-item__content > .q-separator:last-child) {
   display: none;
-}
-
-.results-charts-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  contain: layout style;
-}
-
-.results-charts-grid__main,
-.results-charts-grid__side {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-
-  :deep(.q-card) {
-    border: none !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-  }
-}
-
-.results-charts-grid__separator {
-  display: none;
-}
-
-@media (min-width: 1024px) {
-  .results-charts-grid {
-    flex-direction: row;
-    align-items: stretch;
-    gap: 0;
-  }
-
-  .results-charts-grid__main {
-    flex: 2;
-  }
-
-  .results-charts-grid__side {
-    flex: 1;
-  }
-
-  .results-charts-grid__separator {
-    display: block;
-    align-self: stretch;
-  }
 }
 
 .additional-expand-arrow {

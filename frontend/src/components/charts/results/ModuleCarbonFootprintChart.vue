@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  outlinedBarChart,
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, type PropType, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
@@ -55,7 +60,7 @@ import { formatTonnesForChart } from '@/utils/number';
 import { stackShade } from '@/utils/chart-shades';
 import { usePrintMode } from '@/composables/print/usePrintMode';
 import { downloadEchartAsPng } from '@/utils/chartDownload';
-import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/download';
 
 const props = defineProps({
   breakdownData: {
@@ -1332,7 +1337,6 @@ const chartOption = computed((): EChartsOption => {
       top: 80,
       // Reserve room for the icon button row when it replaces the text labels.
       bottom: props.moduleIconAxis ? 96 : '0%',
-      containLabel: true,
     },
     xAxis: {
       type: 'category',
@@ -1362,8 +1366,12 @@ const chartOption = computed((): EChartsOption => {
     yAxis: {
       type: 'value',
       name: t('tco2eq'),
+      // ECharts 6 keeps the axis name clear of the tick labels (and inside the
+      // canvas) on its own; nameGap is then the offset from the labels. The
+      // legacy grid.containLabel would switch that back off, so it is gone.
       nameLocation: 'middle',
-      nameGap: 40,
+      nameMoveOverlap: true,
+      nameGap: 12,
       nameRotate: 90,
       nameTextStyle: {
         fontSize: 11,
@@ -1498,7 +1506,7 @@ const downloadCSV = () => {
         </span>
         <q-icon
           v-if="!isPrintMode"
-          name="o_info"
+          :name="outlinedInfo"
           size="xs"
           color="primary"
           class="cursor-pointer"
@@ -1555,7 +1563,7 @@ const downloadCSV = () => {
         <q-btn
           v-if="props.enableCompareYears"
           color="black"
-          icon="o_bar_chart"
+          :icon="outlinedBarChart"
           :label="$t('results_compare_years')"
           outline
           no-caps
@@ -1629,7 +1637,7 @@ const downloadCSV = () => {
         unelevated
         no-caps
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_png')"
         size="xs"
         dense
@@ -1640,7 +1648,7 @@ const downloadCSV = () => {
         unelevated
         no-caps
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_csv')"
         size="xs"
         dense

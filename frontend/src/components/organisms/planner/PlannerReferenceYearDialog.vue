@@ -6,7 +6,7 @@
     <q-card style="min-width: 460px">
       <q-card-section class="row items-center q-pb-none">
         <q-icon
-          name="o_calendar_month"
+          :name="outlinedCalendarMonth"
           size="sm"
           color="info"
           class="q-mr-sm"
@@ -15,7 +15,13 @@
           {{ $t('planner_reference_year_dialog_title', { year }) }}
         </div>
         <q-space />
-        <q-btn v-close-popup flat size="md" icon="o_close" color="grey-6" />
+        <q-btn
+          v-close-popup
+          flat
+          size="md"
+          :icon="outlinedClose"
+          color="grey-6"
+        />
       </q-card-section>
 
       <q-separator class="q-mt-sm" />
@@ -40,7 +46,7 @@
 
         <q-banner dense rounded class="bg-red-1 text-negative q-mt-md">
           <template #avatar>
-            <q-icon name="o_warning" color="negative" size="sm" />
+            <q-icon :name="outlinedWarning" color="negative" size="sm" />
           </template>
           <div class="text-body2">
             {{ $t('planner_reference_year_dialog_wipe_warning', { year }) }}
@@ -81,6 +87,11 @@
 </template>
 
 <script setup lang="ts">
+import {
+  outlinedCalendarMonth,
+  outlinedClose,
+  outlinedWarning,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 

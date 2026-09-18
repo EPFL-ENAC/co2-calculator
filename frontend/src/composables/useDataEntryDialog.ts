@@ -1,5 +1,5 @@
 import { ref, computed, watch, type Ref } from 'vue';
-import { useFilesStore, type FileObject } from '@/stores/files';
+import { useFilesStore } from '@/stores/files';
 import {
   useBackofficeDataManagement,
   TargetType,
@@ -12,6 +12,7 @@ import {
   type ConnectorSpecRead,
 } from '@/stores/connectors';
 import { useQuasar } from 'quasar';
+import { lastJobForTarget } from '@/composables/lastJobForTarget';
 import { useI18n } from 'vue-i18n';
 
 interface UseDataEntryDialogOptions {
@@ -30,7 +31,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   const { t: $t } = useI18n();
 
   const showDialog = ref<boolean>(false);
-  const selectedFiles = ref<FileObject[]>([]);
+  const selectedFiles = ref<File[]>([]);
   const isUploading = ref<boolean>(false);
   const isConnecting = ref<boolean>(false);
 
@@ -52,10 +53,10 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   );
 
   const showOverwriteWarning = computed(() => {
-    const lastJob =
-      options.targetType.value === TargetType.DATA_ENTRIES.valueOf()
-        ? options.row.value.lastDataJob
-        : options.row.value.lastFactorJob;
+    const lastJob = lastJobForTarget(
+      options.row.value,
+      options.targetType.value,
+    );
     return !!lastJob && lastJob.result !== 2;
   });
 

@@ -116,6 +116,17 @@ class TestTransformSkipRules:
         )
         assert out == []
 
+    async def test_fte_is_rounded_to_module_decimals(self):
+        """#2464: HR feeds carry more precision than the module accepts
+        (one decimal, #2318). Round at ingest so the stored row is one the
+        edit form will submit again, instead of failing validation later.
+        """
+        provider = _make_provider()
+        out = await provider.transform_data(
+            [_make_record(**{HeadcountMembersApiProvider.CAPTION_FTE: "0.753"})]
+        )
+        assert out[0]["fte"] == 0.8
+
     async def test_fte_zero_is_kept(self):
         # 0.0 is a valid FTE (e.g. hosted guests) — must not be dropped
         # by a falsy check.

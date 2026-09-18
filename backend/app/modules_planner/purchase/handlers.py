@@ -33,7 +33,6 @@ class _PlannerPurchaseBase(BaseModuleHandler):
     """
 
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
-    require_subkind_for_factor = False
     require_factor_to_match = False
     subkind_field = None
 

@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.models.data_ingestion import IngestionResult
+from app.models.data_ingestion import EntityType, IngestionResult
 from app.tasks import ingestion_tasks as ingest_mod
 from app.tasks.registry import _REGISTRY, get_handler
 
@@ -920,3 +920,109 @@ async def test_csv_ingest_fan_out_counts_only_owned_children():
     assert mock_chain.await_count == len(expected_dets)
     assert "recalc_jobs_chained" not in meta  # Phase 5B retired
     assert meta["result"] == IngestionResult.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# #2527 B1 — the handler must hand its module pin to the advisory lock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_pin"),
+    [
+        ({"carbon_report_module_id": 101}, 101),
+        ({}, None),
+    ],
+)
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_passes_its_module_pin_to_the_lock(
+    config, expected_pin
+):
+    """A unit-scoped upload shares the factor gate; a per-year one does not.
+
+    Dropping the kwarg here would not break a test that only looks at the
+    fan-out — it would just quietly restore the head-to-tail
+    serialization B1 exists to remove.
+    """
+    job = _make_job(meta={"provider_name": "FakeCSV", "config": config})
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+        patch.object(
+            ingest_mod, "acquire_factor_recalc_lock", new_callable=AsyncMock
+        ) as mock_lock,
+    ):
+        await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_lock.assert_awaited_once()
+    assert mock_lock.await_args.kwargs["carbon_report_module_id"] == expected_pin
+
+
+@pytest.mark.parametrize(
+    ("entity_type", "expected_module_write"),
+    [
+        (EntityType.MODULE_UNIT_SPECIFIC, False),
+        (EntityType.MODULE_PER_YEAR, True),
+    ],
+)
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_locks_the_module_only_when_it_rewrites_it(
+    entity_type, expected_module_write
+):
+    """#2847 — a unit-specific upload is append-only, so it must not wait
+    on the module: same-unit uploads insert concurrently and only their
+    chained recalc serialises. A per-year upload replaces the slice and
+    keeps the write lock.
+    """
+    job = _make_job(
+        meta={"provider_name": "FakeCSV", "config": {"carbon_report_module_id": 101}}
+    )
+    job.entity_type = entity_type
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+        patch.object(
+            ingest_mod, "acquire_factor_recalc_lock", new_callable=AsyncMock
+        ) as mock_lock,
+    ):
+        await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_lock.assert_awaited_once()
+    assert mock_lock.await_args.kwargs["module_write"] is expected_module_write
+
+
+@pytest.mark.asyncio
+async def test_api_ingest_handler_never_narrows_the_lock():
+    """#2527 B1 divergence — API feeds are complete yearly exports.
+
+    ``_delete_existing_api_entries`` deletes by ``(year, det, source)``
+    across every unit's module, so no single carbon report module bounds
+    what an ``api_ingest`` writes: it must keep the exclusive gate even
+    when its config carries a module pin.
+    """
+    job = _make_job(
+        meta={"provider_name": "FakeAPI", "config": {"carbon_report_module_id": 101}}
+    )
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+        patch.object(
+            ingest_mod, "acquire_factor_recalc_lock", new_callable=AsyncMock
+        ) as mock_lock,
+    ):
+        await ingest_mod.api_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_lock.assert_awaited_once()
+    assert "carbon_report_module_id" not in mock_lock.await_args.kwargs

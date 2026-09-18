@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedIncompleteCircle } from '@quasar/extras/material-icons-outlined';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { BACKOFFICE_NAV } from '@/constant/navigation';
 import { MODULE_CARDS } from '@/constant/moduleCards';
@@ -206,7 +207,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
       </div>
       <div class="q-mt-xl">
         <q-expansion-item
-          icon="mdi-chart-arc"
+          :icon="outlinedIncompleteCircle"
           :label="
             $t('backoffice_reporting_module_status_label', {
               count: $t('backoffice_reporting_all_modules'),

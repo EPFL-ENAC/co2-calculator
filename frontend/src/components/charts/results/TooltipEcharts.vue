@@ -8,6 +8,7 @@
       v-for="(row, i) in tooltipState.rows"
       :key="i"
       class="chart-tooltip__row"
+      :class="{ 'chart-tooltip__row--heading': row.heading }"
     >
       <ModuleIcon
         v-if="row.icon"
@@ -92,6 +93,16 @@ defineProps<{
 
     &:last-of-type {
       margin-bottom: 0;
+    }
+
+    &--heading {
+      margin-top: var(--semantic-spacing-xs);
+      font-weight: var(--semantic-font-weight-bold);
+
+      .chart-tooltip__label,
+      .chart-tooltip__value {
+        font-weight: var(--semantic-font-weight-bold);
+      }
     }
 
     &--separator {

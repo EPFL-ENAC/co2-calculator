@@ -163,6 +163,7 @@ const emissionsField: ModuleField = {
   hideIn: {
     form: true,
   },
+  tooltip: 'module-professional-travel-submodule-travel-table-kg_co2eq',
 };
 
 const planeCabinClassField: ModuleField = {
@@ -251,12 +252,7 @@ export const professionalTravel: ModuleConfig = {
       type: 'plane' as ProfessionalTravelSubType,
       tableNameKey: `${MODULES.ProfessionalTravel}-plane-table-title`,
       moduleFields: planeFields,
-      requiredFieldIds: [
-        'origin_iata',
-        'destination_iata',
-        'user_institutional_id',
-        'cabin_class',
-      ],
+      requiredFieldIds: ['origin_iata', 'destination_iata', 'cabin_class'],
       csvTemplateHeaders: [
         'from',
         'to',
@@ -276,12 +272,7 @@ export const professionalTravel: ModuleConfig = {
       type: 'train' as ProfessionalTravelSubType,
       tableNameKey: `${MODULES.ProfessionalTravel}-train-table-title`,
       moduleFields: trainFields,
-      requiredFieldIds: [
-        'origin_name',
-        'destination_name',
-        'user_institutional_id',
-        'cabin_class',
-      ],
+      requiredFieldIds: ['origin_name', 'destination_name', 'cabin_class'],
       csvTemplateHeaders: [
         'origin_name',
         'destination_name',

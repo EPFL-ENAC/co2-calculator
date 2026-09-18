@@ -2,7 +2,16 @@ from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID
 
-from sqlalchemy import JSON, Column, ForeignKey, Index, Integer, String, text
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    text,
+)
 from sqlalchemy import UUID as SAUUID
 from sqlalchemy import DateTime as SADateTime
 from sqlalchemy import Enum as SAEnum
@@ -12,6 +21,52 @@ from app.models._field_defaults import default_dict
 from app.models.user import UserProvider
 
 # from app.models.user import UserProvider
+
+# #2527 Phase A — an ``emission_recalc`` child that pins
+# ``carbon_report_module_ids`` recomputes ONE carbon report module's
+# entries, so it is disjoint from every other unit's child for the same
+# (module_type, det, year).  ``uq_emission_recalc_active_unscoped`` below and the
+# Python pre-check in ``app.tasks._chain`` both restrict themselves to
+# whole-slice (unscoped) children with this predicate — they must stay
+# byte-identical, hence the shared constant.  ``->`` (not ``?``) so the
+# fragment is valid for both ``json`` and ``jsonb`` columns and carries
+# no paramstyle-ambiguous character.
+EMISSION_RECALC_UNSCOPED_SQL = "meta -> 'config' -> 'carbon_report_module_ids' IS NULL"
+
+# The complement, for the scoped index below.  A scoped child still
+# dedups — just on its own carbon report module rather than fleet-wide,
+# so one unit re-uploading the same module twice collapses while two
+# different units never do.  The indexed expression casts to ``jsonb``
+# because ``meta`` is ``json``, which has no btree equality operator.
+EMISSION_RECALC_SCOPED_SQL = (
+    "meta -> 'config' -> 'carbon_report_module_ids' IS NOT NULL"
+)
+# Outer parentheses are required: an index column list rejects a bare
+# ``expr::type``, and they are harmless in the pre-check's WHERE.
+EMISSION_RECALC_SCOPE_EXPR = "((meta -> 'config' -> 'carbon_report_module_ids')::jsonb)"
+
+# States a pending child can be in for a new ``chain_job`` to collapse
+# onto it.  The partial unique indexes below and the pre-check in
+# ``app.tasks._chain`` are built from the same tuples, so they cannot
+# disagree on which rows dedup.
+ACTIVE_JOB_STATES = ("NOT_STARTED", "QUEUED", "RUNNING")
+# #2847 — a unit-specific ingest no longer waits for the module lock, so
+# its rows can commit after a RUNNING scoped recalc already read the
+# module.  Collapsing onto that RUNNING row would leave the new rows
+# without emissions, so the scoped index only dedups onto children that
+# have not started; the new child then queues behind the running one on
+# the recalc's own module lock.  Unscoped recalcs keep RUNNING: their
+# writer (``factor_ingest``) holds the exclusive gate until they commit.
+EMISSION_RECALC_SCOPED_ACTIVE_STATES = ("NOT_STARTED", "QUEUED")
+
+
+def active_states_sql(states: tuple[str, ...]) -> str:
+    """Render a state tuple as the ``IN (...)`` list the indexes use."""
+    return ", ".join(f"'{state}'::ingestion_state_enum" for state in states)
+
+
+_ACTIVE_STATES_SQL = active_states_sql(ACTIVE_JOB_STATES)
+_SCOPED_ACTIVE_STATES_SQL = active_states_sql(EMISSION_RECALC_SCOPED_ACTIVE_STATES)
 
 
 # ==========================================
@@ -237,6 +292,14 @@ class DataIngestionJobBase(SQLModel):
 
 class DataIngestionJob(DataIngestionJobBase, table=True):
     __tablename__ = "data_ingestion_jobs"
+    __table_args__ = (
+        # A unit-pinned job with no unit is unscopable: every /sync read
+        # gate silently no-ops on it (#2654, four months unnoticed).
+        CheckConstraint(
+            "entity_type <> 'MODULE_UNIT_SPECIFIC' OR entity_id IS NOT NULL",
+            name="ck_data_ingestion_jobs_unit_specific_has_entity_id",
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     is_current: bool = Field(
@@ -396,30 +459,45 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             "year",
             unique=True,
             postgresql_where=text(
-                "job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum"
-                ")"
+                f"job_type = 'aggregation' AND state IN ({_ACTIVE_STATES_SQL})"
             ),
         ).ddl_if(dialect="postgresql"),
         Index(
-            "uq_emission_recalc_active",
+            "uq_emission_recalc_active_unscoped",
             "module_type_id",
             "data_entry_type_id",
             "year",
             unique=True,
             postgresql_where=text(
                 "job_type = 'emission_recalc' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum"
-                ") "
+                f"AND state IN ({_ACTIVE_STATES_SQL}) "
                 "AND module_type_id IS NOT NULL "
                 "AND data_entry_type_id IS NOT NULL "
-                "AND year IS NOT NULL"
+                "AND year IS NOT NULL "
+                f"AND {EMISSION_RECALC_UNSCOPED_SQL}"
+            ),
+        ).ddl_if(dialect="postgresql"),
+        # The scoped half of the same idea (#2527 Phase A/B): a child
+        # pinning carbon_report_module_ids dedups against the SAME module
+        # only.  Two units stay disjoint — the bug this pair replaced —
+        # while one unit re-uploading the same module twice still
+        # collapses, which is what the fleet-wide index used to give it.
+        # Only onto a child that has not started (#2847): see
+        # ``EMISSION_RECALC_SCOPED_ACTIVE_STATES``.
+        Index(
+            "uq_emission_recalc_active_scoped",
+            "module_type_id",
+            "data_entry_type_id",
+            "year",
+            text(EMISSION_RECALC_SCOPE_EXPR),
+            unique=True,
+            postgresql_where=text(
+                "job_type = 'emission_recalc' "
+                f"AND state IN ({_SCOPED_ACTIVE_STATES_SQL}) "
+                "AND module_type_id IS NOT NULL "
+                "AND data_entry_type_id IS NOT NULL "
+                "AND year IS NOT NULL "
+                f"AND {EMISSION_RECALC_SCOPED_SQL}"
             ),
         ).ddl_if(dialect="postgresql"),
     )

@@ -86,13 +86,16 @@ export default defineConfig(function () {
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
 
+    // No icon webfonts: every icon is an inline SVG imported per component
+    // from @quasar/extras, so only the icons in use are bundled.
     // https://github.com/quasarframework/quasar/tree/dev/extras
-    extras: [
-      'material-icons', // optional, you are not bound to it
-      'material-icons-outlined',
-    ],
+    extras: [],
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
+    // Exposed to index.html as <%= appVersion %> so unhashed public/ files
+    // (favicon.ico) get a cache-busting query without anyone remembering.
+    htmlVariables: { appVersion: APP_VERSION },
+
     build: {
       target: {
         browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],
@@ -242,6 +245,10 @@ export default defineConfig(function () {
         viteConf.css.preprocessorOptions.scss =
           viteConf.css.preprocessorOptions.scss || {};
         viteConf.css.preprocessorOptions.scss.silenceDeprecations = ['import'];
+
+        viteConf.optimizeDeps ??= {};
+        viteConf.optimizeDeps.exclude ??= [];
+        viteConf.optimizeDeps.exclude.push('maplibre-gl');
       },
     },
 
@@ -262,6 +269,9 @@ export default defineConfig(function () {
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#framework
     framework: {
+      // Quasar's own component icons (dropdown arrows, sort carets, close
+      // buttons) as inline SVG — they default to webfont ligature names.
+      iconSet: 'svg-material-icons',
       plugins: [
         'Dialog',
         'Loading',

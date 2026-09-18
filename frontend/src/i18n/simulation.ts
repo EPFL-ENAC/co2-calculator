@@ -67,6 +67,10 @@ export default {
     en: 'CO₂ Explorer',
     fr: 'Explorateur CO₂',
   },
+  simulation_explore_print_no_exploration: {
+    en: 'No exploration to report on — start one from the CO₂ Explorer.',
+    fr: "Aucune exploration à présenter — démarrez-en une depuis l'Explorateur CO₂.",
+  },
   simulation_explore_page_intro: {
     en: 'Explore the carbon impact of any equipment, travel, purchase, research facilities and lab activity quickly, temporarily, and without saving.',
     fr: "Explorez l'impact carbone de tout équipement, voyage, achat, infrastructure de recherche et activité de laboratoire rapidement, temporairement, et sans sauvegarder.",
@@ -155,9 +159,13 @@ export default {
     en: '{name} carbon footprint',
     fr: 'Empreinte carbone de {name}',
   },
+  planner_results_per_fte_chart_title: {
+    en: '{name} carbon footprint per FTE',
+    fr: 'Empreinte carbone de {name} par EPT',
+  },
   planner_results_series_years: {
-    en: 'Detailed per year',
-    fr: 'Détail par année',
+    en: 'Effective',
+    fr: 'Effective',
   },
   planner_results_grant_total_title: {
     en: 'Grant proposal carbon footprint',
@@ -351,8 +359,8 @@ export default {
     fr: 'Budget total',
   },
   planner_grant_budget_hint: {
-    en: 'Set the total budget of the grant, then distribute it in the sections below.',
-    fr: 'Saisissez le budget total du financement, puis répartissez-le dans les sections ci-dessous.',
+    en: 'You can enter the total funding budget here and then allocate it across the sections below. Optional: this allows you to track how the total budget is distributed across the different modules. Please note that this value is not taken into account when calculating the carbon footprint.',
+    fr: 'Il vous est possible de saisir ici le budget total du financement, puis de la répartir dans les sections ci-dessous. Optionnel, cela peut vous permet de suivre la répartition dans les modules de tout le budget. Attention cette donnée n’est pas considéré dans le calcul d’empreinte carbone.',
   },
   planner_grant_budget_distribution: {
     en: '{distributed} {currency} of {total} {currency} allocated. {remaining} {currency} remaining to allocate in the categories below.',
@@ -410,10 +418,6 @@ export default {
     en: 'Planned result: {value} t CO₂-eq',
     fr: 'Résultat prévu : {value} t CO₂-eq',
   },
-  planner_equipment_reference_error: {
-    en: 'Could not load the reference year total.',
-    fr: "Impossible de charger le total de l'année de référence.",
-  },
   planner_equipment_global_error: {
     en: 'Could not apply the percentage',
     fr: "Impossible d'appliquer le pourcentage",
@@ -425,6 +429,14 @@ export default {
   planner_equipment_switch_to_per_line_message: {
     en: 'The global percentage and the equipment budget will be reset so each line can be planned on its own. Equipment added by hand will be deleted.',
     fr: 'Le pourcentage global et le budget équipements seront réinitialisés afin de planifier chaque ligne individuellement. Les équipements ajoutés à la main seront supprimés.',
+  },
+  planner_equipment_switch_to_global_year_message: {
+    en: 'The percentages entered per line will be reset so one global percentage can be used instead. Equipment added by hand will be deleted.',
+    fr: "Les pourcentages saisis par ligne seront réinitialisés afin d'utiliser un pourcentage global. Les équipements ajoutés à la main seront supprimés.",
+  },
+  planner_equipment_switch_to_per_line_year_message: {
+    en: 'The global percentage will be reset so each line can be planned on its own. Equipment added by hand will be deleted.',
+    fr: 'Le pourcentage global sera réinitialisé afin de planifier chaque ligne individuellement. Les équipements ajoutés à la main seront supprimés.',
   },
   planner_equipment_switch_error: {
     en: 'Could not switch the planning mode.',

@@ -96,6 +96,7 @@ async def _seed_pod(
     git_sha: str | None = "abc1234",
     app_version: str | None = "1.0.0",
     heartbeat_age_seconds: int = 0,
+    runs_jobs: bool = True,
 ) -> Pod:
     """Insert a pod row with a controllable ``last_heartbeat_at``
     offset.  ``heartbeat_age_seconds = 0`` → "live right now"; large
@@ -107,6 +108,7 @@ async def _seed_pod(
             pod_id=pod_id,
             git_sha=git_sha,
             app_version=app_version,
+            runs_jobs=runs_jobs,
             started_at=now - timedelta(minutes=10),
             last_heartbeat_at=now - timedelta(seconds=heartbeat_age_seconds),
         )
@@ -271,9 +273,9 @@ async def test_workers_endpoint_tolerates_tz_naive_rows(pg_app):
     async with Sf() as s:
         await s.execute(
             text(
-                "INSERT INTO pods (pod_id, git_sha, app_version, "
+                "INSERT INTO pods (pod_id, git_sha, app_version, runs_jobs, "
                 "started_at, last_heartbeat_at) VALUES "
-                "(:pod_id, :sha, :ver, :start, :hb)"
+                "(:pod_id, :sha, :ver, TRUE, :start, :hb)"
             ),
             {
                 "pod_id": "pod-naive",
@@ -298,3 +300,22 @@ async def test_workers_endpoint_tolerates_tz_naive_rows(pg_app):
     # within 2× interval), confirming the coercion path matched the
     # tz-aware filter result.
     assert body[0]["heartbeat_age_seconds"] < 2 * _interval_seconds()
+
+
+@pytest.mark.asyncio
+async def test_workers_endpoint_lists_job_running_pods_only(pg_app):
+    """#2853 — an API pod heartbeats (its pod_ip feeds the cross-pod
+    broadcast) but never claims a job, so it must not appear as a worker.
+    """
+    Sf = pg_app["factory"]
+    await _seed_pod(Sf, pod_id="pod-worker", runs_jobs=True)
+    await _seed_pod(Sf, pod_id="pod-api", runs_jobs=False)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        resp = await client.get(WORKERS_URL)
+
+    assert resp.status_code == 200, resp.text
+    assert {r["pod_id"] for r in resp.json()} == {"pod-worker"}

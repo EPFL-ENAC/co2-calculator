@@ -685,3 +685,48 @@ async def test_report_creation_statement_budget(async_session):
         event.remove(engine.sync_engine, "before_cursor_execute", _count)
 
     assert len(statements) <= 12, statements
+
+
+@pytest.mark.asyncio
+async def test_emptied_module_ids_flags_stats_that_count_deleted_entries(
+    async_session,
+):
+    """#2706: a full-year re-import deletes a module's rows without any
+    recalc ever naming it (nothing left to recalculate), so the aggregation
+    scope must pick it up from its own stale stats. Three cases: rows gone
+    but stats count them (flagged), rows still there (not), never had stats
+    (not — nothing stale to refresh).
+    """
+    emptied = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status=ModuleStatus.IN_PROGRESS,
+        stats={"entry_count": 3, "total": 12.0},
+    )
+    live = CarbonReportModule(
+        carbon_report_id=2,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status=ModuleStatus.IN_PROGRESS,
+        stats={"entry_count": 1, "total": 5.0},
+    )
+    never_computed = CarbonReportModule(
+        carbon_report_id=3,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status=ModuleStatus.NOT_STARTED,
+        stats=None,
+    )
+    async_session.add_all([emptied, live, never_computed])
+    await async_session.flush()
+    async_session.add(
+        DataEntry(
+            carbon_report_module_id=live.id,
+            data_entry_type_id=DataEntryTypeEnum.plane.value,
+            data={},
+        )
+    )
+    await async_session.flush()
+
+    service = CarbonReportModuleService(async_session)
+    stale = await service.emptied_module_ids([emptied, live, never_computed])
+
+    assert stale == {emptied.id}

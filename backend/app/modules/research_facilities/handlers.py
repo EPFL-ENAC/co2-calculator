@@ -39,7 +39,6 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
     # The planner grid enters a planned use in the platform's own metric, so
     # the option has to carry that unit to render its input suffix (#2391).
     taxonomy_meta_fields: tuple[str, ...] = ("use_unit",)
-    require_subkind_for_factor = False
 
     sort_map = {
         "id": DataEntry.id,
@@ -148,7 +147,6 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
     # per-factor-row value, so it belongs on the subkind node too.
     kind_label_field: str | None = "researchfacility_name"
     taxonomy_meta_fields: tuple[str, ...] = ("use_unit",)
-    require_subkind_for_factor = False
     # Housing types are enum keys (fish/rodent) labeled by the #2613 seed
     # in both languages — sius_code shape, English display included.
     translated_code_fields = ("researchfacility_type",)

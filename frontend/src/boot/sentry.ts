@@ -1,3 +1,4 @@
+import { matClose } from '@quasar/extras/material-icons';
 import { defineBoot } from '#q-app';
 import { Dialog, Notify } from 'quasar';
 import { HTTPError } from 'ky';
@@ -88,7 +89,7 @@ function notifyError(message: string, caption?: string) {
     caption,
     position: 'top',
     timeout: 5000,
-    actions: [{ icon: 'close', color: 'white' }],
+    actions: [{ icon: matClose, color: 'white' }],
   });
 }
 

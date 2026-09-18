@@ -23,11 +23,11 @@ Lifecycle:
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Column
+from sqlalchemy import Boolean, Column, text
 from sqlalchemy import DateTime as SADateTime
 from sqlmodel import Field, SQLModel
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.utils.datetime_utc import as_utc
 
 
@@ -53,6 +53,12 @@ class Pod(SQLModel, table=True):
     # outside Kubernetes (local dev) — a pod with no IP is simply never a
     # broadcast target for cross-pod cache invalidation (#2258 follow-up).
     pod_ip: str | None = Field(default=None, max_length=64)
+    # Whether this pod executes jobs (#2853). API pods heartbeat too, for
+    # ``pod_ip``, but the workers view lists job runners only.
+    runs_jobs: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
     # When this pod first registered.  Differs from
     # ``last_heartbeat_at`` so the UI can show "pod uptime" alongside
     # "heartbeat age".  ``timezone=True`` so asyncpg / psycopg
@@ -67,6 +73,13 @@ class Pod(SQLModel, table=True):
     last_heartbeat_at: datetime = Field(
         sa_column=Column(SADateTime(timezone=True), nullable=False)
     )
+
+
+def pod_runs_jobs(settings: Settings) -> bool:
+    """A pod runs jobs through the poller (worker split) or inline
+    dispatch (local dev); a deployed API pod has both switched off.
+    """
+    return settings.RUN_BACKGROUND_POLLER or settings.DISPATCH_JOBS_INLINE
 
 
 def live_cutoff() -> datetime:

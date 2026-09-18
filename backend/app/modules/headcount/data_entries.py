@@ -1,5 +1,6 @@
 from pydantic import BaseModel, field_validator
 
+from app.models.module_type import ModuleTypeEnum, module_input_decimals
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponseGen,
@@ -10,6 +11,15 @@ SIUS_CODE_VALUES = {"51", "52", "53", "54", "56", "57", "58", "59"}
 
 # #2254: members arriving without a (known) SIUS code are "Other staff".
 OTHER_SIUS_CODE = "-1"
+
+FTE_DECIMALS = module_input_decimals(ModuleTypeEnum.headcount)
+
+
+def reject_extra_fte_decimals(v: float) -> None:
+    # #2464: server-side twin of the form's maxDecimals (#2318) — a value
+    # the API accepts must be one the edit form will submit again.
+    if round(v, FTE_DECIMALS) != v:
+        raise ValueError(f"FTE must have at most {FTE_DECIMALS} decimal place(s)")
 
 
 def normalize_sius_code(value: object) -> str:
@@ -67,6 +77,7 @@ class HeadCountCreate(DataEntryCreate):
     def validate_fte(cls, v: float | None) -> float | None:
         if v is None:
             return v
+        reject_extra_fte_decimals(v)
         if v > 1:
             raise ValueError("FTE cannot exceed 1")
         if v < 0:
@@ -88,6 +99,7 @@ class HeadCountStudentCreate(DataEntryCreate):
     @field_validator("fte", mode="after")
     @classmethod
     def validate_fte(cls, v: float) -> float:
+        reject_extra_fte_decimals(v)
         if v < 0:
             raise ValueError("FTE must be at least 0")
         return v
@@ -101,6 +113,7 @@ class HeadCountStudentUpdate(DataEntryUpdate):
     def validate_fte(cls, v: float | None) -> float | None:
         if v is None:
             return v
+        reject_extra_fte_decimals(v)
         if v < 0:
             raise ValueError("FTE must be at least 0")
         return v
@@ -130,6 +143,7 @@ class HeadCountUpdate(DataEntryUpdate):
     def validate_fte(cls, v: float | None) -> float | None:
         if v is None:
             return v
+        reject_extra_fte_decimals(v)
         if v > 1:
             raise ValueError("FTE cannot exceed 1")
         if v < 0:

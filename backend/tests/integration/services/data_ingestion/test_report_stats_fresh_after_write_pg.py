@@ -33,11 +33,11 @@ import app.core.security as security_module
 from app.main import app
 from app.models.carbon_report import CarbonReport
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import ModuleTypeEnum
 from app.modules.emissions import EmissionType
 from app.modules.emissions.registry import emission_type_scope
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from tests.conftest import make_emission
 
 pytestmark = pytest.mark.asyncio
 
@@ -69,8 +69,8 @@ async def test_report_stats_are_written_by_the_time_recompute_returns(
             session.add(entry)
             await session.flush()
             session.add(
-                DataEntryEmission(
-                    data_entry_id=entry.id,
+                make_emission(
+                    entry,
                     emission_type_id=EmissionType.process_emissions.value,
                     kg_co2eq=42.0,
                     scope=emission_type_scope(EmissionType.process_emissions),

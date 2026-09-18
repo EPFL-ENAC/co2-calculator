@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { matChevronLeft, matChevronRight } from '@quasar/extras/material-icons';
+import { outlinedVisibility } from '@quasar/extras/material-icons-outlined';
 import { computed } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -212,7 +214,7 @@ const columns = computed<QTableColumn[]>(() => [
   >
     <template #pagination="scope">
       <q-btn
-        icon="chevron_left"
+        :icon="matChevronLeft"
         color="grey-8"
         round
         dense
@@ -224,7 +226,7 @@ const columns = computed<QTableColumn[]>(() => [
         {{ scope.pagination.page }} / {{ scope.pagesNumber }}
       </div>
       <q-btn
-        icon="chevron_right"
+        :icon="matChevronRight"
         color="grey-8"
         round
         dense
@@ -280,7 +282,7 @@ const columns = computed<QTableColumn[]>(() => [
           flat
           round
           color="grey-7"
-          icon="o_visibility"
+          :icon="outlinedVisibility"
           size="sm"
           @click="emit('viewUnit', p.row.id)"
         >

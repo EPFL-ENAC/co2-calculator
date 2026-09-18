@@ -9,13 +9,14 @@
       :disable="props.disable"
       :title="props.hint ? $t(props.hint) : undefined"
       hide-bottom-space
-      dropdown-icon="expand_more"
+      :dropdown-icon="matExpandMore"
       @update:model-value="onValueChange"
     />
   </div>
 </template>
 
 <script setup lang="ts">
+import { matExpandMore } from '@quasar/extras/material-icons';
 import { computed, ref, toRef, watch } from 'vue';
 import { useEquipmentClassOptions } from '@/composables/useEquipmentClassOptions';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
@@ -239,6 +240,7 @@ async function onValueChange(val: string | number | null) {
   display: flex;
   align-items: center;
   height: 2.5rem;
+  padding-left: tokens.$table-inline-field-padding-x;
   color: tokens.$table-color-disabled;
   cursor: default;
 }

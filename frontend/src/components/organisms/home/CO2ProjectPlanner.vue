@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import {
+  outlinedAdd,
+  outlinedCalendarMonth,
+  outlinedClose,
+  outlinedContentCopy,
+  outlinedDelete,
+  outlinedEdit,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -10,10 +18,10 @@ import {
 } from '@/stores/simulatorPlans';
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { parseUtcDate } from '@/utils/date';
+import { formatYmd, parseUtcDate } from '@/utils/date';
 import { formatTonnesCO2 } from '@/utils/number';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const workspaceStore = useWorkspaceStore();
@@ -29,11 +37,14 @@ const confirmDelete = ref(false);
 const planToDelete = ref<SimulatorPlan | null>(null);
 
 const ROWS_PER_PAGE = 5;
+// Footprint columns whose null value (no such section on the plan) renders
+// as a greyed dash.
+const TONNES_COLUMNS = new Set(['grant_tco2eq', 'tco2eq']);
 const pagination = ref({ rowsPerPage: ROWS_PER_PAGE });
 
 function formatPlanDate(dateString: string | null): string {
   if (!dateString) return '';
-  return parseUtcDate(dateString).toLocaleDateString(locale.value);
+  return formatYmd(parseUtcDate(dateString));
 }
 
 const planColumns = computed<QTableColumn[]>(() => [
@@ -59,9 +70,20 @@ const planColumns = computed<QTableColumn[]>(() => [
     align: 'left',
     sortable: true,
   },
+  // Grant and years totals count the same project from two angles, so they
+  // sit side by side and are never summed (#1977). A plan without that
+  // section has a null total and shows a greyed dash rather than 0 (#2805).
+  {
+    name: 'grant_tco2eq',
+    label: t('planner_table_grant_tco2eq'),
+    field: 'grant_total_tonnes_co2eq',
+    align: 'right',
+    sortable: true,
+    format: (val) => formatTonnesCO2(val as number | null),
+  },
   {
     name: 'tco2eq',
-    label: t('tco2eq'),
+    label: t('planner_table_years_tco2eq'),
     field: 'total_tonnes_co2eq',
     align: 'right',
     sortable: true,
@@ -128,7 +150,7 @@ onMounted(() => {
     <div class="co2-project-planner__inner">
       <div class="row items-start justify-between no-wrap q-mb-md">
         <div class="row items-center q-gutter-sm">
-          <q-icon name="o_calendar_month" size="md" color="info" />
+          <q-icon :name="outlinedCalendarMonth" size="md" color="info" />
           <h2 class="text-h3 q-mb-none">
             {{ $t('co2_project_planner_title') }}
           </h2>
@@ -139,7 +161,7 @@ onMounted(() => {
         <q-btn
           color="info"
           :label="$t('co2_project_planner_btn')"
-          icon="o_add"
+          :icon="outlinedAdd"
           unelevated
           no-caps
           size="md"
@@ -192,7 +214,7 @@ onMounted(() => {
               <template v-if="col.name === 'action'">
                 <div class="row no-wrap justify-end items-center">
                   <q-btn
-                    icon="o_content_copy"
+                    :icon="outlinedContentCopy"
                     color="black"
                     unelevated
                     no-caps
@@ -206,7 +228,7 @@ onMounted(() => {
                     </q-tooltip>
                   </q-btn>
                   <q-btn
-                    icon="o_edit"
+                    :icon="outlinedEdit"
                     color="black"
                     unelevated
                     no-caps
@@ -220,7 +242,7 @@ onMounted(() => {
                     </q-tooltip>
                   </q-btn>
                   <q-btn
-                    icon="o_delete"
+                    :icon="outlinedDelete"
                     color="black"
                     unelevated
                     no-caps
@@ -252,6 +274,14 @@ onMounted(() => {
                   {{ col.value }}
                 </router-link>
               </template>
+              <template
+                v-else-if="
+                  TONNES_COLUMNS.has(col.name) &&
+                  props.row[col.field as keyof SimulatorPlan] === null
+                "
+              >
+                <span class="text-grey-6">{{ col.value }}</span>
+              </template>
               <template v-else>{{ col.value }}</template>
             </q-td>
           </q-tr>
@@ -274,7 +304,7 @@ onMounted(() => {
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />

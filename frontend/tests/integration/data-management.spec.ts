@@ -331,12 +331,7 @@ test.describe('back-office data-management — happy paths', () => {
 
     await openHeadcountDataDialog(page);
 
-    // Pick a CSV file.  Target the dialog's q-file by its
-    // ``data-testid`` rather than a bare ``input[type=file]``: every
-    // submodule with an ``other`` reference dataset (e.g.
-    // Buildings/rooms) mounts its own hidden references file input
-    // regardless of expansion state, so ``.first()`` would otherwise
-    // hijack the references upload instead.
+    // Pick a CSV file via the dialog's q-file ``data-testid``.
     await page
       .getByTestId('data-entry-file-input')
       .locator('input[type=file]')
@@ -407,38 +402,33 @@ test.describe('back-office data-management — happy paths', () => {
     expect(dispatch?.body).toContain('"target_type":1'); // FACTORS
   });
 
-  test('5c — references upload: hidden file input → POST sync/dispatch with target_type=REFERENCE_DATA', async ({
+  test('5c — references upload: same dialog flow, target_type=REFERENCE_DATA', async ({
     page,
   }) => {
     const { requests } = await mockBackend(page);
     await page.goto(DATA_MANAGEMENT_URL);
 
-    // The Buildings/rooms submodule (module_type_id 3,
-    // data_entry_type_id 30) ships an ``other`` reference dataset, so
-    // its UploadCardReferences mounts a hidden file input even while
-    // the module is collapsed.  Drive that input directly — the
-    // visible "Upload Reference" button only proxies a native
-    // file-picker click, a dead-end in headless Chromium.
-    const refInput = page.getByTestId('reference-file-input-3-30');
-    await expect(refInput).toBeAttached({ timeout: 10000 });
+    // Buildings/rooms (module_type_id 3, data_entry_type_id 30) ships
+    // an ``other`` reference dataset.  Its card used to bypass the
+    // dialog with a hidden file input; it now routes through the same
+    // import dialog as data and factors.
+    await expandModuleAndSubmodule(page, /buildings/i, /rooms?/i);
+    const refBtn = page
+      .getByRole('button', { name: /(re)?upload reference/i })
+      .first();
+    await expect(refBtn).toBeVisible({ timeout: 10000 });
+    await refBtn.click();
+    await expect(page.getByTestId('data-entry-file-input')).toBeVisible();
 
-    await refInput.setInputFiles({
-      name: 'rooms.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from('room,area\nA,10\n', 'utf8'),
-    });
-
-    // References upload goes through the same temp-upload → dispatch
-    // path as the dialog flow, but with TargetType.REFERENCE_DATA (3)
-    // and no save-button step.
-    await expect
-      .poll(() =>
-        requests.find(
-          (r) =>
-            r.method === 'POST' && r.url.endsWith('/api/v1/files/temp-upload'),
-        ),
-      )
-      .toBeTruthy();
+    await page
+      .getByTestId('data-entry-file-input')
+      .locator('input[type=file]')
+      .setInputFiles({
+        name: 'rooms.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from('room,area\nA,10\n', 'utf8'),
+      });
+    await page.getByLabel('data-entry-save').click();
 
     await expect
       .poll(() =>
@@ -452,7 +442,90 @@ test.describe('back-office data-management — happy paths', () => {
       (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
     );
     expect(dispatch?.body).toContain('"target_type":3'); // REFERENCE_DATA
-    expect(dispatch?.body).toContain('"file_path":"/tmp/data.csv"');
+  });
+
+  test('5d — dropping a CSV on a card uploads straight away, no dialog', async ({
+    page,
+  }) => {
+    const { requests } = await mockBackend(page);
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    await expandHeadcountAndMember(page);
+    // Headcount > member: module_type_id 1, data_entry_type_id 1.
+    const card = page.getByTestId('upload-card-1-1-1');
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await dropCsvOn(page, card, 'factors.csv');
+
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+        ),
+      )
+      .toBeTruthy();
+    const dispatch = requests.find(
+      (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+    );
+    expect(dispatch?.body).toContain('"target_type":1'); // FACTORS
+    await expect(page.getByTestId('data-entry-file-input')).toHaveCount(0);
+  });
+
+  test('5e — Enter after picking a file triggers Save', async ({ page }) => {
+    const { requests } = await mockBackend(page);
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    await openHeadcountFactorsDialog(page);
+    await page
+      .getByTestId('data-entry-file-input')
+      .locator('input[type=file]')
+      .setInputFiles({
+        name: 'factors.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from('factor,value\nx,1\n', 'utf8'),
+      });
+    // QFile owns Enter (re-opens the picker); the dialog moves focus to
+    // Save after a pick so Enter submits.
+    await expect(page.getByLabel('data-entry-save')).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+        ),
+      )
+      .toBeTruthy();
+  });
+
+  test('5f — dropping on a reduction-objective card carries the file too', async ({
+    page,
+  }) => {
+    const { requests } = await mockBackend(page);
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    const expand = page
+      .getByRole('button', { name: /expand/i })
+      .filter({ hasText: /reduction objectives/i })
+      .first();
+    await expect(expand).toBeVisible({ timeout: 10000 });
+    await expand.click();
+    // Institutional footprint card: REDUCTION_OBJECTIVES (2), type 0.
+    const card = page.getByTestId('upload-card-2-0');
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await dropCsvOn(page, card, 'footprint.csv');
+
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+        ),
+      )
+      .toBeTruthy();
+    const dispatch = requests.find(
+      (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+    );
+    expect(dispatch?.body).toContain('"target_type":2');
+    expect(dispatch?.body).toContain('"reduction_objective_type_id":0');
   });
 
   test('6 — recalculate emissions: dialog → confirm → POST recalculate-emissions/{module}', async ({
@@ -1530,23 +1603,45 @@ async function openHeadcountFactorsDialog(page: Page): Promise<void> {
  * named "Expand" that wraps the labeled content; the easiest stable
  * selector is "the Expand button containing this text".
  */
+/** Dispatch a synthetic drop of ``name`` (CSV) on ``card``. */
+async function dropCsvOn(
+  page: Page,
+  card: ReturnType<Page['getByTestId']>,
+  name: string,
+) {
+  const dataTransfer = await page.evaluateHandle((fileName) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(['a,b\n1,2\n'], fileName, { type: 'text/csv' }));
+    return dt;
+  }, name);
+  await card.dispatchEvent('dragenter', { dataTransfer });
+  await expect(page.getByTestId('upload-card-drop-overlay')).toBeVisible();
+  await card.dispatchEvent('drop', { dataTransfer });
+}
+
 async function expandHeadcountAndMember(page: Page): Promise<void> {
-  // Module-level expand button for Headcount.
-  const headcountExpand = page
+  // "Member" (labelKey ``headcount-member``) renders singular under
+  // vue-i18n's pluralization without a count argument.
+  await expandModuleAndSubmodule(page, /headcount/i, /member/i);
+}
+
+async function expandModuleAndSubmodule(
+  page: Page,
+  moduleText: RegExp,
+  submoduleText: RegExp,
+): Promise<void> {
+  const moduleExpand = page
     .getByRole('button', { name: /expand/i })
-    .filter({ hasText: /headcount/i })
+    .filter({ hasText: moduleText })
     .first();
-  await expect(headcountExpand).toBeVisible({ timeout: 10000 });
-  await headcountExpand.click();
-  // Submodule-level expand for "Member" (labelKey
-  // ``headcount-member`` → "Member" singular under vue-i18n's
-  // pluralization without a count argument).
-  const memberExpand = page
+  await expect(moduleExpand).toBeVisible({ timeout: 10000 });
+  await moduleExpand.click();
+  const subExpand = page
     .getByRole('button', { name: /expand/i })
-    .filter({ hasText: /member/i })
+    .filter({ hasText: submoduleText })
     .first();
-  await expect(memberExpand).toBeVisible({ timeout: 10000 });
-  await memberExpand.click();
+  await expect(subExpand).toBeVisible({ timeout: 10000 });
+  await subExpand.click();
 }
 /**
  * E2E coverage for the back-office "Open year for users" flow (issue #867).

@@ -123,13 +123,28 @@ async function fillField(scope: Locator, label: string, value: string) {
 async function menuOptions(page: Page): Promise<string[]> {
   const menu = page.locator('.q-menu:visible').last();
   await expect(menu).toBeVisible();
+  // The popup opens before its options arrive: option lists are fetched from
+  // the taxonomy endpoint on demand (#2391), so reading straight after
+  // `toBeVisible` returns an empty menu.
+  await expect(menu.locator('.q-item').first()).toBeVisible();
   const texts = await menu.locator('.q-item').allInnerTexts();
   return texts.map((t) => t.trim());
 }
 
+/**
+ * Open a select's popup. The field is centred first: Quasar anchors the menu
+ * under the control, so a field sitting near the bottom of the 720px viewport
+ * opens its options off-screen, where they can be resolved but never clicked.
+ */
+async function openSelect(scope: Locator, label: string): Promise<void> {
+  const target = field(scope, label);
+  await target.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await target.click();
+}
+
 async function selectOptions(scope: Locator, label: string): Promise<string[]> {
   const page = scope.page();
-  await field(scope, label).click();
+  await openSelect(scope, label);
   const options = await menuOptions(page);
   await page.keyboard.press('Escape');
   await expect(page.locator('.q-menu:visible')).toHaveCount(0);
@@ -138,14 +153,25 @@ async function selectOptions(scope: Locator, label: string): Promise<string[]> {
 
 async function pick(scope: Locator, label: string, option: string) {
   const page = scope.page();
-  await field(scope, label).click();
+  await openSelect(scope, label);
+  // A server-searched field (#2391 decision 4) lists nothing until the
+  // typeahead has a query, so type the option first — what a user does too.
+  // Plain selects keep a readonly focus target, so this is a no-op there.
+  const search = field(scope, label).locator('input:not([readonly])');
+  if (await search.count()) await search.first().fill(option);
   const menu = page.locator('.q-menu:visible').last();
   const items = menu.locator('.q-item');
   const exactMatch = items.filter({
     hasText: new RegExp(`^${escapeRe(option)}$`, 'i'),
   });
-  if (await exactMatch.count()) await exactMatch.first().click();
-  else await items.filter({ hasText: option }).first().click();
+  const target = (await exactMatch.count())
+    ? exactMatch.first()
+    : items.filter({ hasText: option }).first();
+  // Dispatched, not a real mouse click: Quasar 2.30 anchors the popup with CSS
+  // anchor positioning and animates it open, so Playwright's actionability
+  // check can sit on "not stable"/"outside of the viewport" until the test
+  // times out. The option's own `@click` is the handler either way.
+  await target.dispatchEvent('click');
   await expect(page.locator('.q-menu:visible')).toHaveCount(0);
 }
 
@@ -218,7 +244,13 @@ async function travelCity(
   const f = field(form, which);
   await f.locator('input').fill(typed);
   const menu = page.locator('.q-menu:visible').last();
-  await menu.locator('.q-item').filter({ hasText: city }).first().click();
+  // Dispatched for the same reason as `pick`: the typeahead popup is still
+  // animating into place when its first result lands.
+  await menu
+    .locator('.q-item')
+    .filter({ hasText: city })
+    .first()
+    .dispatchEvent('click');
   await expect(page.locator('.q-menu:visible')).toHaveCount(0);
 }
 
@@ -403,7 +435,12 @@ test.describe('Explorer — Process emissions', () => {
     const section = await openModule(page, 'Process emissions');
     const sub = await openSubmodule(section, 'Process emissions');
     const explorerGases = await selectOptions(sub, 'Emitted gas');
-    expect(explorerGases).toEqual(['CO₂', 'CH₄', 'SF₆']);
+    // Raw classification values, not "CO₂"/"CH₄"/"SF₆": form options come from
+    // the taxonomy since #2391, whose English label is the stored value unless
+    // `classification_translations` seeds one — and the gases never got the
+    // seed the fuels and SIUS codes did. The Results chart still prettifies
+    // them through its own i18n table, so the two surfaces disagree.
+    expect(explorerGases).toEqual(['co2', 'ch4', 'sf6']);
     const explorerLabels = await sub.locator('.q-field__label').allInnerTexts();
 
     const calc = await openCalculatorModule(page, 'process-emissions');
@@ -425,13 +462,13 @@ test.describe('Explorer — Process emissions', () => {
     await clickAdd(sub);
     await expect(sub.getByText('Required').first()).toBeVisible();
 
-    await pick(sub, 'Emitted gas', 'CO₂');
+    await pick(sub, 'Emitted gas', 'co2');
     await pick(sub, 'Sub-category', 'fossil');
     await fillField(sub, 'Quantity (kg)', '10');
     await clickAdd(sub);
     await expect(subTitle(sub)).toHaveText(/Process emission \(1\)/);
 
-    await pick(sub, 'Emitted gas', 'CH₄');
+    await pick(sub, 'Emitted gas', 'ch4');
     await pick(sub, 'Sub-category', 'biogenic');
     await fillField(sub, 'Quantity (kg)', '2');
     await clickAdd(sub);
@@ -448,10 +485,12 @@ test.describe('Explorer — Process emissions', () => {
         plainNumber(await cell(sub, row, 'kg CO₂-eq')),
       ]);
     }
+    // Same raw classification values the dropdown offers — the table renders
+    // what the taxonomy labels a gas, which for an unseeded field is its value.
     expect(seen).toEqual(
       expect.arrayContaining([
-        ['CO₂', 10, 10],
-        ['CH₄', 2, 56],
+        ['co2', 10, 10],
+        ['ch4', 2, 56],
       ]),
     );
   });
@@ -483,7 +522,7 @@ test.describe('Explorer — Buildings', () => {
     const section = await openModule(page, 'Buildings');
     const combustion = await openSubmodule(
       section,
-      'Energy Combustions Emissions',
+      'Energy combustions emissions',
     );
     const rooms = await openSubmodule(section, 'Rooms');
     const heating = await selectOptions(combustion, 'Heating type');
@@ -494,7 +533,7 @@ test.describe('Explorer — Buildings', () => {
     const calc = await openCalculatorModule(page, 'buildings');
     const calcCombustion = await openSubmodule(
       calc,
-      'Energy Combustions Emissions',
+      'Energy combustions emissions',
     );
     const calcRooms = await openSubmodule(calc, 'Rooms');
     expect(await selectOptions(calcCombustion, 'Heating type')).toEqual(
@@ -511,7 +550,7 @@ test.describe('Explorer — Buildings', () => {
     const section = await openModule(page, 'Buildings');
     const combustion = await openSubmodule(
       section,
-      'Energy Combustions Emissions',
+      'Energy combustions emissions',
     );
 
     await pick(combustion, 'Heating type', 'Natural gas');
@@ -519,14 +558,14 @@ test.describe('Explorer — Buildings', () => {
     await fillField(combustion, 'Quantity', '100');
     await clickAdd(combustion);
     await expect(subTitle(combustion)).toHaveText(
-      /Energy Combustion Emissions \(1\)/,
+      /Energy combustion emissions \(1\)/,
     );
 
     await pick(combustion, 'Heating type', 'Heating oil');
     await fillField(combustion, 'Quantity', '50');
     await clickAdd(combustion);
     await expect(subTitle(combustion)).toHaveText(
-      /Energy Combustions Emissions \(2\)/,
+      /Energy combustions emissions \(2\)/,
     );
 
     const rows = tableRows(combustion);
@@ -565,7 +604,7 @@ test.describe('Explorer — Buildings', () => {
     const section = await openModule(page, 'Buildings');
     const combustion = await openSubmodule(
       section,
-      'Energy Combustions Emissions',
+      'Energy combustions emissions',
     );
     await importCsv(combustion, 'name,unit,quantity\npellets,kWh,200\n');
     await expect(tableRows(combustion)).toHaveCount(1);
@@ -1049,15 +1088,17 @@ test.describe('Explorer — Simulation results', () => {
     ]);
   });
 
-  test('"additional categories" adds commuting, food, waste and construction', async ({
+  // "Construction and renovation" (`embodied_energy`) is deliberately absent:
+  // #2601 keeps it out of every Results chart, whatever the back-office
+  // config says — see HIDDEN_RESULTS_CATEGORY_KEYS.
+  test('"additional categories" adds commuting, food and waste', async ({
     page,
     context,
   }) => {
     await openExplorer(page, context);
-    const chart = page.locator('.module-carbon-chart');
-    const toggle = chart.locator('.q-checkbox', {
-      hasText: 'Show additional estimated categories',
-    });
+    // #2071: a single page-level toggle drives the total and both charts, so
+    // the chart's own checkbox is hidden on the Explorer.
+    const toggle = page.locator('.q-toggle', { hasText: 'Additional data' });
     await expect(toggle).toBeVisible();
 
     const before = (await exportCsv(page)).slice(1).map((r) => r[0]);
@@ -1066,12 +1107,7 @@ test.describe('Explorer — Simulation results', () => {
     const after = (await exportCsv(page)).slice(1).map((r) => r[0]);
 
     const added = after.filter((c) => !before.includes(c));
-    expect([...new Set(added)]).toEqual([
-      'Commuting',
-      'Food',
-      'Waste',
-      'Construction and renovation',
-    ]);
+    expect([...new Set(added)]).toEqual(['Commuting', 'Food', 'Waste']);
     expect(after.slice(0, before.length)).toEqual(before);
   });
 
@@ -1202,7 +1238,9 @@ test.describe('Explorer — Simulation results', () => {
       page.getByRole('button', { name: 'Download Report' }).click(),
     ]);
     await report.waitForLoadState();
-    expect(report.url()).toMatch(/\/en\/10\/2024\/simulation\/explore\/print$/);
+    expect(report.url()).toMatch(
+      /\/en\/10\/2024\/simulation\/explore\/print\?hideAdditionalData=1$/,
+    );
     await expect(
       report.getByRole('heading', { name: 'CO₂ Explorer' }),
     ).toBeVisible({ timeout: 15000 });

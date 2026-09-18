@@ -3,7 +3,10 @@
 
 .page-grid {
   display: grid;
-  grid-template-columns: 1fr;
+
+  // minmax(0, …) keeps the column at the pane width; a bare 1fr lets a wide
+  // table's minimum content push every card past the viewport (#2818).
+  grid-template-columns: minmax(0, 1fr);
   grid-auto-rows: auto;
   align-content: start;
   padding: tokens.$layout-page-padding-y tokens.$layout-page-padding-x;
@@ -54,5 +57,54 @@ $breakpoint-desktop: 1320px;
 
   @media (min-width: $breakpoint-desktop) {
     grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+// Main chart beside a narrower side chart (2:1), stacked on narrower
+// viewports. Shared by the Results, Explorer and Planner results cards.
+$breakpoint-charts-grid-row: 1024px;
+
+.charts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  contain: layout style;
+}
+
+.charts-grid__main,
+.charts-grid__side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  .q-card {
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}
+
+.charts-grid__separator {
+  display: none;
+}
+
+@media (min-width: $breakpoint-charts-grid-row) {
+  .charts-grid {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .charts-grid__main {
+    flex: 2;
+  }
+
+  .charts-grid__side {
+    flex: 1;
+  }
+
+  .charts-grid__separator {
+    display: block;
+    align-self: stretch;
   }
 }

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 
 const props = withDefaults(
@@ -94,7 +95,7 @@ const comparisonParts = computed(() => {
       </span>
       <q-icon
         v-if="$slots.tooltip && tooltipPlacement === 'title' && !printMode"
-        name="o_info"
+        :name="outlinedInfo"
         size="xs"
         color="primary"
       >
@@ -127,7 +128,7 @@ const comparisonParts = computed(() => {
           v-if="
             $slots.tooltip && tooltipPlacement === 'comparison' && !printMode
           "
-          name="o_info"
+          :name="outlinedInfo"
           size="xs"
           color="primary"
           class="q-mr-xs"

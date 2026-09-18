@@ -84,7 +84,7 @@
         class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
         <div class="inputs-deactivated-notice__content">
-          <q-icon name="edit_off" size="sm" color="accent" class="q-mb-sm" />
+          <q-icon :name="matEditOff" size="sm" color="accent" class="q-mb-sm" />
           <div class="text-body2 text-weight-medium text-center text-primary">
             {{ $t('module_submodule_inputs_deactivated_notice') }}
           </div>
@@ -115,6 +115,7 @@
 </template>
 
 <script setup lang="ts">
+import { matEditOff } from '@quasar/extras/material-icons';
 import {
   Submodule as ConfigSubmodule,
   ModuleConfig,
@@ -149,6 +150,7 @@ import {
   canShowModuleForm,
   resolveExplorerFormDefaults,
   resolvePlannerFormDefaults,
+  resolveValidatedFteFormDefaults,
 } from '@/utils/module-table-access';
 import { submoduleTooltipKey, type TooltipScope } from '@/utils/tooltipScope';
 interface Option {
@@ -161,7 +163,7 @@ const timelineStore = useTimelineStore();
 
 onMounted(() => {
   // The timeline store only ever holds the Calculator's report (#2000) — an
-  // Explorer table has no validated state of its own, so fetching it here
+  // Explorer or Planner table never pre-fills from it, so fetching it here
   // would just be wasted, unused traffic.
   const needsFte = props.submodule.moduleFields?.some(
     (f) => f.defaultFrom === 'total_fte',
@@ -170,6 +172,7 @@ onMounted(() => {
   if (
     needsFte &&
     !props.isExplorer &&
+    !isPlanner.value &&
     carbonReportId &&
     carbonReportId !== moduleStore.validatedTotalsCarbonReportId
   ) {
@@ -178,25 +181,29 @@ onMounted(() => {
 });
 
 const formDefaults = computed<Record<string, unknown> | undefined>(() => {
-  const validatedTotals = moduleStore.state.validatedTotals;
   const fields = props.submodule.moduleFields ?? [];
+  const ctx = {
+    isExplorer: props.isExplorer ?? false,
+    isPlanner: isPlanner.value,
+  };
 
   const defaults: Record<string, unknown> = resolvePlannerFormDefaults(
     fields,
-    props.carbonReportId != null,
+    ctx.isPlanner,
   );
-  if (props.isExplorer) {
-    // Explorer never shows the Calculator's validated FTE total (#2000).
+  if (ctx.isExplorer) {
     Object.assign(defaults, resolveExplorerFormDefaults(fields));
-  } else if (validatedTotals) {
-    for (const field of fields) {
-      // A validated total of 0 means there's nothing to pre-fill — leave
-      // the field empty rather than showing a misleading 0.
-      if (field.defaultFrom === 'total_fte' && validatedTotals.total_fte) {
-        defaults[field.id] = Math.round(validatedTotals.total_fte);
-      }
-    }
   }
+  // Calculator only — the Explorer and Planner never show the Calculator's
+  // validated FTE total (#2000, #2061).
+  Object.assign(
+    defaults,
+    resolveValidatedFteFormDefaults(
+      fields,
+      ctx,
+      moduleStore.state.validatedTotals?.total_fte,
+    ),
+  );
   return Object.keys(defaults).length > 0 ? defaults : undefined;
 });
 

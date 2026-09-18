@@ -99,7 +99,6 @@ def _superadmin() -> Role:
 
 def _wire_user(user) -> None:
     app.dependency_overrides[deps_module.get_current_user] = lambda: user
-    app.dependency_overrides[deps_module.get_current_user_detached] = lambda: user
 
 
 def _wire_db_unit(unit_iid: str, affiliation: str = AFFILIATION) -> None:
@@ -434,8 +433,16 @@ class TestDataSyncPermissionFallbackRemoved:
         r = client.get("/api/v1/sync/jobs/1/stream")
         assert r.status_code == 403, r.text
 
-    def test_job_stream_accepts_scoped_principal_without_backoffice(self, client):
+    def test_job_stream_admits_scoped_principal_without_backoffice(self, client):
+        """Layer 1 only: a sync-capable principal reaches the job lookup.
+
+        Job 1 does not exist in this fixture's DB, so the honest outcome
+        is 404 — not 200. The old assertion passed because a missing job
+        used to skip the scope gate and open a stream (#2654). Whether a
+        principal may stream a job that *does* exist is a Layer-2 question
+        answered against a seeded unit tree in
+        ``tests/integration/services/data_ingestion/test_sync_pipeline_stream_endpoint_pg.py``.
+        """
         _wire_user(_scoped_principal_user())
         r = client.get("/api/v1/sync/jobs/1/stream")
-        # TODO: need to test scoped principal to be sure
-        assert r.status_code == 200, r.text
+        assert r.status_code == 404, r.text

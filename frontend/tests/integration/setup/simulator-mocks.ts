@@ -73,10 +73,15 @@ const MOCK_UNIT = {
   current_user_role: 'principal',
 };
 
+// ``factor_year`` is what the forms resolve their option lists against
+// (#2651/#2656): the pages read it off the report and skip every taxonomy
+// lookup while it is null, so a report served without it renders empty
+// selects everywhere.
 const MOCK_CARBON_REPORT = {
   id: CALCULATOR_REPORT_ID,
   unit_id: UNIT_ID,
   year: YEAR,
+  factor_year: YEAR,
   carbon_project_id: 1,
 };
 
@@ -84,6 +89,7 @@ const MOCK_SIMULATOR_REPORT = {
   id: EXPLORER_REPORT_ID,
   unit_id: UNIT_ID,
   year: YEAR,
+  factor_year: YEAR,
   carbon_project_id: 2,
 };
 
@@ -141,7 +147,43 @@ const MODULE_TYPE_IDS: Record<string, number> = {
 // `taxonomies/module/{module}/{data_entry}`, and the numeric ids only ever
 // addressed the retired `factors/{det}/class-subclass-map`.
 
+/**
+ * SIUS code → label. Its own table because the headcount grid and the member
+ * form both key their rows on these eight codes.
+ */
+export const SIUS_LABELS: Record<string, string> = {
+  '51': 'Professors',
+  '52': 'Other teaching staff',
+  '53': 'Scientific collaborators',
+  '54': 'Scientific and doctoral assistants',
+  '56': 'Managerial staff',
+  '57': 'Administrative staff',
+  '58': 'Support staff',
+  '59': 'Operational staff',
+};
+
+/**
+ * Classification value → English label, as the backend seeds it into
+ * `classification_translations` (Alembic `3b5609f893f4` for the SIUS codes,
+ * `7bff78de3264` for the enum-keyed fields) and serves it as each taxonomy
+ * node's `label`. Values with no seeded translation — the process-emissions
+ * gases, every self-labeling class — are their own English label, which is
+ * what `taxonomyTreeFor` falls back to.
+ */
+export const CLASSIFICATION_LABELS: Record<string, string> = {
+  natural_gas: 'Natural gas',
+  heating_oil: 'Heating oil',
+  pellets: 'Pellets',
+  ...SIUS_LABELS,
+};
+
+const SIUS_CLASSES = Object.fromEntries(
+  Object.keys(SIUS_LABELS).map((code) => [code, [] as string[]]),
+);
+
 export const FACTOR_CLASS_MAP: Record<string, Record<string, string[]>> = {
+  planner_headcount: SIUS_CLASSES,
+  member: SIUS_CLASSES,
   process_emissions: {
     co2: ['fossil'],
     ch4: ['biogenic'],
@@ -172,7 +214,7 @@ export function taxonomyTreeFor(dataEntry: string) {
     children: Object.entries(FACTOR_CLASS_MAP[dataEntry] ?? {}).map(
       ([kind, subkinds]) => ({
         name: kind,
-        label: kind,
+        label: CLASSIFICATION_LABELS[kind] ?? kind,
         children: subkinds.map((subkind) => ({
           name: subkind,
           label: subkind,
@@ -851,31 +893,51 @@ export async function mockExplorerBackend(
     ]);
   });
 
+  // #2391 decision 4: submodules with option lists too large to ship as a
+  // tree (purchase) type-ahead against `.../{entry}/options` instead. Same
+  // catalogue as the tree, filtered by `query`, shaped as FactorOption[].
+  // Registered after the tree route so LIFO picks it for this suffix.
+  await context.route('**/api/v1/taxonomies/module/*/*/options*', (route) => {
+    const url = new URL(route.request().url());
+    const dataEntry = url.pathname.split('/').slice(-2)[0].replace(/-/g, '_');
+    const query = (url.searchParams.get('query') ?? '').toLowerCase();
+    const options = Object.keys(FACTOR_CLASS_MAP[dataEntry] ?? {})
+      .map((name) => ({
+        name,
+        label: CLASSIFICATION_LABELS[name] ?? name,
+      }))
+      .filter((o) => o.label.toLowerCase().includes(query));
+    return json(route, options);
+  });
+
   // Print/explore page's fetchAllData batches taxonomy fetches as one
   // .../data-entries call per module instead of one per submodule
   // (#2049 T6) — returns a map keyed by entry, not one TaxonomyNode.
   // Registered after the catch-all above so LIFO picks this more
   // specific route first for that path.
-  await page.route('**/api/v1/taxonomies/module/*/data-entries*', (route) => {
-    const entries = new URL(route.request().url()).searchParams.getAll(
-      'entries',
-    );
-    const body = Object.fromEntries(
-      entries.map((entry) => [
-        entry,
-        taxonomyTreeFor(entry.replace(/-/g, '_')),
-      ]),
-    );
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
-    });
-  });
+  await context.route(
+    '**/api/v1/taxonomies/module/*/data-entries*',
+    (route) => {
+      const entries = new URL(route.request().url()).searchParams.getAll(
+        'entries',
+      );
+      const body = Object.fromEntries(
+        entries.map((entry) => [
+          entry,
+          taxonomyTreeFor(entry.replace(/-/g, '_')),
+        ]),
+      );
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body),
+      });
+    },
+  );
 
   // All other module preview_limit=0 calls (non-headcount modules).
   // Identity-addressed by the explore report id (99).
-  await page.route(
+  await context.route(
     /.*\/api\/v1\/carbon-reports\/99\/modules\/[^/?]+\?.*preview_limit/,
     (route) => {
       return route.fulfill({

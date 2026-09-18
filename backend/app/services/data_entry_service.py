@@ -13,14 +13,17 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.audit import AuditChangeTypeEnum
 from app.models.carbon_project import CarbonProject
-from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
+from app.models.carbon_report import (
+    SIMULATOR_REPORT_TYPES,
+    CarbonReport,
+    CarbonReportModule,
+)
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 
 # from app.repositories.headcount_repo import HeadCountRepository
 from app.repositories.data_entry_repo import (
     EQUIPMENT_DATA_ENTRY_TYPE_IDS,
     DataEntryRepository,
-    HeadcountFteBreakdown,
 )
 from app.schemas.carbon_report_response import (
     ModuleResponse,
@@ -40,10 +43,6 @@ logger = get_logger(__name__)
 # Simulator entries are what-if scenarios — nothing is published from them, so
 # they carry no audit trail (#1958). The plan prefill already skips audit the
 # same way by inserting through Core.
-SIMULATOR_REPORT_TYPES = (
-    CarbonReportType.SIMULATOR_EXPLORE,
-    CarbonReportType.SIMULATOR_PLAN,
-)
 
 
 def _serialize_datetime(obj: Any) -> Any:
@@ -891,14 +890,6 @@ class DataEntryService:
         return TripsMapResponse(
             legs=[TripLeg(**leg) for leg in legs],
             dropped_count=dropped,
-        )
-
-    async def get_headcount_fte_breakdown(
-        self, carbon_report_module_id: int
-    ) -> HeadcountFteBreakdown:
-        """Total, student and per-sius_code member FTE in one round trip."""
-        return await self.repo.get_headcount_fte_breakdown(
-            carbon_report_module_id=carbon_report_module_id,
         )
 
     async def get_headcount_members(

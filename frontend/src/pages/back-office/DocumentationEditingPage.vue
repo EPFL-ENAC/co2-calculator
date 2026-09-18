@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedArticle } from '@quasar/extras/material-icons-outlined';
 import { computed } from 'vue';
 import { BACKOFFICE_NAV } from '@/constant/navigation';
 import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
@@ -108,7 +109,7 @@ const columns: QTableColumn[] = [
               </q-td>
               <q-td key="githubUrl" :props="props">
                 <q-btn
-                  icon="o_article"
+                  :icon="outlinedArticle"
                   color="grey-4"
                   text-color="primary"
                   :label="$t('documentation_editing_edit_on_github')"

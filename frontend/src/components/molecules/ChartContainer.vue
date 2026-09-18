@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 defineProps<{
   title: string;
 }>();
@@ -6,7 +7,7 @@ defineProps<{
 <template>
   <q-card flat class="container container--pa-none">
     <q-card-section class="flex items-center">
-      <q-icon name="o_info" size="xs" color="primary">
+      <q-icon :name="outlinedInfo" size="xs" color="primary">
         <q-tooltip
           v-if="$slots.tooltip"
           anchor="center right"

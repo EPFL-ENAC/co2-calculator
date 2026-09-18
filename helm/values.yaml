@@ -259,6 +259,12 @@ backend:
 worker:
   enabled: false
   replicaCount: 1
+  # #2696: on SIGTERM the lifespan cancels running jobs and each hands
+  # its row back (one rollback + one UPDATE, JOB_HANDBACK_SECONDS=20 in
+  # app/tasks/_background.py), then closes the pool. 60 covers that with
+  # a stalled DB; the default 30 did not, and a killed job stayed RUNNING
+  # until the stale sweep 5 min later.
+  terminationGracePeriodSeconds: 60
 
   env: {}
   # RUN_BACKGROUND_POLLER and DISPATCH_JOBS_INLINE are set unconditionally

@@ -156,8 +156,7 @@ Helm chart in `helm/` with:
 - **test.yml**: pytest (backend), Playwright (frontend)
 - **security.yml**: npm audit, uv audit, Bandit, TruffleHog, CodeQL
 - **quality-check.yml**: ruff, mypy, ESLint, Prettier (PRs)
-- **deploy.yml**: Multi-arch container builds → ghcr.io (on main)
-- **publish_chart.yaml**: Helm chart publishing (on version change)
+- **deploy.yml**: Container builds + Helm chart → ghcr.io (dev, stage, tags)
 - **deploy-mkdocs.yml**: Documentation deployment (GitHub Pages)
 - **lighthouse.yml**: Frontend performance audits (PRs)
 - **release-please.yml**: Automated semantic versioning
@@ -186,9 +185,10 @@ workflow. Supports Markdown, Mermaid diagrams, search, and git metadata.
 ## Performance & Scaling
 
 Stateless design with JWT-based auth enables horizontal scaling via
-HPA or manual replica adjustments. Database connection pooling handled
-by SQLAlchemy (PgBouncer templates available in Helm but not
-production-tested).
+HPA or manual replica adjustments. Database connection pooling is
+SQLAlchemy in-process, behind the PgBouncer DBaaS runs in front of every
+instance — its server pool is the connection ceiling (see the
+[database overview](../database/01-overview.md#notes)).
 
 ---
 

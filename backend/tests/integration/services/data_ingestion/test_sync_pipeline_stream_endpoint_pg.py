@@ -23,6 +23,7 @@ shape; the contract tests below cover gating and not-found.
 """
 
 import json
+from dataclasses import dataclass
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -44,9 +45,17 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
-from app.models.user import UserProvider
+from app.models.module_type import ModuleTypeEnum
+from app.models.user import (
+    GlobalScope,
+    Role,
+    RoleName,
+    UnitScope,
+    UserProvider,
+    calculate_user_permissions,
+)
 
-from .conftest import ensure_pipeline_for_job
+from .conftest import ensure_pipeline_for_job, seeded_year_with_units
 
 
 @pytest_asyncio.fixture
@@ -81,7 +90,6 @@ async def pg_app(pg_dsn, monkeypatch):
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
-    app.dependency_overrides[deps_module.get_current_user_detached] = lambda: fake_user
     app.dependency_overrides[security_module.get_current_active_user] = lambda: (
         fake_user
     )
@@ -180,7 +188,6 @@ async def test_pipeline_stream_returns_403_for_user_without_permission(
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
-    app.dependency_overrides[deps_module.get_current_user_detached] = lambda: fake_user
     app.dependency_overrides[security_module.get_current_active_user] = lambda: (
         fake_user
     )
@@ -387,116 +394,186 @@ async def test_disconnect_releases_pool_slot(pg_dsn, monkeypatch):
         await engine.dispose()
 
 
-@pytest.mark.asyncio
-async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
-    """User A cannot subscribe to user B's UNIT-PINNED pipeline.
+# ---------------------------------------------------------------------------
+# Layer 2 (per-unit scope) against a seeded unit tree — #2654
+#
+# Nothing here is mocked: the job's ``entity_id`` points at a real
+# ``carbon_report_modules`` row, ``_institutional_id_for_job`` runs its real
+# join, and ``check_module_permission`` evaluates real ``Role`` objects.  The
+# previous version of this test monkeypatched the resolver "to simulate the
+# MODULE_UNIT_SPECIFIC path without seeding the tree" — which is exactly how
+# ``entity_id`` never being written stayed invisible for four months.
+#
+# Endpoints are called directly (as ``test_pipeline_stream_releases_pool_slot``
+# does) rather than through httpx: the up-front gate runs before the
+# ``StreamingResponse`` is returned, so an allow is "a response came back"
+# and a deny is ``HTTPException`` — no generator is ever iterated, so no
+# 2 s poll loop can hang the suite.
+# ---------------------------------------------------------------------------
 
-    Two-layer scope model on the pipeline-stream endpoint:
 
-    * **Layer 1 (global)** — ``backoffice.data_management.view`` via
-      ``require_permission(...)``.  Every backoffice user has this; if
-      they don't, the endpoint 403s here regardless of the job kind.
-      Tested separately by
-      ``test_pipeline_stream_returns_403_for_user_without_permission``.
+def _principal_of(institutional_id: str) -> MagicMock:
+    user = MagicMock()
+    user.id = 1
+    user.email = "principal@example.org"
+    user.institutional_id = institutional_id
+    user.roles = [
+        Role(
+            role=RoleName.CO2_USER_PRINCIPAL,
+            on=UnitScope(institutional_id=institutional_id),
+        )
+    ]
+    user.calculate_permissions = lambda: calculate_user_permissions(user.roles)
+    return user
 
-    * **Layer 2 (per-job, conditional)** — ``_check_job_scope`` derives
-      ``(module_type_id, institutional_id)`` from the pipeline's parent
-      job and runs ``check_module_permission`` on top of Layer 1.
 
-      Conditional, because ``_institutional_id_for_job`` returns ``None``
-      for ``MODULE_PER_YEAR`` jobs (aggregation, emission_recalc — they
-      span every unit by design and don't carry a single institutional
-      scope).  In that case ``_check_job_scope`` short-circuits and
-      Layer 1 alone is the gate.  This was a hot fix on top of PR #1078:
-      the original implementation called ``check_module_permission(
-      institutional_id=None)`` for MODULE_PER_YEAR jobs and 403'd every
-      unit-scoped backoffice user (their permissions live as
-      ``modules.X/<institutional_id>``, never as bare ``modules.X``) —
-      that broke ``GET /sync/jobs/{id}/stream`` for the only people
-      using the data-management dashboard.
+def _superadmin() -> MagicMock:
+    user = MagicMock()
+    user.id = 2
+    user.email = "admin@example.org"
+    user.institutional_id = "ADMIN"
+    user.roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
+    user.calculate_permissions = lambda: calculate_user_permissions(user.roles)
+    return user
 
-    What THIS test pins: Layer 2's deny path on ``MODULE_UNIT_SPECIFIC``
-    jobs (the half that DOES have an institutional_id and DOES have to
-    pass the per-module scope).  We seed a ``MODULE_PER_YEAR`` job for
-    convenience and monkeypatch ``_institutional_id_for_job`` to return
-    a fake institutional_id — that simulates the MODULE_UNIT_SPECIFIC
-    code path without having to seed the full Unit/CarbonReport/CRM
-    tree just for this assertion.
 
-    Don't drop the ``_institutional_id_for_job`` patch: without it the
-    seeded MODULE_PER_YEAR job triggers the legitimate short-circuit,
-    the deny mock never fires, the endpoint reaches the SSE polling
-    loop, the seeded job stays NOT_STARTED forever, and the generator
-    polls every 2s without an exit condition — the test deadlocks for
-    the full session timeout (this regression cost a 6-hour cron run).
-    The httpx ``timeout=10s`` cap is the safety net for future
-    regressions of the same shape: fail fast, don't hang the suite.
-    """
-    engine = create_async_engine(pg_dsn, future=True)
-    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+_MODULE = ModuleTypeEnum.equipment
+
+
+@dataclass(frozen=True)
+class _UnitPipeline:
+    pipeline_id: object
+    job_id: int
+    owner_iid: str
+    other_iid: str
+
+
+async def _seed_unit_pipeline(Sf, *, year: int = 2031) -> _UnitPipeline:
+    """One unit-pinned ``csv_ingest`` root in a two-unit tree."""
     pipeline_id = uuid4()
     async with Sf() as session:
-        job = _make_pending_factor_job(pipeline_id)
+        tree = await seeded_year_with_units(session, year=year, n_units=2)
+        owner, other = tree.units
+        crm = tree.modules_by_unit_and_type[(owner.id, int(_MODULE))]
+        job = DataIngestionJob(
+            entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+            entity_id=crm.id,
+            module_type_id=int(_MODULE),
+            year=year,
+            target_type=TargetType.DATA_ENTRIES,
+            ingestion_method=IngestionMethod.csv,
+            provider=UserProvider.DEFAULT,
+            state=IngestionState.NOT_STARTED,
+            pipeline_id=pipeline_id,
+            job_type="csv_ingest",
+        )
         await ensure_pipeline_for_job(session, job)
         session.add(job)
         await session.commit()
-
-    async def override_get_db():
-        async with Sf() as session:
-            yield session
-
-    fake_user = MagicMock()
-    fake_user.id = 1
-    fake_user.email = "test@example.com"
-    fake_user.institutional_id = "TEST-USER"
-
-    app.dependency_overrides[deps_module.get_db] = override_get_db
-    app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
-    app.dependency_overrides[deps_module.get_current_user_detached] = lambda: fake_user
-    app.dependency_overrides[security_module.get_current_active_user] = lambda: (
-        fake_user
-    )
-
-    # Pass the global gate so the per-module check is what fires.
-    async def _allow(*_args, **_kwargs):
-        return True
-
-    monkeypatch.setattr("app.core.security.is_permitted", _allow)
-    monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", Sf)
-
-    # Force ``_check_job_scope`` to reach ``check_module_permission`` even
-    # though the seeded job is MODULE_PER_YEAR (which would normally
-    # short-circuit at ``institutional_id is None``).
-    async def _resolve_institutional_id(*_args, **_kwargs):
-        return "FAKE-CROSS-TENANT-INST"
-
-    monkeypatch.setattr(
-        data_sync_module, "_institutional_id_for_job", _resolve_institutional_id
-    )
-
-    # Per-module check denies — this is the cross-tenant simulation.
-    async def _deny_module(*_args, **_kwargs):
-        raise HTTPException(
-            status_code=403,
-            detail="Permission denied: cross-tenant pipeline",
+        return _UnitPipeline(
+            pipeline_id=pipeline_id,
+            job_id=job.id,
+            owner_iid=owner.institutional_id,
+            other_iid=other.institutional_id,
         )
 
-    monkeypatch.setattr(data_sync_module, "check_module_permission", _deny_module)
 
+async def _fan_out_aggregation(Sf, seeded: _UnitPipeline, *, year: int = 2031) -> None:
+    """Append the chain terminator exactly as ``chain_job`` mints it:
+    ``MODULE_PER_YEAR``, no ``entity_id``.
+    """
+    async with Sf() as session:
+        session.add(
+            DataIngestionJob(
+                entity_type=EntityType.MODULE_PER_YEAR,
+                module_type_id=int(_MODULE),
+                year=year,
+                target_type=TargetType.DATA_ENTRIES,
+                ingestion_method=IngestionMethod.computed,
+                provider=UserProvider.DEFAULT,
+                state=IngestionState.FINISHED,
+                pipeline_id=seeded.pipeline_id,
+                job_type="aggregation",
+            )
+        )
+        await session.commit()
+
+
+async def _stream_pipeline(user, seeded: _UnitPipeline):
+    return await data_sync_module.pipeline_stream_by_id(
+        pipeline_id=seeded.pipeline_id, request=MagicMock(), current_user=user
+    )
+
+
+async def _stream_job(user, seeded: _UnitPipeline):
+    return await data_sync_module.job_stream_by_id(
+        job_id=seeded.job_id, request=MagicMock(), current_user=user
+    )
+
+
+async def _read_pipeline(user, seeded: _UnitPipeline, Sf):
+    async with Sf() as session:
+        return await data_sync_module.get_pipeline_jobs(
+            pipeline_id=seeded.pipeline_id, db=session, current_user=user
+        )
+
+
+async def _assert_allowed(user, seeded: _UnitPipeline, Sf) -> None:
+    assert await _stream_pipeline(user, seeded) is not None
+    assert await _stream_job(user, seeded) is not None
+    assert (await _read_pipeline(user, seeded, Sf)).pipeline_id == seeded.pipeline_id
+
+
+async def _assert_denied(user, seeded: _UnitPipeline, Sf) -> None:
+    for call in (
+        _stream_pipeline(user, seeded),
+        _stream_job(user, seeded),
+        _read_pipeline(user, seeded, Sf),
+    ):
+        with pytest.raises(HTTPException) as exc:
+            await call
+        assert exc.value.status_code == 403, exc.value.detail
+
+
+@pytest_asyncio.fixture
+async def unit_pipeline(pg_dsn, monkeypatch):
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", Sf)
     try:
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
-            base_url="http://test",
-            # Cap each request at 10s — if the scope check ever regresses
-            # the stream endpoint would block on its 2s polling loop.
-            # Better to fail fast than hang the daily integration CI.
-            timeout=httpx.Timeout(10.0),
-        ) as client:
-            stream_resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}/stream")
-            read_resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}")
+        yield Sf, await _seed_unit_pipeline(Sf)
     finally:
-        app.dependency_overrides.clear()
         await engine.dispose()
 
-    assert stream_resp.status_code == 403, stream_resp.text
-    assert read_resp.status_code == 403, read_resp.text
+
+@pytest.mark.asyncio
+async def test_unit_scope_owner_principal_allowed(unit_pipeline):
+    Sf, seeded = unit_pipeline
+    await _assert_allowed(_principal_of(seeded.owner_iid), seeded, Sf)
+
+
+@pytest.mark.asyncio
+async def test_unit_scope_other_unit_principal_denied(unit_pipeline):
+    Sf, seeded = unit_pipeline
+    await _assert_denied(_principal_of(seeded.other_iid), seeded, Sf)
+
+
+@pytest.mark.asyncio
+async def test_unit_scope_superadmin_allowed_without_module_keys(unit_pipeline):
+    """Backoffice roles hold no ``modules.*`` key; the
+    ``backoffice.configuration`` bypass is what lets them in.
+    """
+    Sf, seeded = unit_pipeline
+    await _assert_allowed(_superadmin(), seeded, Sf)
+
+
+@pytest.mark.asyncio
+async def test_unit_scope_survives_fan_out(unit_pipeline):
+    """After ``aggregation`` (``MODULE_PER_YEAR``, no ``entity_id``) joins
+    the pipeline, the scope is still the root's — anchoring on the
+    terminal job would let the other unit through here.
+    """
+    Sf, seeded = unit_pipeline
+    await _fan_out_aggregation(Sf, seeded)
+    await _assert_denied(_principal_of(seeded.other_iid), seeded, Sf)
+    await _assert_allowed(_principal_of(seeded.owner_iid), seeded, Sf)

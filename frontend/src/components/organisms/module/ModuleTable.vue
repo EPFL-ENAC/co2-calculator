@@ -11,7 +11,7 @@
     >
       <q-btn
         outline
-        icon="o_view_list"
+        :icon="outlinedViewList"
         color="primary"
         :label="$t('common_upload_csv')"
         unelevated
@@ -23,7 +23,7 @@
       />
       <q-btn
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         color="primary"
         :label="$t('common_download_csv_template')"
         unelevated
@@ -47,11 +47,11 @@
       class="table-search"
       :placeholder="$t('common_search_placeholder') || 'Search'"
       clearable
-      clear-icon="o_close"
-      prefix-icon="o_search"
+      :clear-icon="outlinedClose"
+      :prefix-icon="outlinedSearch"
     >
       <template #prepend>
-        <q-icon name="o_search" color="grey-6" size="16px" />
+        <q-icon :name="outlinedSearch" color="grey-6" size="16px" />
       </template>
     </q-input>
   </div>
@@ -64,7 +64,7 @@
     class="equipment-new-banner q-mb-md"
   >
     <template #avatar>
-      <q-icon name="o_warning" class="equipment-new-banner__icon" />
+      <q-icon :name="outlinedWarning" class="equipment-new-banner__icon" />
     </template>
     {{
       $t('equipment_new_usage_required_banner', {
@@ -84,7 +84,7 @@
     :error="moduleStore.state.errorSubmodule[submoduleType]"
     dense
     flat
-    :rows-per-page-options="ROWS_PER_PAGE_OPTIONS"
+    :rows-per-page-options="tablePageSize.rowsPerPageOptions"
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
     :no-data-label="$t('common_no_items')"
     :rows-per-page-label="$t('rows_per_page')"
@@ -109,7 +109,7 @@
           <span>{{ col.label }}</span>
           <q-icon
             v-if="col.tooltip && $t(col.tooltip)"
-            name="o_info"
+            :name="outlinedInfo"
             size="16px"
             color="grey-6"
             class="q-ml-xs"
@@ -121,7 +121,7 @@
     </template>
     <template #pagination="scope">
       <q-btn
-        icon="chevron_left"
+        :icon="matChevronLeft"
         color="grey-8"
         round
         dense
@@ -133,7 +133,7 @@
         {{ scope.pagination.page }} / {{ scope.pagesNumber }}
       </div>
       <q-btn
-        icon="chevron_right"
+        :icon="matChevronRight"
         color="grey-8"
         round
         dense
@@ -157,14 +157,18 @@
           :style="getColumnStyle(col)"
         >
           <template v-if="col.editableInline">
-            <template
+            <q-input
               v-if="
                 isRowConditionallyReadOnly(slotProps.row, col) ||
                 isRowFieldPolicyLocked(slotProps.row, col)
               "
-            >
-              <span>{{ renderReadOnlyInlineCell(slotProps.row, col) }}</span>
-            </template>
+              :model-value="renderReadOnlyInlineCell(slotProps.row, col)"
+              class="inline-input inline-input--locked"
+              disable
+              dense
+              outlined
+              hide-bottom-space
+            />
             <module-inline-select
               v-else-if="
                 col.optionsId === 'kind' || col.optionsId === 'subkind'
@@ -211,7 +215,7 @@
                   ),
                 },
               ]"
-              :dropdown-icon="col.type === 'select' ? 'expand_more' : undefined"
+              :dropdown-icon="col.type === 'select' ? matExpandMore : undefined"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
               @blur="col.type !== 'select' && commitInline(slotProps.row, col)"
@@ -222,7 +226,7 @@
               <template v-if="col.type !== 'select'" #append>
                 <q-icon
                   v-if="hasValue(slotProps.row[col.field])"
-                  name="o_edit"
+                  :name="outlinedEdit"
                   size="14px"
                   class="inline-edit-icon"
                 />
@@ -252,7 +256,7 @@
             </q-btn>
             <q-btn
               v-if="showTableRowActions && canEditRows && hasModuleUpload"
-              icon="o_delete"
+              :icon="outlinedDelete"
               color="black"
               :disable="isDisabled || !isRowPolicyDeletable(slotProps.row)"
               unelevated
@@ -273,8 +277,16 @@
             </q-btn>
           </template>
           <template v-else-if="col.name === 'percentage_of_reference_year'">
+            <!-- An equipment global-percentage aggregate row (#2783) has a
+                 real percentage but no single source, so reference_kg_co2eq
+                 is never set for it — show the (locked, via
+                 percentageLocked) slider off percentage_of_reference_year
+                 alone rather than hiding it. -->
             <div
-              v-if="slotProps.row.reference_kg_co2eq != null"
+              v-if="
+                slotProps.row.reference_kg_co2eq != null ||
+                slotProps.row.percentage_of_reference_year != null
+              "
               class="row items-center no-wrap reference-slider"
             >
               <q-slider
@@ -356,7 +368,7 @@
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />
@@ -426,7 +438,7 @@
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
           :disable="deleteInFlight"
@@ -482,6 +494,25 @@
 </template>
 
 <script setup lang="ts">
+import {
+  matChevronLeft,
+  matChevronRight,
+  matClose,
+  matExpandMore,
+} from '@quasar/extras/material-icons';
+import {
+  outlinedAddComment,
+  outlinedClose,
+  outlinedComment,
+  outlinedDelete,
+  outlinedDownload,
+  outlinedEdit,
+  outlinedInfo,
+  outlinedReportProblem,
+  outlinedSearch,
+  outlinedViewList,
+  outlinedWarning,
+} from '@quasar/extras/material-icons-outlined';
 import FilesUploadDialog from '@/components/organisms//data-management/FilesUploadDialog.vue';
 
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
@@ -491,6 +522,7 @@ import type {
   ModuleConfig,
   Submodule,
 } from '@/constant/moduleConfig';
+import { resolveTablePageSize } from '@/utils/tablePageSize';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
@@ -505,6 +537,7 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useFactorsStore } from '@/stores/factors';
+import type { ValueFactorResponse } from '@/api/factors';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -513,6 +546,8 @@ import {
 } from '@/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from '@/stores/backofficeDataManagement';
 import { PermissionAction } from '@/stores/auth';
+import { fetchTemplate } from '@/constant/templateAssets';
+import { downloadFrom } from '@/utils/download';
 import { getTemplateFileName } from '@/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
@@ -653,7 +688,9 @@ async function deleteNote() {
     noteDialogRowId.value = null;
   }
 }
-const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
+// #2681: page size and whether the user may change it come from the module
+// config (Equipment is fixed at 10). One choice hides Quasar's selector.
+const tablePageSize = computed(() => resolveTablePageSize(props.moduleConfig));
 
 const showUploadDialog = ref<boolean>(false);
 
@@ -744,7 +781,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
             timeout: 30000,
             actions: [
               {
-                icon: 'o_report_problem',
+                icon: outlinedReportProblem,
                 color: 'negative',
                 textColor: 'white',
                 label: $t('close_error_details'),
@@ -778,7 +815,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
           timeout: 30000,
           actions: [
             {
-              icon: 'o_report_problem',
+              icon: outlinedReportProblem,
               color: 'negative',
               textColor: 'white',
               label: $t('close_error_details'),
@@ -802,7 +839,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
           closeBtn: true,
           actions: [
             {
-              icon: 'close',
+              icon: matClose,
               // for individual action (button):
               'aria-label': 'Dismiss',
             },
@@ -925,7 +962,7 @@ const tableStyle = computed(() =>
 );
 
 function noteButtonIcon(note: unknown): string {
-  return note ? 'o_comment' : 'o_add_comment';
+  return note ? outlinedComment : outlinedAddComment;
 }
 
 function noteButtonColor(note: unknown): string | undefined {
@@ -964,7 +1001,16 @@ function getColumnPlaceholder(
   col: TableViewColumn,
 ): string | undefined {
   if (col.type === 'date') return $t('date_format_placeholder');
-  return isRequiredEmptyUsageCell(row, col) ? '—' : undefined;
+  if (!isRequiredEmptyUsageCell(row, col)) return undefined;
+  const values = newRowFactorValues.value[newRowFactorKey(row)];
+  if (values === undefined) {
+    loadNewRowFactorValues(row);
+    return '—';
+  }
+  const suggested = values?.[col.field];
+  return suggested === null || suggested === undefined
+    ? '—'
+    : String(suggested);
 }
 
 function getColumnRules(col: TableViewColumn) {
@@ -1069,6 +1115,7 @@ type TableViewColumn = {
   max?: number;
   step?: number;
   maxDecimals?: number;
+  integer?: boolean;
   inputComponent: typeof QInput | typeof QSelect;
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
@@ -1125,6 +1172,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             max: f.max,
             step: f.step,
             maxDecimals: f.maxDecimals,
+            integer: f.integer,
             align,
             inputComponent,
             editableInline,
@@ -1161,6 +1209,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           max: f.max,
           step: f.step,
           maxDecimals: f.maxDecimals,
+          integer: f.integer,
           align,
           inputComponent,
           editableInline,
@@ -1591,6 +1640,25 @@ function validateNumberOfTrips(value: unknown) {
   return { valid: true, parsed: Math.floor(n), error: null };
 }
 
+function validateUsageSum(
+  row: ModuleRow,
+  col: { name: string },
+  value: number,
+): number | null {
+  const otherField =
+    col.name === 'active_usage_hours_per_week'
+      ? 'standby_usage_hours_per_week'
+      : 'active_usage_hours_per_week';
+  const validation = validateUsageHoursWeek(
+    value + (Number(row[otherField]) || 0),
+  );
+  if (!validation.valid) {
+    setError(row, col, validation.error);
+    return null;
+  }
+  return value;
+}
+
 async function commitInline(
   row: ModuleRow,
   col: {
@@ -1601,6 +1669,7 @@ async function commitInline(
     min?: number;
     max?: number;
     maxDecimals?: number;
+    integer?: boolean;
   },
 ) {
   if (!col.editableInline) return;
@@ -1614,18 +1683,6 @@ async function commitInline(
   const valueToSave = (() => {
     // Clear any previous error before validating
     setError(row, col, null);
-    if (isUsageField) {
-      const activeVal = Number(row['active_usage_hours_per_week']) || 0;
-      const standbyVal = Number(row['standby_usage_hours_per_week']) || 0;
-      const validation = validateUsageHoursWeek(activeVal + standbyVal);
-      if (!validation.valid) {
-        setError(row, col, validation.error);
-        return null;
-      }
-      // parse raw value to number to ensure consistent type (could be string from input)
-      const parsedVal = Number(rawVal);
-      return Number.isFinite(parsedVal) ? parsedVal : rawVal;
-    }
     if (isNumberOfTrips) {
       const validation = validateNumberOfTrips(rawVal);
       if (!validation.valid) {
@@ -1635,6 +1692,8 @@ async function commitInline(
       return validation.parsed;
     }
     if (isNumeric) {
+      const isEmpty = rawVal === '' || rawVal === null || rawVal === undefined;
+      if (isUsageField && isEmpty) return validateUsageSum(row, col, 0);
       const s = typeof rawVal === 'string' ? rawVal.trim() : String(rawVal);
       if (s.includes(',')) {
         // Targeted message: FR/CH users instinctively type a comma separator
@@ -1656,6 +1715,10 @@ async function commitInline(
         setError(row, col, $t('validation_must_be_at_most', { max: col.max }));
         return null;
       }
+      if (col.integer && !Number.isInteger(n)) {
+        setError(row, col, $t('validation_must_be_whole_number'));
+        return null;
+      }
       if (
         col.maxDecimals !== undefined &&
         (s.split('.')[1]?.length ?? 0) > col.maxDecimals
@@ -1667,7 +1730,7 @@ async function commitInline(
         );
         return null;
       }
-      return n;
+      return isUsageField ? validateUsageSum(row, col, n) : n;
     }
     if (col.type === 'date') {
       const s = typeof rawVal === 'string' ? rawVal.trim() : '';
@@ -1790,6 +1853,36 @@ function isRequiredEmptyUsageCell(
   );
 }
 
+// The class default the backend computes an incomplete new row's emission
+// with, shown as the empty usage cell's placeholder. Fetched once per
+// class/sub-class the first time such a cell renders.
+const newRowFactorValues = ref<Record<string, ValueFactorResponse>>({});
+const newRowFactorRequests = new Set<string>();
+
+function newRowFactorKey(row: ModuleRow): string {
+  return `${String(row.equipment_class ?? '')}|${String(row.sub_class ?? '')}`;
+}
+
+function loadNewRowFactorValues(row: ModuleRow): void {
+  const key = newRowFactorKey(row);
+  if (newRowFactorRequests.has(key)) return;
+  newRowFactorRequests.add(key);
+  const subClass = row.sub_class;
+  useFactorsStore()
+    .fetchPowerFactor(
+      props.submoduleType,
+      String(row.equipment_class ?? ''),
+      subClass === null || subClass === undefined ? null : String(subClass),
+      props.factorYear ?? props.year,
+    )
+    .then((values) => {
+      newRowFactorValues.value = { ...newRowFactorValues.value, [key]: values };
+    })
+    .catch(() => {
+      newRowFactorValues.value = { ...newRowFactorValues.value, [key]: null };
+    });
+}
+
 // A new equipment only needs the "new" emphasis (badge, row highlight, float to
 // top) until its usage is entered; once active + standby are filled it behaves
 // like a normal row (#259).
@@ -1910,12 +2003,6 @@ function isComplete(row: ModuleRow) {
     }
     return isCompletePurchase(row);
   }
-  if (props.moduleType === MODULES.ProfessionalTravel) {
-    const required = ['origin', 'destination', 'user_institutional_id'];
-    return required.every(
-      (k) => row[k] !== null && row[k] !== undefined && row[k] !== '',
-    );
-  }
   if (props.moduleType === MODULES.ProcessEmissions) {
     const baseRequired = ['category', 'quantity_kg'];
     const hasBaseRequired = hasRequiredValues(row, baseRequired);
@@ -2026,23 +2113,22 @@ function onUploadCsv() {
   showUploadDialog.value = true;
 }
 
-function onDownloadTemplate() {
+async function onDownloadTemplate(): Promise<void> {
   const fileName = getTemplateFileName(
     props.moduleType as Module,
     props.submoduleType,
   );
-  if (!fileName) return;
+  if (!fileName) {
+    throw new Error(
+      `No template mapped for ${props.moduleType}:${props.submoduleType}`,
+    );
+  }
 
-  const a = document.createElement('a');
-  a.href = `/templates/${fileName}`;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  await downloadFrom(() => fetchTemplate(fileName), fileName);
 
   $q.notify({
     color: 'info',
-    message: $t('common_download_csv_template_mock') || 'CSV template download',
+    message: $t('common_download_csv_template_started'),
     position: 'top',
   });
 }
@@ -2121,6 +2207,21 @@ async function onRequest(request: {
   }
 }
 
+// Kind/subkind labels come from the taxonomy tree, which is factor-year
+// scoped — not the row's own `year` (#2651: the earlier fix covered the
+// form/inline-select dropdowns via useEquipmentClassOptions, but missed
+// this table-level fetch, which kept requesting the report's own year).
+// Skipped entirely when unresolvable, same as every other factorYear
+// consumer — nothing to fetch, not a request for a made-up year.
+function fetchTaxonomyIfNeeded() {
+  if (kindOptionsServerSearched.value || props.factorYear == null) return;
+  moduleStore.getSubmoduleTaxonomy(
+    props.moduleType,
+    props.submoduleType,
+    String(props.factorYear),
+  );
+}
+
 watch(
   () => moduleStore.state.expandedSubmodules[props.submoduleType],
   (isExpanded, oldValue) => {
@@ -2132,7 +2233,10 @@ watch(
         oldValue === false;
 
       if (shouldFetch) {
-        moduleStore.initializeSubmoduleState(props.submoduleType);
+        moduleStore.initializeSubmoduleState(
+          props.submoduleType,
+          tablePageSize.value.rowsPerPage,
+        );
 
         // table-specific work
         moduleStore.getSubmoduleData({
@@ -2142,13 +2246,7 @@ watch(
           year: String(props.year),
           carbonReportId: props.carbonReportId,
         });
-        if (!kindOptionsServerSearched.value) {
-          moduleStore.getSubmoduleTaxonomy(
-            props.moduleType,
-            props.submoduleType,
-            String(props.year),
-          );
-        }
+        fetchTaxonomyIfNeeded();
       }
     }
   },
@@ -2167,13 +2265,7 @@ watch(locale, () => {
     year: String(props.year),
     carbonReportId: props.carbonReportId,
   });
-  if (!kindOptionsServerSearched.value) {
-    moduleStore.getSubmoduleTaxonomy(
-      props.moduleType,
-      props.submoduleType,
-      String(props.year),
-    );
-  }
+  fetchTaxonomyIfNeeded();
 });
 
 watch(
@@ -2183,7 +2275,10 @@ watch(
 );
 
 onMounted(async () => {
-  moduleStore.initializeSubmoduleState(props.submoduleType);
+  moduleStore.initializeSubmoduleState(
+    props.submoduleType,
+    tablePageSize.value.rowsPerPage,
+  );
 
   // Check if already expanded on mount and fetch data if so
   if (moduleStore.state.expandedSubmodules[props.submoduleType]) {
@@ -2194,13 +2289,7 @@ onMounted(async () => {
       year: String(props.year),
       carbonReportId: props.carbonReportId,
     });
-    if (!kindOptionsServerSearched.value) {
-      moduleStore.getSubmoduleTaxonomy(
-        props.moduleType,
-        props.submoduleType,
-        String(props.year),
-      );
-    }
+    fetchTaxonomyIfNeeded();
   }
 
   // For professional travel, pre-load headcount members to resolve traveler names
@@ -2472,16 +2561,11 @@ onUnmounted(() => {
     background: tokens.$table-field-hover-bg;
   }
 
-  // HACK: Editable and read-only rows share a column, so a field's text must sit on
-  // the same left edge as plain cell text. The control's horizontal padding is
-  // set from one token and cancelled by an equal negative margin: the pill
-  // keeps its inset while its text lands on the column's text grid.
   td .inline-input,
   td .inline-select-wrapper .q-select {
     display: inline-flex;
     width: auto;
     max-width: 100%;
-    margin-left: -(tokens.$table-inline-field-padding-x);
     vertical-align: middle;
 
     .q-field__control {
@@ -2504,7 +2588,7 @@ onUnmounted(() => {
   }
 
   td .inline-input--required-empty {
-    width: calc(100% + tokens.$table-inline-field-padding-x);
+    width: 100%;
   }
 
   td .inline-input--required-empty .q-field__native,

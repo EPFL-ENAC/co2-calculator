@@ -241,7 +241,8 @@ export interface ModuleResponse {
   year: string;
   data_entry_types_total_items: Record<number, number>;
   carbon_report_module_id: number;
-  stats?: Record<string, number>;
+  /** The module's persisted stats JSON (#2706) — headcount reads its FTE maps. */
+  stats?: Record<string, unknown> | null;
   retrieved_at: string;
   submodules: Record<string, Submodule>;
   totals: Totals;

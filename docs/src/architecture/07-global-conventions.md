@@ -89,8 +89,7 @@ Secrets are never stored in code or version control:
 ### Cloud Environments
 
 - **Infisical** for central secret management
-- **Infisical CRD** creates Kubernetes secrets automatically
-- **Azure Key Vault** for production-critical secrets
+- **External Secrets Operator** pulls them into Kubernetes Secrets in every environment
 - Environment variables injected at runtime
 
 ### Secret Categories
@@ -99,8 +98,8 @@ Secrets are never stored in code or version control:
 | ---------------------- | ----------------------- | --------------- |
 | Database credentials   | Infisical → K8s secrets | 90 days         |
 | API keys               | Infisical → K8s secrets | 90 days         |
-| Entra ID client secret | Azure Key Vault         | 180 days        |
-| Encryption keys        | Azure Key Vault         | 365 days        |
+| Entra ID client secret | Infisical → K8s secrets | 180 days        |
+| Encryption keys        | Infisical → K8s secrets | 365 days        |
 
 ## Error Handling Patterns
 

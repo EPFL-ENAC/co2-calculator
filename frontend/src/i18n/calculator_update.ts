@@ -26,28 +26,28 @@ export default {
   // --- Calculator Update list (unified home page) ---
   // Listed newest first: the home page sorts entries by their index.
   calculator_update_1_title: {
-    en: 'Purchases emission factors',
-    fr: 'Facteurs d’émission des achats',
+    en: 'Launch of the CO₂ Calculator',
+    fr: 'Lancement du calculateur de CO₂',
   },
   calculator_update_1_date: {
-    en: '24 June 2026',
-    fr: '24 juin 2026',
+    en: '03 September 2026',
+    fr: '03 septembre 2026',
   },
   calculator_update_1_body: {
-    en: 'A new version of the emission factors dataset, published by Labo1point5 in June 2026, has been integrated into the tool.',
-    fr: 'Une nouvelle version du jeu de facteurs d’émission, publiée par Labo1point5 en juin 2026, a été intégrée à l’outil.',
+    en: 'The CO₂ Calculator was updated on 3 September 2026 to reflect EPFL’s emissions based on the knowledge and data available at that time. Any updates to the data or emission factors, as new information becomes available, will be documented and communicated here.',
+    fr: 'Le calculateur a été mis à jour le 3 septembre 2026 afin de refléter les émissions de l’EPFL sur la base des connaissances et des données disponibles à cette date. Toute mise à jour des données ou des facteurs d’émission, à mesure que de nouvelles informations seront disponibles, sera consignée et communiquée ici.',
   },
   calculator_update_2_title: {
-    en: 'Buildings data',
-    fr: 'Données des bâtiments',
+    en: '',
+    fr: '',
   },
   calculator_update_2_date: {
-    en: '18 June 2026',
-    fr: '18 juin 2026',
+    en: '',
+    fr: '',
   },
   calculator_update_2_body: {
-    en: 'Following updates to the EPFL rooms dataset and discussions with infrastructure managers, the room-to-unit assignment has been revised, to account for shared spaces.',
-    fr: 'À la suite de la mise à jour du jeu de données des locaux de l’EPFL et des discussions avec les gestionnaires d’infrastructures, l’attribution des locaux aux unités a été révisée afin de tenir compte des espaces partagés.',
+    en: '',
+    fr: '',
   },
   // Empty slot: left blank so a third update can be filled in from the
   // documentation editing back-office. Blank entries are not rendered.

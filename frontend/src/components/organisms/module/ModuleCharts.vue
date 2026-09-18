@@ -18,7 +18,7 @@
         </div>
         <headCountBarChart
           v-if="headcountChartKeys.length"
-          :stats="moduleStore?.state?.data?.stats"
+          :stats="headcountStats"
           :year="workspaceStore.selectedYear"
         />
         <chart-empty-state v-else />
@@ -36,7 +36,7 @@
               flat
               round
               dense
-              icon="info_outline"
+              :icon="outlinedInfo"
               size="sm"
               class="text-grey-7 q-ml-xs"
               :aria-label="t('emission-type-breakdown-info-aria')"
@@ -62,7 +62,7 @@
                 dense
                 :style="typeButtonStyle"
                 :class="typeButtonClass"
-                icon="stacked_bar_chart"
+                :icon="matStackedBarChart"
                 size="sm"
                 @click="moduleChartView = 'type'"
               />
@@ -71,7 +71,7 @@
                 dense
                 :style="breakdownButtonStyle"
                 :class="breakdownButtonClass"
-                icon="grid_view"
+                :icon="matGridView"
                 size="sm"
                 @click="moduleChartView = 'breakdown'"
               />
@@ -118,7 +118,7 @@
             unelevated
             no-caps
             outline
-            icon="o_download"
+            :icon="outlinedDownload"
             :label="$t('common_download_as_png')"
             size="xs"
             dense
@@ -159,7 +159,7 @@
         unelevated
         no-caps
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_png')"
         size="xs"
         dense
@@ -171,6 +171,11 @@
 </template>
 
 <script setup lang="ts">
+import { matGridView, matStackedBarChart } from '@quasar/extras/material-icons';
+import {
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, inject, ref, watch, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { onBeforeRouteUpdate } from 'vue-router';
@@ -195,7 +200,10 @@ import {
   MODULE_TO_CATEGORIES,
 } from '@/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from '@/constant/emissionTypeBreakdownInfo';
-import { getHeadcountChartKeys } from '@/utils/headcountChart';
+import {
+  getHeadcountChartKeys,
+  headcountChartStats,
+} from '@/utils/headcountChart';
 import { getHeadcountMembers } from '@/api/modules';
 import { resolveTravelerNames } from '@/utils/trips-map-data';
 import { travelerSentinelMapEntries } from '@/constant/module-config/traveler-options';
@@ -449,8 +457,11 @@ watch(
   () => fetchTopClassBreakdownIfNeeded(),
 );
 
+const headcountStats = computed(() =>
+  headcountChartStats(moduleStore.state.data?.stats),
+);
 const headcountChartKeys = computed(() =>
-  getHeadcountChartKeys(moduleStore.state.data?.stats),
+  getHeadcountChartKeys(headcountStats.value),
 );
 
 const moduleTreemapData = computed(() => {

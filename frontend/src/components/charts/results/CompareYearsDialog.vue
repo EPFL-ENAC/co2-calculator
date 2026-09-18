@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 import { computed, ref, watch, type PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useModuleStore } from '@/stores/modules';
@@ -16,12 +17,14 @@ import {
   presentCategories,
   computeCompareYearsTotal,
   computeCompareYearsObjectives,
+  computeObjectiveGap,
 } from '@/utils/compareYears';
 import { nOrDash } from '@/utils/number';
 import CompareYearsChart, {
   type CompareYearsSeries,
   type CompareYearsObjectiveBar,
 } from './CompareYearsChart.vue';
+import CompareYearsObjectiveGap from './CompareYearsObjectiveGap.vue';
 
 const props = defineProps({
   modelValue: {
@@ -245,23 +248,23 @@ const scopeObjectives = computed(() =>
 const latestObjective = computed(() => categoryObjectives.value.at(-1) ?? null);
 
 // KPI: how far the latest selected year sits from its objective, framed as the
-// reduction still missing to reach the target. Over target → `missing` with a
-// positive magnitude (e.g. "Missing 11 %"); at/below target → already reached.
+// reduction still missing to reach the target. Over target → `missing` with the
+// share of current emissions to cut (e.g. "-90%"); at/below target → how far
+// below the target the year sits.
 const objectiveGap = computed(() => {
   const obj = latestObjective.value;
-  if (!obj || obj.valueTonnes <= 0 || selectedYears.value.length === 0) {
-    return null;
-  }
+  if (!obj || selectedYears.value.length === 0) return null;
   const latestTonnes = computeCompareYearsTotal(
     data.value?.years ?? [],
     [Math.max(...selectedYears.value)],
     selectedCategories.value,
   );
+  const gap = computeObjectiveGap(latestTonnes, obj.valueTonnes);
+  if (!gap) return null;
   return {
     targetYear: obj.targetYear,
     objectiveTonnes: obj.valueTonnes,
-    missing: latestTonnes > obj.valueTonnes,
-    pctMagnitude: Math.abs(latestTonnes - obj.valueTonnes) / obj.valueTonnes,
+    ...gap,
   };
 });
 
@@ -295,7 +298,14 @@ const scopeObjectiveBars = computed(() =>
           {{ $t('results_compare_years_title') }}
         </div>
         <q-space />
-        <q-btn v-close-popup flat round dense icon="o_close" color="grey-6" />
+        <q-btn
+          v-close-popup
+          flat
+          round
+          dense
+          :icon="outlinedClose"
+          color="grey-6"
+        />
       </q-card-section>
 
       <q-separator class="q-mt-sm" />
@@ -334,42 +344,8 @@ const scopeObjectiveBars = computed(() =>
               class="compare-years-kpi__divider"
             />
 
-            <!-- Gap of the latest selected year to its reduction objective -->
-            <div v-if="objectiveGap" class="compare-years-kpi">
-              <div class="compare-years-kpi__label">
-                {{
-                  $t(
-                    objectiveGap.missing
-                      ? 'results_compare_years_gap_label'
-                      : 'results_compare_years_gap_beaten_label',
-                    { year: objectiveGap.targetYear },
-                  )
-                }}
-              </div>
-              <div class="compare-years-kpi__gap">
-                <span
-                  class="compare-years-kpi__delta"
-                  :class="objectiveGap.missing ? 'text-negative' : 'text-info'"
-                >
-                  {{ objectiveGap.missing ? '-' : ''
-                  }}{{
-                    $nOrDash(objectiveGap.pctMagnitude * 100, {
-                      options: { maximumFractionDigits: 0 },
-                    })
-                  }}%
-                </span>
-                <span class="compare-years-kpi__sub">
-                  {{
-                    $t('results_compare_years_gap_target', {
-                      year: objectiveGap.targetYear,
-                      value: `${formatTonnes(objectiveGap.objectiveTonnes)} ${$t(
-                        'results_units_tonnes',
-                      )}`,
-                    })
-                  }}
-                </span>
-              </div>
-            </div>
+            <!-- Gap of the latest selected year to its reduction objective. -->
+            <CompareYearsObjectiveGap v-if="objectiveGap" :gap="objectiveGap" />
 
             <q-separator
               v-if="objectiveGap"
@@ -626,21 +602,8 @@ const scopeObjectiveBars = computed(() =>
   color: var(--semantic-color-text-muted);
 }
 
-.compare-years-kpi__gap {
-  display: flex;
-  align-items: baseline;
-  gap: tokens.$spacing-sm;
-}
-
-.compare-years-kpi__delta {
-  font-size: 22px;
-  line-height: 1.1;
-}
-
-.compare-years-kpi__sub {
-  font-size: 13px;
-  color: var(--semantic-color-text-muted);
-}
+/* "Goal reached" badge: icon + text, same optical weight as the percentage
+   it replaces so the KPI band keeps its rhythm. */
 
 .compare-years-kpi__divider {
   height: auto;

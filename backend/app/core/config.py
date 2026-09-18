@@ -4,11 +4,7 @@ from enum import Enum
 from functools import lru_cache
 
 from pydantic import Field, computed_field
-from pydantic_settings import (
-    BaseSettings,
-    PydanticBaseSettingsSource,
-    SettingsConfigDict,
-)
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class RoleProviderType(str, Enum):
@@ -400,23 +396,41 @@ class Settings(BaseSettings):
             return f"{issuer}/.well-known/openid-configuration"
         return ""
 
+    # Precedence here has flipped twice. Before touching it again, read this.
+    #
+    # Pydantic's default order applies: real env vars beat .env. Do not add a
+    # settings_customise_sources override to reverse that — we tried it (#1153)
+    # and reverted it (2026-09-08 prod-DB-drop postmortem, docs/src/infra/
+    # 07-postmortem-prod-db-dropped.md). Both directions have a real failure
+    # mode; neither is "the fix" on its own:
+    #
+    # - .env-wins (#1153, Jul 2026): motivated by a stray leftover shell
+    #   `export DB_URL=...` silently outranking a developer's correct .env
+    #   during normal local dev. That risk is real and is NOT resolved by the
+    #   current (reverted) precedence — a stray env var can once again shadow
+    #   a correct .env for plain `make dev` work.
+    # - env-wins (default, current): .env was pointed at prod for a one-off
+    #   read-only audit and stayed live; a test's subprocess DB_URL="local"
+    #   was silently overridden by .env-wins precedence, so `manage_db`
+    #   dropped and recreated the *production* database. Also matches
+    #   deployed reality: stage/prod ship no .env, only env vars (helm/k8s).
+    #
+    # What actually closes each hole is guards that don't depend on which
+    # source wins, added alongside the revert — not the precedence flag:
+    # - scripts/manage_db.py::refuse_remote_host — refuses to drop/create
+    #   anything whose *resolved* host isn't local, regardless of whether
+    #   that URL came from .env or the environment.
+    # - tests/conftest.py::pytest_configure — blanks env_file AND clears
+    #   get_settings()'s cache (#2684), so a real .env is never visible to a
+    #   test process at all; "which source wins" is moot for tests.
+    #
+    # The stray-shell-var risk #1153 targeted is still open outside those two
+    # guards (e.g. it could misdirect S3/OAuth settings in local dev, not
+    # just DB_URL). Close that by extending the same source-independent-guard
+    # pattern to the next risky surface, not by reversing this precedence.
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
     )
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        # .env wins over real env vars: a stray shell `export DB_URL=...`
-        # left over from testing shouldn't silently outrank a fixed .env.
-        # Stage/prod ship no .env file, so real env vars (helm/k8s) still apply there.
-        return (init_settings, dotenv_settings, env_settings, file_secret_settings)
 
     # NOTE: Elastic SEARCH OPDO/27001/27701 compatiblity
 

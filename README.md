@@ -44,6 +44,16 @@ Keep the defaults from `backend/.env.example` — in particular `DEBUG=True`,
 which enables the test login used below. No OAuth/OIDC or Accred credentials
 are needed for local development.
 
+> [!WARNING]
+> A real environment variable always beats `backend/.env` (pydantic's
+> default precedence — see the comment on `Settings.model_config` in
+> `backend/app/core/config.py` for why, and don't try to reverse it). If a
+> shell has a leftover `export DB_URL=...`/`S3_*`/etc. from an earlier
+> command, it silently overrides a correctly-configured `.env` for every
+> tool that reads settings — `uvicorn`, `alembic`, `manage_db`, `pytest`
+> included. Run `env | grep -E 'DB_URL|S3_|OAUTH_'` (or just open a fresh
+> shell) if the app or a script targets somewhere unexpected.
+
 ### 3. Set up the database
 
 ```bash

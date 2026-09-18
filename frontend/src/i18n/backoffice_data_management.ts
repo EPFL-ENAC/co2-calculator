@@ -15,6 +15,14 @@ export default {
     en: 'Factors',
     fr: 'Facteurs',
   },
+  REFERENCE_DATA: {
+    en: 'Reference data',
+    fr: 'Données de référence',
+  },
+  data_management_drop_csv_here: {
+    en: 'Drop CSV here',
+    fr: 'Déposez le CSV ici',
+  },
   data_management_threshold_title: {
     en: 'Threshold',
     fr: 'Seuil',

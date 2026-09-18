@@ -33,6 +33,14 @@ Concurrency model per ``run_job`` invocation:
   handler's domain writes.  Separate so a handler ``rollback`` does
   not roll back the FINISHED+ERROR state-write the runner makes
   afterward.
+- ``job_session`` is committed right after ``claim_job`` (#2700), not
+  held open through the handler: nothing writes to it again until the
+  handler's own frequent progress commits (``base_provider.py``) or the
+  post-handler preempt-check/``finish_job`` tail, so there is no reason
+  for the claim's connection to sit checked out through the handler's
+  setup phase (S3 move included).  ``data_session`` still holds one
+  connection for the whole handler run — that gap is #2700's Part 2,
+  deferred pending an idempotent-resume design for batched commits.
 - One per-job heartbeat task that wakes every
   ``STALE_JOB_TIMEOUT_MINUTES / 4`` and refreshes ``locked_at`` via
   its OWN session.  Cancelled in ``finally`` regardless of outcome
@@ -40,6 +48,7 @@ Concurrency model per ``run_job`` invocation:
 """
 
 import asyncio
+import time
 
 from opentelemetry import context as otel_context
 from opentelemetry import trace
@@ -51,6 +60,7 @@ from app.models.data_ingestion import (
     IngestionResult,
 )
 from app.repositories.data_ingestion import DataIngestionRepository
+from app.tasks._job_timings import record_duration, record_queue_wait
 from app.tasks._pod_id import POD_ID
 from app.tasks.registry import get_handler
 
@@ -172,12 +182,29 @@ async def run_job(job_id: int) -> None:
                     f"run_job: job {job_id} disappeared after claim — exiting"
                 )
                 return
+            # #2854 — the re-fetched row carries the authoritative started_at.
+            claimed_at = time.monotonic()
+            record_queue_wait(job)
 
             # #1236 — capture pipeline_id as a plain value now (immutable
             # for the job's life). Read post-``finish_job`` from a fresh /
             # post-commit ``job_session`` would risk an expired-instance
             # lazy load; a local value sidesteps that entirely.
             pipeline_id_for_status = job.pipeline_id
+
+            # #2700 — commit job_session now, before the handler starts.
+            # Without this, the transaction ``get_job_by_id`` autobegan
+            # stays open (holding a pooled connection) through the
+            # handler's setup phase — the S3 tmp→processing move included
+            # — even though nothing has written to job_session since
+            # ``claim_job``. The handler's own frequent progress commits
+            # (``base_provider.py``'s ``self.job_session``) already release
+            # and reacquire from here on; this just stops the claim itself
+            # from holding a slot it no longer needs. Safe to commit here:
+            # ``SessionLocal`` is ``expire_on_commit=False`` (app/db.py), so
+            # ``job``'s already-loaded attributes stay readable without a
+            # session — the handler needs no refresh.
+            await job_session.commit()
 
             # #2371 — one OTel span per job execution, so every SQL span the
             # handler, ``finish_job``, the post-commit pipeline recompute, and
@@ -283,6 +310,26 @@ async def run_job(job_id: int) -> None:
                         metadata = {}
                         result = IngestionResult.ERROR
                         handler_succeeded = False
+                except asyncio.CancelledError:
+                    # Pod shutdown (#2696): the lifespan cancels every
+                    # in-flight run_job. Stop the handler, drop its writes,
+                    # and hand the row back now -- otherwise it stays
+                    # RUNNING under a dead pod until the stale sweep finds
+                    # it STALE_JOB_TIMEOUT_MINUTES later.
+                    handler_task.cancel()
+                    try:
+                        await handler_task
+                    except asyncio.CancelledError, Exception:
+                        pass
+                    await data_session.rollback()
+                    await job_session.rollback()
+                    released = await repo.release_job(job_id, POD_ID)
+                    logger.warning(
+                        "run_job: cancelled mid-handler, job %s %s",
+                        job_id,
+                        "handed back to the queue" if released else "no longer ours",
+                    )
+                    raise
                 except Exception as exc:
                     logger.exception(
                         f"run_job: handler for job_type={job_type!r} failed "
@@ -367,6 +414,7 @@ async def run_job(job_id: int) -> None:
                 if not wrote:
                     logger.warning("preempted before FINISHED write: job_id=%s", job_id)
                     return
+                record_duration(job_type, result, claimed_at)
 
                 # #1236 — advance the pipeline aggregate's authoritative
                 # status. ``finish_job`` already COMMITTED job_session, so

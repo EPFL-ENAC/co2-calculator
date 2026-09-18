@@ -255,9 +255,14 @@ response-shape assertions. Cross-tenant deny tests deliberately bypass
 
 - **Layer 1 deny** - inject `is_permitted=_deny` and assert 403
   before any DB read. See `test_active_pipelines_endpoint_pg.py`.
-- **Layer 2 deny** - mock `_institutional_id_for_job` to return a
-  unit ID, then mock `check_module_permission` to raise. See
-  `test_sync_pipeline_stream_endpoint_pg.py::test_cross_tenant_pipeline_returns_403`.
+- **Layer 2 deny / allow** - seed a real unit tree with
+  `seeded_year_with_units`, create the job with `entity_id` set to one of
+  its `carbon_report_modules.id`, and call the endpoint with a user whose
+  `roles` are real `Role` objects. Never mock `_institutional_id_for_job`
+  or `check_module_permission`: #2654 hid for four months behind exactly
+  that patch — `entity_id` was never written, the resolver always returned
+  `None`, and the mock made the dead gate look alive. See
+  `test_sync_pipeline_stream_endpoint_pg.py::TestUnitScope`.
 
 When you add a new permission check (a new positional argument to
 `get_module_permission_decision`, a new endpoint requiring a different
@@ -324,7 +329,14 @@ concurrent writers (multiple pods, retried tasks, racing user actions):
 | ------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------- |
 | `ix_data_ingestion_jobs_is_current_unique` | `(combo, is_current=TRUE)`                                                      | `claim_job`                   |
 | `uq_aggregation_active`                    | `(module_type_id, year)` where `job_type='aggregation'`                         | `chain_job(dedup_config=...)` |
-| `uq_emission_recalc_active`                | `(module_type_id, data_entry_type_id, year)` where `job_type='emission_recalc'` | `chain_job(dedup_config=...)` |
+| `uq_emission_recalc_active_unscoped`       | `(module_type_id, data_entry_type_id, year)` where `job_type='emission_recalc'` | `chain_job(dedup_config=...)` |
+
+Only _unscoped_ (whole-slice) recalcs are in the third index: a child
+pinning `meta.config.carbon_report_module_ids` recomputes one carbon
+report module's rows, disjoint from every other unit's child for the
+same `(module_type, det, year)`, so collapsing them dropped work (#2527
+Phase A). `chain_job` drops dedup for those children and the Python
+pre-check carries the same predicate as the index.
 
 `claim_job` (`backend/app/repositories/data_ingestion.py:473`) uses
 the first index for atomic claims: only one pod can hold the

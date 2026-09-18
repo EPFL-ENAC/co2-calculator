@@ -418,17 +418,28 @@ class BaseFactorCSVProvider(CSVIngestionProvider, ABC):
             # (#1489, audit F-3): ``_convert_value`` keeps the raw string when
             # ``float()`` fails, and untyped fields skip coercion entirely, so
             # without this the validated DTO was discarded and the unvalidated
-            # dict is what reached ``Factor.values``. ``classification`` stays
-            # hand-built on purpose — the Plan 310B identity index keys on
-            # ``classification::text``, so its representation must not change.
+            # dict is what reached ``Factor.values``.
             validated_fields = getattr(type(validated), "model_fields", {})
             for field_name in values:
                 if field_name in validated_fields:
                     values[field_name] = getattr(validated, field_name)
 
+            # Classification takes the DTO-normalized value too (#1489): the
+            # identity index keys on ``classification::text`` and resolution
+            # compares against entry data by exact string equality, so the
+            # canonical form the shared field types produce (strip, lowered
+            # currency, uppered country codes) must be what lands in the
+            # identity — otherwise re-importing the same CSV with different
+            # casing inserts a second row instead of updating. Existing rows
+            # are normalized to the same form by the companion migration.
+            for field_name in classification:
+                if field_name in validated_fields:
+                    classification[field_name] = getattr(validated, field_name)
+
             # Only a row that survived validation may contribute labels —
             # collecting earlier would upsert a translation for a factor
-            # that never lands.
+            # that never lands. Runs after the normalization above so the
+            # translation keys on the canonical classification value.
             self._collect_translations(row, classification)
 
             # ``year`` is stored on the dedicated ``Factor.year`` column;
@@ -625,6 +636,7 @@ class BaseFactorCSVProvider(CSVIngestionProvider, ABC):
         # operator re-uploads a corrected CSV; that SUCCESS run sweeps.
         if result == IngestionResult.SUCCESS:
             stats["factors_deleted"] = await self._delete_stale_factors(factor_repo)
+        await self._validate_year_factor_sets(factor_repo)
 
         processing_path = setup_result["processing_path"]
         metadata_update: dict[str, Any] = {
@@ -685,6 +697,20 @@ class BaseFactorCSVProvider(CSVIngestionProvider, ABC):
             await derive_planner_purchase_factors(
                 self.data_session, self.year, self.job_id
             )
+
+    async def _validate_year_factor_sets(self, factor_repo: FactorRepository) -> None:
+        """Run each handler's cross-row check on the year's resulting factor set.
+
+        A failure raises before the commit, so a CSV whose rows are valid one
+        by one but inconsistent together (overlapping plane distance bands)
+        leaves the year untouched.
+        """
+        if self.year is None:
+            return
+        for det_id in sorted(self._upserted_det_ids):
+            det = DataEntryTypeEnum(det_id)
+            factors = await factor_repo.list_by_data_entry_type(det, self.year)
+            BaseFactorHandler.get_by_type(det).validate_year_factors(factors)
 
     async def _delete_stale_factors(self, factor_repo: FactorRepository) -> int:
         """Delete factors this job's upsert just superseded.

@@ -88,7 +88,10 @@ class ModuleResponse(BaseModel):
     data_entry_types_total_items: dict[int, int] = Field(
         ..., description="Total items per data entry type ID"
     )
-    stats: dict[str, float | None] | None = Field(None, description="Module statistics")
+    stats: dict | None = Field(
+        None,
+        description="The module's persisted stats JSON (carbon_report_modules.stats)",
+    )
     totals: ModuleTotals = Field(..., description="Module totals")
     incomplete_new_equipment_count: int = Field(
         0,

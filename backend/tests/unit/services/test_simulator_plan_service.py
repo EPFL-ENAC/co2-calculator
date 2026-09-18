@@ -10,8 +10,17 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from app.core.constants import ModuleStatus
-from app.models.carbon_report import CarbonReportModule, CarbonReportType
-from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.carbon_report import (
+    CarbonReport,
+    CarbonReportModule,
+    CarbonReportType,
+)
+from app.models.data_entry import (
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryStatusEnum,
+    DataEntryTypeEnum,
+)
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import GlobalScope, Role, RoleName, User, UserProvider
 from app.models.year_configuration import YearConfiguration
@@ -147,6 +156,59 @@ async def test_list_plans_scoped_to_unit(async_session, user):
 
     plans = await service.list_plans(1)
     assert {p.name for p in plans} == {"a", "b"}
+
+
+async def _attach_report(async_session, plan_id, *, year, is_grant, total_kg):
+    report = await CarbonReportService(async_session).create(
+        CarbonReportCreate(
+            year=year, unit_id=1, carbon_project_id=plan_id, is_grant=is_grant
+        )
+    )
+    await async_session.execute(
+        update(CarbonReport)
+        .where(CarbonReport.id == report.id)
+        .values(stats={"total": total_kg})
+    )
+    await async_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_list_plans_totals_split_years_and_grant(async_session, user):
+    """Years and grant totals are reported side by side, never summed (#2805).
+
+    A side the plan has no report for is ``None`` (the table shows a dash),
+    so a grant-only plan no longer reads as 0 while its page says otherwise.
+    """
+    service = SimulatorPlanService(async_session)
+    grant_only = await service.create_plan(unit_id=1, user=user, name="grant-only")
+    years_only = await service.create_plan(unit_id=1, user=user, name="years-only")
+    both = await service.create_plan(unit_id=1, user=user, name="both")
+    await service.create_plan(unit_id=1, user=user, name="empty")
+
+    await _attach_report(
+        async_session, grant_only.id, year=2026, is_grant=True, total_kg=10_401_000
+    )
+    await _attach_report(
+        async_session, years_only.id, year=2026, is_grant=False, total_kg=1_000
+    )
+    await _attach_report(
+        async_session, years_only.id, year=2027, is_grant=False, total_kg=2_000
+    )
+    await _attach_report(
+        async_session, both.id, year=2026, is_grant=True, total_kg=5_000
+    )
+    await _attach_report(
+        async_session, both.id, year=2026, is_grant=False, total_kg=4_000
+    )
+
+    by_name = {
+        p.name: (p.total_tonnes_co2eq, p.grant_total_tonnes_co2eq)
+        for p in await service.list_plans(1)
+    }
+    assert by_name["grant-only"] == (None, 10_401.0)
+    assert by_name["years-only"] == (3.0, None)
+    assert by_name["both"] == (4.0, 5.0)
+    assert by_name["empty"] == (None, None)
 
 
 # ── update_plan (rename) ──────────────────────────────────────────────────────
@@ -720,6 +782,143 @@ async def test_prefill_rebuilds_the_module(async_session, user):
     rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
     assert len(rows) == 2  # the previous rows are gone, not duplicated
     assert all(r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in rows)
+
+
+def _expected_copied_row(src: DataEntry, *, plan_module_id, unit_id, year, plain_copy):
+    """The row the pre-#2527 Python round trip built for one source entry.
+
+    Kept as a literal transcription of the old list-comp so the assertions
+    below compare the server-side ``INSERT ... SELECT`` against the
+    implementation it replaced, column by column, rather than against a
+    hand-picked subset that could drift with it.
+    """
+    return {
+        "data_entry_type_id": src.data_entry_type_id,
+        "carbon_report_module_id": plan_module_id,
+        "unit_id": unit_id,
+        "year": year,
+        "source": DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+        "status": DataEntryStatusEnum.PENDING,
+        "created_by_id": None,
+        "data": dict(src.data)
+        if plain_copy
+        else {
+            **src.data,
+            "percentage_of_reference_year": 0,
+            "source_data_entry_id": src.id,
+        },
+    }
+
+
+def _actual_copied_row(row: DataEntry):
+    return {
+        "data_entry_type_id": row.data_entry_type_id,
+        "carbon_report_module_id": row.carbon_report_module_id,
+        "unit_id": row.unit_id,
+        "year": row.year,
+        "source": row.source,
+        "status": row.status,
+        "created_by_id": row.created_by_id,
+        "data": row.data,
+    }
+
+
+@pytest.mark.asyncio
+async def test_prefill_copy_matches_the_python_round_trip(async_session, user):
+    """#2527 C1: the set-based copy writes exactly the old row, every column.
+
+    ``data`` is compared as a dict, not as text: on Postgres the copy goes
+    ``json -> jsonb -> json``, which reorders keys — the values, and the
+    integer-vs-float shape of ``percentage_of_reference_year``, are what a
+    reader depends on.
+    """
+    service = SimulatorPlanService(async_session)
+    _, _, src_entries = await _calculator_report_with_process_entries(
+        service, async_session
+    )
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    report = await _plan_year_report(service, plan.id)
+
+    plan_module = await service.report_service.module_service.get_module(
+        report.id, int(ModuleTypeEnum.process_emissions)
+    )
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    by_source = {r.data["source_data_entry_id"]: r for r in rows}
+    assert set(by_source) == {e.id for e in src_entries}
+    for src in src_entries:
+        assert _actual_copied_row(by_source[src.id]) == _expected_copied_row(
+            src,
+            plan_module_id=plan_module.id,
+            unit_id=report.unit_id,
+            year=report.year,
+            plain_copy=False,
+        )
+    # An int, not 0.0: jsonb_build_object/json_object must not float it.
+    assert all(isinstance(r.data["percentage_of_reference_year"], int) for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_plain_copy_module_gets_no_reference_keys(async_session, user):
+    """Plain-copy modules (travel) copy the payload untouched — #2018."""
+    service = SimulatorPlanService(async_session)
+    ref_report, _, _ = await _calculator_report_with_process_entries(
+        service, async_session
+    )
+    ref_modules = await service.report_service.module_service.list_modules(
+        ref_report.id
+    )
+    travel_module = next(
+        m
+        for m in ref_modules
+        if m.module_type_id == int(ModuleTypeEnum.professional_travel)
+    )
+    src = DataEntry(
+        data_entry_type_id=DataEntryTypeEnum.train.value,
+        carbon_report_module_id=travel_module.id,
+        data={"name": "Ref traveller", "distance_km": 120.0, "cabin_class": "second"},
+    )
+    async_session.add(src)
+    await async_session.flush()
+
+    plan = await service.create_plan(unit_id=1, user=user, name="plain")
+    report = await _plan_year_report(service, plan.id)
+    plan_module = await service.report_service.module_service.get_module(
+        report.id, int(ModuleTypeEnum.professional_travel)
+    )
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    assert len(rows) == 1
+    assert _actual_copied_row(rows[0]) == _expected_copied_row(
+        src,
+        plan_module_id=plan_module.id,
+        unit_id=report.unit_id,
+        year=report.year,
+        plain_copy=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_prefill_of_an_empty_reference_module_reports_zero(async_session, user):
+    """The 0 rowcount is load-bearing: it is how ``_prefill_reference_modules``
+    learns a module ended up empty and folds it into the batched stats
+    refresh. A copy that miscounted would leave stale stats behind.
+    """
+    service = SimulatorPlanService(async_session)
+    ref_report, ref_module, _ = await _calculator_report_with_process_entries(
+        service, async_session
+    )
+    await DataEntryRepository(async_session).bulk_delete_by_modules([ref_module.id])
+    plan = await service.create_plan(unit_id=1, user=user, name="empty")
+    report = await _plan_year_report(service, plan.id)
+
+    copied = await service.prefill_module_from_reference(
+        report, int(ModuleTypeEnum.process_emissions)
+    )
+    assert copied == 0
+    plan_module = await service.report_service.module_service.get_module(
+        report.id, int(ModuleTypeEnum.process_emissions)
+    )
+    assert await DataEntryRepository(async_session).list_by_module(plan_module.id) == []
+    assert ref_report.id is not None
 
 
 @pytest.mark.asyncio

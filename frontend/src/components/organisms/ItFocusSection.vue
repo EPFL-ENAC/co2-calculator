@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { computed, ref } from 'vue';
 
 import BigNumber from '@/components/molecules/BigNumber.vue';
@@ -131,7 +132,7 @@ const downloadPNG = () => breakdownChartRef.value?.downloadPNG();
             unelevated
             no-caps
             outline
-            icon="o_download"
+            :icon="outlinedDownload"
             :label="$t('common_download_as_png')"
             size="xs"
             dense

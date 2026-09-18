@@ -51,6 +51,12 @@ class DBHealthState:
 
 _state: DBHealthState | None = None
 
+# The in-flight SELECT 1, kept as a module global so a hung probe is neither
+# garbage-collected nor duplicated: the next tick re-awaits it instead of
+# stacking a second connection behind the same stall (#2689).
+_probe: asyncio.Task[tuple[float, str | None]] | None = None
+_probe_started_at: float = 0.0
+
 
 def get_db_health_state() -> DBHealthState | None:
     """Current cached verdict, or None if the loop hasn't ticked yet.
@@ -72,31 +78,58 @@ def is_fresh(state: DBHealthState, *, interval_seconds: int) -> bool:
     return age <= _STALE_AFTER_INTERVALS * interval_seconds
 
 
-async def _check_once(settings: Settings) -> None:
-    """Run one SELECT 1, classify it, and update the cached state.
-
-    Never raises (except CancelledError propagating through the timeout) —
-    a failed or timed-out check is a valid, expected outcome (status
-    "down"), not a bug.
+async def _run_probe() -> tuple[float, str | None]:
+    """One SELECT 1 on its own connection: (latency_ms, error). Never
+    raises, so an abandoned probe never leaves an unretrieved exception.
     """
-    global _state
     start = time.monotonic()
     try:
-        async with asyncio.timeout(DB_HEALTH_CHECK_TIMEOUT_SECONDS):
-            async with SessionLocal() as session:
-                await session.execute(text("SELECT 1"))
-        latency_ms = (time.monotonic() - start) * 1000
-        status = "slow" if latency_ms >= settings.DB_HEALTH_SLOW_THRESHOLD_MS else "ok"
-        error = None
+        async with SessionLocal() as session:
+            await session.execute(text("SELECT 1"))
     except asyncio.CancelledError:
         raise
     except Exception as e:
-        latency_ms = (time.monotonic() - start) * 1000
+        return (time.monotonic() - start) * 1000, str(e) or type(e).__name__
+    return (time.monotonic() - start) * 1000, None
+
+
+def _current_probe() -> asyncio.Task[tuple[float, str | None]]:
+    global _probe, _probe_started_at
+    if _probe is None or _probe.done():
+        _probe = asyncio.create_task(_run_probe(), name="db-health-probe")
+        _probe_started_at = time.monotonic()
+    return _probe
+
+
+async def _check_once(settings: Settings) -> None:
+    """Wait up to DB_HEALTH_CHECK_TIMEOUT_SECONDS for the probe, classify
+    it, and update the cached state.
+
+    The probe runs as its own task and is only *waited for*, never
+    cancelled: cancelling a SQLAlchemy call mid-checkout blocks in the
+    connection teardown for as long as the DB is unreachable (2 min behind
+    the DBaaS PgBouncer on 2026-09-08), which froze this loop and left
+    /ready at 503 for every wave (#2689). A probe that outlives the wait is
+    reported "down" now and re-awaited on the next tick.
+
+    Never raises (except CancelledError) — a failed or timed-out check is a
+    valid, expected outcome (status "down"), not a bug.
+    """
+    global _state
+    probe = _current_probe()
+    try:
+        latency_ms, error = await asyncio.wait_for(
+            asyncio.shield(probe), DB_HEALTH_CHECK_TIMEOUT_SECONDS
+        )
+    except TimeoutError:
+        latency_ms = (time.monotonic() - _probe_started_at) * 1000
+        error = "TimeoutError"
+
+    status: Literal["ok", "slow", "down"] = "ok"
+    if error is not None:
         status = "down"
-        # str(e) is empty for some exceptions (notably bare TimeoutError,
-        # which asyncio.timeout() raises) — fall back to the type name so
-        # the /ready failure log always has something to show.
-        error = str(e) or type(e).__name__
+    if error is None and latency_ms >= settings.DB_HEALTH_SLOW_THRESHOLD_MS:
+        status = "slow"
 
     _state = DBHealthState(
         status=status,
@@ -127,6 +160,8 @@ async def db_health_check_loop() -> None:
             await asyncio.sleep(interval)
             await _check_once(settings)
         except asyncio.CancelledError:
+            if _probe is not None and not _probe.done():
+                _probe.cancel()
             raise
         except Exception:
             logger.warning(

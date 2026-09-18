@@ -107,15 +107,15 @@ export default {
 
   // ── Equipment ──────────────────────────────────────────────────────────────
   'module-equipment-submodule-scientific': {
-    en: 'Check that the data for your scientific equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+    en: 'Review that the data for your scientific equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
   'module-equipment-submodule-it': {
-    en: 'Check that the data for your IT equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+    en: 'Review that the data for your IT equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
   'module-equipment-submodule-other': {
-    en: 'Check that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+    en: 'Review that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
 
@@ -131,8 +131,8 @@ export default {
 
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane': {
-    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. If any flights are missing, you can add them manually and they will appear in the table in beige.',
-    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. S'il manque des vols, il est possible de les saisir manuellement et ils apparaitront dans le tableau en beige.",
+    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. Complete any missing entries manually, if applicable. Data rows for external passengers are highlighted in orange.',
+    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. Saisissez manuellement les vols manquants, le cas échéant. Les lignes de données des passagers externes sont surlignées en orange.",
   },
   'module-professional-travel-submodule-train': {
     en: 'Enter your train trips manually, whether they were taken in Switzerland or abroad. ',
@@ -236,7 +236,10 @@ export default {
     en: 'Please select the supplier(s) from the list, then provide the service type, total spent, and currency. To save time, you can pre-fill and import a CSV file.',
     fr: 'Veuillez sélectionner le ou les fournisseurs dans la liste, puis préciser le type de service, le montant dépensé et la devise associée. Pour faciliter la saisie, vous pouvez préalablement remplir et importer un fichier CSV.',
   },
-  'module-external-cloud-and-ai-submodule-external_ai-form': { en: '', fr: '' },
+  'module-external-cloud-and-ai-submodule-external_ai-form': {
+    en: 'Please select the supplier(s) from the list, then provide the usage type, number of users in FTP, and frequency. To save time, you can pre-fill and import a CSV file.',
+    fr: "Veuillez sélectionner le ou les fournisseurs dans la liste, puis préciser le type d'usage, nombre de utilisateur·trices en EPT, et la fréquence. Pour faciliter la saisie, vous pouvez préalablement remplir et importer un fichier CSV.",
+  },
 
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane-form': {
@@ -330,8 +333,8 @@ export default {
     fr: '',
   },
   'module-process-emissions-submodule-process_emissions-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── Buildings — rooms table ─────────────────────────────────────────────────
@@ -363,7 +366,10 @@ export default {
     en: 'Annual lighting energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
     fr: "Consommation annuelle d'énergie d'éclairage calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
   },
-  'module-buildings-submodule-building-table-kg_co2eq': { en: '', fr: '' },
+  'module-buildings-submodule-building-table-kg_co2eq': {
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
+  },
 
   // ── Buildings — energy combustion table ────────────────────────────────────
   'module-buildings-submodule-energy_combustion-table-name': { en: '', fr: '' },
@@ -373,8 +379,8 @@ export default {
     fr: '',
   },
   'module-buildings-submodule-energy_combustion-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── Equipment — scientific table ────────────────────────────────────────────
@@ -407,8 +413,8 @@ export default {
     fr: "La puissance standby moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas vous pouvez demander une modification via le bouton Commentaire de la ligne concernée.",
   },
   'module-equipment-submodule-scientific-table-kg_co2eq': {
-    en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
-    fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation.",
+    en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters. Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation. Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
   'module-equipment-submodule-scientific-table-t_co2eq': {
     en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
@@ -423,6 +429,18 @@ export default {
   'module-equipment-submodule-other-table-name': {
     en: '',
     fr: '',
+  },
+
+  // ── Professional Travel — plane and train tables ────────────────────────────
+  'module-professional-travel-submodule-travel-table-kg_co2eq': {
+    en: 'Values appear in red when they exceed the threshold set for this module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
+  },
+
+  // ── Purchases — all purchase tables ─────────────────────────────────────────
+  'module-purchase-submodule-purchase-table-kg_co2eq': {
+    en: 'Values appear in red when they exceed the threshold set for this module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── External Cloud & AI — cloud services table ──────────────────────────────
@@ -443,8 +461,8 @@ export default {
     fr: '',
   },
   'module-external-cloud-and-ai-submodule-external_clouds-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── External Cloud & AI — AI services table ─────────────────────────────────
@@ -463,8 +481,8 @@ export default {
   'module-external-cloud-and-ai-submodule-external_ai-table-requests_per_user_per_day':
     { en: '', fr: '' },
   'module-external-cloud-and-ai-submodule-external_ai-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── Research Facilities — research facilities table ─────────────────────────
@@ -479,8 +497,8 @@ export default {
     fr: '',
   },
   'module-research-facilities-submodule-research-facilities-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ── Research Facilities — animal facilities table ───────────────────────────
@@ -499,8 +517,8 @@ export default {
     fr: "Pour l'utilisation des animaleries rongeurs et poissons à l'EPFL, nous ne considérons que la partie hébergement des animaux et pas ce qui concerne l'unité de phénotypage (UDP) et la plateforme de transgénèse (TCF).",
   },
   'module-research-facilities-submodule-animal_facilities-table-kg_co2eq': {
-    en: '',
-    fr: '',
+    en: 'Values appear in red when they exceed the threshold set for this specific module.',
+    fr: "Les valeurs s'affichent en rouge lorsqu'elles dépassent le seuil défini pour ce module.",
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -766,8 +784,8 @@ export default {
   },
 
   'planner-grant-module-equipment-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment (scientific equipment, IT equipment, other equipment) specific to your project (Scope 2).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).",
+    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment (scientific equipment, IT equipment, other equipment) specific to your project (Scope 2). To do so, you may estimate the contribution of the Equipment module for your project reference year by either providing a global percentage or specifying a project % of reference year for each equipment item in the table.',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2). Pour cela, vous pouvez estimer la contribution du module Équipement pour l'année de référence de votre projet en indiquant soit un pourcentage global ou pour chaque ligne d'équipement indiquer un % de référence au projet dans le tableau. ",
   },
   'planner-grant-module-equipment-submodule-scientific': {
     en: 'Indicate the scientific equipment used to estimate its carbon footprint specific to your project (Scope 2). You can specify the percentage of the reference year or manually add an equipment.',
@@ -809,8 +827,8 @@ export default {
   },
 
   'planner-grant-module-purchase-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, please indicate the budget allocated to the relevant purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, veuillez indiquer le budget correspondant aux catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
+    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, you may provide either the global budget or a budget by purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, vous pouvez indiquer soit le budget global ou un budget par catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
   },
   'planner-grant-module-purchase-submodule-scientific_equipment': {
     en: '',
@@ -893,8 +911,8 @@ export default {
   },
 
   'planner-year-module-equipment-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment used specifically for your project (Scientific Equipment, IT Equipment, and Other Equipment) (Scope 2).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).",
+    en: 'This module allows you to estimate the carbon footprint associated with the electricity consumption of equipment used specifically for your project (Scientific Equipment, IT Equipment, and Other Equipment) (Scope 2). To do so, you may estimate the contribution of the Equipment module for your project reference year by either providing a global percentage or specifying a project % of reference year for each equipment item in the table.',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à la consommation électrique des équipements (Équipements scientifiques, Équipements IT, Autres équipements) spécifique à votre projet (Scope 2).Pour cela, vous pouvez estimer la contribution du module Équipement pour l'année de référence de votre projet en indiquant soit un pourcentage global ou pour chaque ligne d'équipement indiquer un % de référence au projet dans le tableau. ",
   },
   'planner-year-module-equipment-submodule-scientific': {
     en: 'Indicate the scientific equipment used to estimate its carbon footprint specific to your project (Scope 2). You can enter the percentage of the reference year in the table or manually add an equipment.',
@@ -936,8 +954,8 @@ export default {
   },
 
   'planner-year-module-purchase-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, please indicate the budget allocated to the relevant purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, veuillez indiquer le budget correspondant aux catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
+    en: 'This module allows you to estimate the carbon footprint associated with project-specific purchases (Scope 3). To do so, you may provide either the global budget or a budget by purchasing categories (Scientific Equipment, IT Equipment, Consumables and Accessories, Biological, Chemical and Gas Products, Services, Vehicles, and Other Purchases).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux achats spécifiques à votre projet (Scope 3). Pour cela, vous pouvez indiquer soit le budget global ou un budget par catégories d'achats (Équipements scientifiques, Équipements informatiques, Consommables et accessoires, Produits biologiques, chimiques et gazeux, Services, Véhicules, Autres achats).",
   },
   'planner-year-module-purchase-submodule-scientific_equipment': {
     en: '',

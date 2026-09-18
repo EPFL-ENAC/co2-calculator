@@ -24,3 +24,16 @@ export async function postExploreCarbonReport(
   );
   return api.post(path).json<CarbonReport>();
 }
+
+/**
+ * Read the caller's current Simulator Explore sandbox (#2656) — 404 when none
+ * exists. Read-only surfaces (the printable report) must use this: the POST
+ * above always creates a fresh, empty sandbox and deletes the previous one,
+ * so calling it to "load" an exploration destroys the exploration.
+ */
+export async function getExploreCarbonReport(
+  unitId: number,
+): Promise<CarbonReport> {
+  const path = carbonReportLookupPath(CARBON_PROJECT.explorer, unitId, '');
+  return api.get(path).json<CarbonReport>();
+}

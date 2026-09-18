@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import epflLogo from '@/assets/epfl-logo.svg';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Co2LanguageSelector from '@/components/atoms/Co2LanguageSelector.vue';
@@ -90,14 +91,12 @@ const logoRoute = computed(() => {
           :title="$t('home')"
           class="toolbar-home-link row items-center no-wrap"
         >
-          <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="100px" />
+          <q-img :src="epflLogo" :alt="$t('logo_alt')" width="100px" />
           <span class="q-ml-md text-h3 text-weight-medium">{{
             $t('calculator_title')
           }}</span>
         </router-link>
       </q-toolbar-title>
-
-      <q-space />
 
       <q-btn
         v-if="hasBackOfficeAccess && !isInBackOfficeRoute"

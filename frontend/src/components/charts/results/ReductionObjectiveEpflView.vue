@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUpdated, ref } from 'vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -635,7 +636,6 @@ const chartOption = computed<EChartsOption | null>(() => {
       right: 64,
       top: 24,
       bottom: 24,
-      containLabel: true,
     },
     xAxis: [
       {
@@ -661,7 +661,8 @@ const chartOption = computed<EChartsOption | null>(() => {
         type: 'value',
         name: t('results_units_tonnes'),
         min: 0,
-        nameGap: 36,
+        nameMoveOverlap: true,
+        nameGap: 12,
         nameLocation: 'middle',
         axisLine: { show: false },
         axisTick: { show: false },
@@ -673,7 +674,8 @@ const chartOption = computed<EChartsOption | null>(() => {
         name: t('results_objectives_population_axis'),
         min: 0,
         position: 'right',
-        nameGap: 56,
+        nameMoveOverlap: true,
+        nameGap: 12,
         nameLocation: 'middle',
         axisLine: { show: false },
         axisTick: { show: false },
@@ -710,7 +712,7 @@ const chartOption = computed<EChartsOption | null>(() => {
     />
     <q-card v-else flat class="objective-empty-card">
       <q-card-section class="objective-empty-card__content">
-        <q-icon name="o_info" size="md" color="accent" class="q-mb-md" />
+        <q-icon :name="outlinedInfo" size="md" color="accent" class="q-mb-md" />
         <div class="text-h6 text-weight-medium text-center q-mb-sm">
           {{ $t('results_objectives_epfl_no_data_title') }}
         </div>

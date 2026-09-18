@@ -14,7 +14,15 @@ import httpx
 
 from app.core.config import get_settings
 
-settings = get_settings()
+# A module-level `settings = get_settings()` singleton used to live here.
+# Removed (#2684/#2686): app/__init__.py's eager import chain reaches this
+# module before tests/conftest.py's pytest_configure ever runs, so a
+# module-level binding stays pinned to whatever a developer's real .env
+# said for the whole test session — get_settings.cache_clear() in
+# pytest_configure discards the *cache*, not references already taken from
+# it. Call get_settings() at the point of use instead (LokiHandler.emit,
+# setup_logging): it's lru_cache'd, so this costs nothing once warm, and it
+# reads the correct settings whichever process (real app, or test) is live.
 
 # OAuth + token query params that uvicorn.access would otherwise log verbatim
 # as part of the request URL. The OAuth `code` is single-use and already
@@ -141,6 +149,7 @@ class LokiHandler(logging.Handler):
             line = self.format(record)  # leverage attached formatter (JSON)
 
             # Keep labels low-cardinality; add level (small set) and job/env
+            settings = get_settings()
             labels = {
                 "job": settings.LOKI_LABEL_JOB or settings.APP_NAME,
                 "env": settings.LOKI_LABEL_ENV or ("dev" if settings.DEBUG else "prod"),
@@ -183,6 +192,7 @@ class LokiHandler(logging.Handler):
 
 def setup_logging() -> None:
     """Configure application logging with JSON output and optional Loki. Idempotent."""
+    settings = get_settings()
     log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 
     # Reset handlers to avoid duplicates on reload

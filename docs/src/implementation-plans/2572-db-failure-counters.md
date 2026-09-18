@@ -135,7 +135,9 @@ ever waits.
       over the message, and `handle_error` neither on an open connection nor on
       a failed pre-ping counting. All three verified failing with the code they
       cover removed.
-- [ ] **Prometheus rules.** `DbPoolTimeouts` and `DbConnectionsRefused` on
+- [ ] **Prometheus rules.** Deployed as `DbPoolCheckoutTimeout` and
+      `DbServerConnectionSlotsExhausted` (names below are the plan's
+      drafts): `DbPoolTimeouts` and `DbConnectionsRefused` on
       `increase(...) > 0` live in EPFL-ENAC/openshift-app-config
       (`overlays/*/monitoring/specific-namespace-alerts.yaml`) and are a
       separate PR now that the metrics exist.

@@ -1,0 +1,51 @@
+[repos]
+list = ["EPFL-ENAC/co2-calculator", "EPFL-ENAC/co2-calculator-back-office-doc"]
+
+[fields.status]
+single = true
+options = ["backlog", "comite", "ready", "in-progress", "in-review", "ready-for-validation", "qa", "tests-metier", "validated"]
+
+[fields.prio]
+single = true
+options = ["p0", "p1", "p2", "p3"]
+
+[fields.est]
+single = true
+options = ["0.5", "1", "2", "3", "4", "6", "8", "16"]
+numeric = true
+
+[fields.assignee]
+single = false
+
+[sprints]
+length_days = 14
+start_weekday = "monday"
+
+[[sprints.list]]
+slug = "delivery"
+title = "Delivery"
+start = 2026-08-24
+
+[[sprints.list]]
+slug = "post-delivery"
+title = "Post-delivery"
+start = 2026-09-07
+
+[views.current-sprint]
+layout = "board"
+group = "status"
+filter = "sprint:@current is:open -title:*spec*"
+
+[views.backlog]
+layout = "table"
+filter = "is:open"
+group = "sprint"
+sort = "prio asc"
+
+[views.mine]
+layout = "table"
+filter = "assignee:@me is:open"
+
+[github-project]
+owner = "epfl-enac"
+number = 40

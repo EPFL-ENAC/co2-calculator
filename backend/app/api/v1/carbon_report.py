@@ -32,10 +32,18 @@ from app.utils.factor_year import resolve_factor_year_safe
 from app.workflows.explore_provisioning import ExploreProvisioningWorkflow
 
 
-async def _explore_report_read(
+async def _carbon_report_read(
     db: AsyncSession, report: CarbonReport | CarbonReportRead
 ) -> CarbonReportRead:
-    """Build an Explore response carrying its resolved factor year (#2631)."""
+    """Build a response carrying the report's resolved factor year (#2631).
+
+    Not Explore-specific despite where it was first added: any route
+    returning a single ``CarbonReportRead`` should carry a consistent
+    ``factor_year`` — the dedicated Explore GET already did, but the
+    generic by-id GET (also reachable for an Explore report, #2461's
+    ownership gate) silently left it ``None``, which read as a bug to
+    anyone comparing the two responses for the same report.
+    """
     factor_year = await resolve_factor_year_safe(db, report)
     return CarbonReportRead.model_validate(report).model_copy(
         update={"factor_year": factor_year}
@@ -152,7 +160,7 @@ async def get_simulator_explore_carbon_report(
         raise HTTPException(
             status_code=404, detail="Simulator Explore report not found"
         )
-    return await _explore_report_read(db, result)
+    return await _carbon_report_read(db, result)
 
 
 @router.post(
@@ -195,7 +203,7 @@ async def create_simulator_explore_carbon_report(
         created_by=current_user.id,
         keep_project_id=result.carbon_project_id,
     )
-    return await _explore_report_read(db, result)
+    return await _carbon_report_read(db, result)
 
 
 @router.get("/{carbon_report_id}", response_model=CarbonReportRead)
@@ -214,7 +222,7 @@ async def get_carbon_report(
     if report.carbon_project_id is not None:
         project = await db.get(CarbonProject, report.carbon_project_id)
         require_explore_ownership(current_user, project)
-    return report
+    return await _carbon_report_read(db, report)
 
 
 # --- CarbonReportModule endpoints ---
@@ -348,13 +356,13 @@ async def update_carbon_report_module_active(
     return result
 
 
-async def _require_grant_report_edit(
+async def _require_plan_report_edit(
     db: AsyncSession, current_user: User, carbon_report_id: int
-) -> CarbonReportService:
-    """Load a Project Grant report and enforce plan-edit access on it.
+) -> tuple[CarbonReportService, CarbonReportRead]:
+    """Load a plan report (grant or year section) and enforce plan-edit access.
 
-    404 when the report is missing, 409 when it is not a grant report —
-    budgets exist only on the Project Grant section (#1978).
+    404 when the report is missing. Shared by every plan-only write that
+    applies to both the Project Grant and the Detailed per Year sections.
     """
     report_service = CarbonReportService(db)
     report = await report_service.get(carbon_report_id)
@@ -363,6 +371,20 @@ async def _require_grant_report_edit(
     unit = await db.get(Unit, report.unit_id)
     require_unit_access(current_user, unit)
     await require_plan_scope_for_report(db, current_user, report, "edit")
+    return report_service, report
+
+
+async def _require_grant_report_edit(
+    db: AsyncSession, current_user: User, carbon_report_id: int
+) -> CarbonReportService:
+    """Load a Project Grant report and enforce plan-edit access on it.
+
+    404 when the report is missing, 409 when it is not a grant report —
+    budgets exist only on the Project Grant section (#1978).
+    """
+    report_service, report = await _require_plan_report_edit(
+        db, current_user, carbon_report_id
+    )
     if not report.is_grant:
         raise HTTPException(
             status_code=409,
@@ -404,11 +426,12 @@ async def update_carbon_report_module_reference_percentage(
 ) -> dict:
     """Apply one reference percentage to every snapshot entry of a module.
 
-    Backs the grant equipment "global percentage" mode (#1981): the
-    calculator's prefilled lines are kept and one percentage prices them
-    all. Only Project Grant reports carry this mode.
+    Backs the equipment "global percentage" mode (#1981): the calculator's
+    prefilled lines are kept and one percentage prices them all. Both the
+    Project Grant and the Detailed per Year sections carry this mode
+    (#2749).
     """
-    report_service = await _require_grant_report_edit(
+    report_service, _ = await _require_plan_report_edit(
         db, current_user, carbon_report_id
     )
     module_service = CarbonReportModuleService(db)
@@ -426,6 +449,42 @@ async def update_carbon_report_module_reference_percentage(
     await report_service.recompute_report_stats(carbon_report_id)
     await db.commit()
     return {"updated_entries": updated}
+
+
+@router.post(
+    "/{carbon_report_id}/modules/{module_type_id}/reference-percentage/reset",
+    response_model=dict,
+)
+async def reset_carbon_report_module_reference_percentage(
+    carbon_report_id: int,
+    module_type_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Undo the equipment module's global percentage (#2783).
+
+    Deletes the aggregate lines the global mode created (and any hand-added
+    entries) and rebuilds the module from the reference year at 0%,
+    restoring individually editable per-line snapshot rows.
+    """
+    report_service, _ = await _require_plan_report_edit(
+        db, current_user, carbon_report_id
+    )
+    module_service = CarbonReportModuleService(db)
+    restored = await module_service.reset_equipment_to_per_line(
+        carbon_report_id, module_type_id
+    )
+    if restored is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Module type {module_type_id} not found for "
+                f"carbon report {carbon_report_id}"
+            ),
+        )
+    await report_service.recompute_report_stats(carbon_report_id)
+    await db.commit()
+    return {"restored_entries": restored}
 
 
 @router.patch(

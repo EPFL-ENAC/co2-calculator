@@ -1,4 +1,7 @@
 <script lang="ts" setup>
+import { fetchFile } from '@/api/files';
+import { downloadFrom } from '@/utils/download';
+import { matAdjust, matUpload } from '@quasar/extras/material-icons';
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import {
@@ -29,7 +32,7 @@ const { t: $t } = useI18n();
 const reductionObjectivesExpanded = ref(false);
 
 const openDataEntryDialog = inject<
-  (row: ImportRow, targetType: TargetType | null) => void
+  (row: ImportRow, targetType: TargetType | null, file?: File) => void
 >('openDataEntryDialog')!;
 
 /** Default empty goal for a slot. */
@@ -150,14 +153,11 @@ function fileMetaToJob(
   };
 }
 
-function downloadFile(file: FileMetadata | null | undefined): void {
+async function downloadFile(
+  file: FileMetadata | null | undefined,
+): Promise<void> {
   if (!file?.path) return;
-  const a = document.createElement('a');
-  a.href = `/api/v1/files/${file.path}`;
-  a.download = file.filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  await downloadFrom(() => fetchFile(file.path), file.filename);
 }
 
 const reductionFiles = computed(
@@ -213,7 +213,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           :button-label="
             csvButtonLabel(reductionFiles?.institutional_footprint)
           "
-          button-icon="upload"
+          :button-icon="matUpload"
           :row="
             {
               reductionObjectiveTypeId: 0,
@@ -222,7 +222,10 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.institutional_footprint)"
-          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @upload="
+            (row, _t, file) =>
+              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
+          "
           @download="downloadFile(reductionFiles?.institutional_footprint)"
         />
         <UploadCard
@@ -234,7 +237,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           :show-mandatory-indicator="true"
           :button-color="csvButtonColor(reductionFiles?.population_projections)"
           :button-label="csvButtonLabel(reductionFiles?.population_projections)"
-          button-icon="upload"
+          :button-icon="matUpload"
           :row="
             {
               reductionObjectiveTypeId: 1,
@@ -243,7 +246,10 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.population_projections)"
-          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @upload="
+            (row, _t, file) =>
+              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
+          "
           @download="downloadFile(reductionFiles?.population_projections)"
         />
         <UploadCard
@@ -255,7 +261,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           :show-mandatory-indicator="true"
           :button-color="csvButtonColor(reductionFiles?.unit_scenarios)"
           :button-label="csvButtonLabel(reductionFiles?.unit_scenarios)"
-          button-icon="upload"
+          :button-icon="matUpload"
           :row="
             {
               reductionObjectiveTypeId: 2,
@@ -264,7 +270,10 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.unit_scenarios)"
-          @upload="openDataEntryDialog($event, TargetType.REDUCTION_OBJECTIVES)"
+          @upload="
+            (row, _t, file) =>
+              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
+          "
           @download="downloadFile(reductionFiles?.unit_scenarios)"
         />
       </div>
@@ -272,7 +281,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
       <!-- Goals Section -->
       <q-item-section class="q-pt-xl q-pb-sm q-px-md">
         <div class="row items-start align-center q-mb-xs">
-          <q-icon name="adjust" color="accent" size="xs" class="q-mr-sm" />
+          <q-icon :name="matAdjust" color="accent" size="xs" class="q-mr-sm" />
           <div class="text-body1 text-weight-medium">
             {{ $t('data_management_define_reduction_objectives_title') }}
           </div>

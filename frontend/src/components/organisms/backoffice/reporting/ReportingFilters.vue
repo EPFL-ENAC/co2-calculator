@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { matError } from '@quasar/extras/material-icons';
+import {
+  outlinedBusiness,
+  outlinedCheck,
+} from '@quasar/extras/material-icons-outlined';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useUnitFiltersStore } from '@/stores/unitFilters';
@@ -53,7 +58,7 @@ function handleFiltersChange() {
         class="bg-negative text-white q-mb-sm"
       >
         <template #avatar>
-          <q-icon name="error" />
+          <q-icon :name="matError" />
         </template>
         {{ $t('common_error_message') }}
         <template #action>
@@ -93,12 +98,12 @@ function handleFiltersChange() {
         @clear="unitFiltersStore.setSearchQueryAffiliation('')"
       >
         <template #prepend>
-          <q-icon name="o_business" color="grey-6" size="xs" />
+          <q-icon :name="outlinedBusiness" color="grey-6" size="xs" />
         </template>
         <template #option="scope">
           <q-item v-bind="scope.itemProps">
             <q-item-section avatar>
-              <q-icon name="o_business" color="grey-6" size="xs" />
+              <q-icon :name="outlinedBusiness" color="grey-6" size="xs" />
             </q-item-section>
             <q-item-section>
               <q-item-label>{{ scope.opt.label }}</q-item-label>
@@ -117,7 +122,7 @@ function handleFiltersChange() {
         class="bg-negative text-white q-mb-sm"
       >
         <template #avatar>
-          <q-icon name="error" />
+          <q-icon :name="matError" />
         </template>
         {{ $t('common_error_message') }}
         <template #action>
@@ -155,7 +160,7 @@ function handleFiltersChange() {
         @clear="unitFiltersStore.setSearchQueryLevel4('')"
       >
         <template #prepend>
-          <q-icon name="o_business" color="grey-6" size="xs" />
+          <q-icon :name="outlinedBusiness" color="grey-6" size="xs" />
         </template>
       </q-select>
 
@@ -188,7 +193,7 @@ function handleFiltersChange() {
         @update:model-value="handleFiltersChange"
       >
         <template #prepend>
-          <q-icon name="o_check_small" color="grey-6" size="xs" />
+          <q-icon :name="outlinedCheck" color="grey-6" size="xs" />
         </template>
       </q-select>
     </div>

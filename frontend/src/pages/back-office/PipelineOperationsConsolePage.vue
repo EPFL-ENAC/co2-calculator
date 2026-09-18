@@ -1,4 +1,24 @@
 <script setup lang="ts">
+import { downloadFile } from '@/api/files';
+import {
+  matCancel,
+  matCheckCircle,
+  matChevronLeft,
+  matChevronRight,
+  matContentCopy,
+  matError,
+  matExpandMore,
+  matRefresh,
+  matReport,
+  matReportProblem,
+  matRestartAlt,
+  matSync,
+  matWarning,
+} from '@quasar/extras/material-icons';
+import {
+  outlinedClose,
+  outlinedDownload,
+} from '@quasar/extras/material-icons-outlined';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { copyToClipboard, debounce, Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
@@ -92,13 +112,8 @@ const { recovering, recoverJob } = usePipelineJobRecovery(() => store.fetch());
 // Processed-CSV download — surfaces ``meta.processed_file_path``
 // straight from the pipeline row so an operator triaging a stalled
 // or failed chain can grab the source CSV in one click.  Mirrors
-// the data-management ``downloadLastCsv`` flow:
-//
-// * ``?d=true`` flips the backend into download mode (sets
-//   ``Content-Disposition: attachment; filename="…"`` so Safari /
-//   Chrome both save with the original extension — see
-//   ``backend/app/api/v1/files.py``).
-// * ``a.download`` is a belt-and-braces fallback for older browsers.
+// the data-management ``downloadLastCsv`` flow: fetched as a Blob so
+// the request is observable and a failure throws (#2840).
 function processedCsvJob(p: PipelineListItem): PipelineJobListEntry | null {
   // Pick the FIRST job in id order that carries a processed_file_path.
   // For a typical chain that's the parent csv_ingest / factor_ingest
@@ -113,17 +128,12 @@ function processedCsvJob(p: PipelineListItem): PipelineJobListEntry | null {
   return null;
 }
 
-function downloadProcessedCsv(p: PipelineListItem): void {
+async function downloadProcessedCsv(p: PipelineListItem): Promise<void> {
   const j = processedCsvJob(p);
   if (!j) return;
   const filePath = (j.meta as Record<string, unknown>)
     .processed_file_path as string;
-  const a = document.createElement('a');
-  a.href = `/api/v1/files/${filePath}?d=true`;
-  a.download = filePath.split('/').pop() || filePath;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  await downloadFile(filePath);
 }
 
 const expanded = ref<Set<string>>(new Set());
@@ -185,18 +195,22 @@ const STATUS_META: Record<
   StatusKind,
   { color: string; icon: string; key: string }
 > = {
-  failed: { color: 'negative', icon: 'error', key: 'pipeops_status_failed' },
+  failed: { color: 'negative', icon: matError, key: 'pipeops_status_failed' },
   // PARTIAL shares the amber color with WARNING (both mean "needs
   // attention, not catastrophic") but uses a distinct icon + label
   // so the operator can tell the two apart at a glance.
   partial: {
     color: 'warning',
-    icon: 'report_problem',
+    icon: matReportProblem,
     key: 'pipeops_status_partial',
   },
-  running: { color: 'primary', icon: 'sync', key: 'pipeops_status_running' },
-  warning: { color: 'warning', icon: 'warning', key: 'pipeops_status_warning' },
-  done: { color: 'positive', icon: 'check_circle', key: 'pipeops_status_done' },
+  running: { color: 'primary', icon: matSync, key: 'pipeops_status_running' },
+  warning: {
+    color: 'warning',
+    icon: matWarning,
+    key: 'pipeops_status_warning',
+  },
+  done: { color: 'positive', icon: matCheckCircle, key: 'pipeops_status_done' },
 };
 
 function jobColor(j: { state: string | null; result: string | null }): string {
@@ -499,7 +513,7 @@ onUnmounted(() => {
             <q-btn
               flat
               dense
-              icon="refresh"
+              :icon="matRefresh"
               :loading="workersLoading"
               @click="fetchWorkers"
             >
@@ -511,7 +525,7 @@ onUnmounted(() => {
             class="bg-warning text-white q-mx-md q-mb-sm rounded-borders"
             dense
           >
-            <q-icon name="report_problem" class="q-mr-xs" />
+            <q-icon :name="matReportProblem" class="q-mr-xs" />
             {{ $t('pipeops_workers_multi_sha_warning') }}
           </q-banner>
           <q-banner
@@ -579,7 +593,7 @@ onUnmounted(() => {
               clickable
               color="negative"
               text-color="white"
-              icon="error"
+              :icon="matError"
               @click="store.applyFilters({ has_errors: true })"
             >
               {{ counters.errors }} · {{ $t('pipeops_alert_errors') }}
@@ -590,19 +604,19 @@ onUnmounted(() => {
               clickable
               color="primary"
               text-color="white"
-              icon="sync"
+              :icon="matSync"
               @click="store.applyFilters({ state: 'RUNNING' })"
             >
               {{ counters.running }} · {{ $t('pipeops_alert_running') }}
             </q-chip>
           </div>
           <div class="col-auto">
-            <q-chip color="positive" text-color="white" icon="check_circle">
+            <q-chip color="positive" text-color="white" :icon="matCheckCircle">
               {{ counters.ok }} · {{ $t('pipeops_alert_ok') }}
             </q-chip>
           </div>
           <div class="col-auto">
-            <q-chip color="grey-7" text-color="white" icon="report">
+            <q-chip color="grey-7" text-color="white" :icon="matReport">
               {{ counters.failed }} · {{ $t('pipeops_alert_failed') }}
             </q-chip>
           </div>
@@ -664,7 +678,7 @@ onUnmounted(() => {
             <q-btn
               flat
               dense
-              icon="restart_alt"
+              :icon="matRestartAlt"
               :label="$t('pipeops_filter_clear')"
               @click="store.clearFilters()"
             />
@@ -673,7 +687,7 @@ onUnmounted(() => {
             <q-btn
               flat
               dense
-              icon="refresh"
+              :icon="matRefresh"
               :label="$t('pipeops_refresh')"
               :loading="store.loading"
               @click="store.fetch()"
@@ -719,7 +733,7 @@ onUnmounted(() => {
                 <td>
                   <q-icon
                     :name="
-                      expanded.has(rowKey(p)) ? 'expand_more' : 'chevron_right'
+                      expanded.has(rowKey(p)) ? matExpandMore : matChevronRight
                     "
                   />
                 </td>
@@ -790,7 +804,7 @@ onUnmounted(() => {
                     dense
                     round
                     color="positive"
-                    icon="o_download"
+                    :icon="outlinedDownload"
                     size="sm"
                     @click.stop="downloadProcessedCsv(p)"
                   >
@@ -813,7 +827,7 @@ onUnmounted(() => {
                     dense
                     round
                     color="negative"
-                    icon="cancel"
+                    :icon="matCancel"
                     size="sm"
                     @click.stop="openAbortDialog(p)"
                   >
@@ -848,7 +862,7 @@ onUnmounted(() => {
                           dense
                           flat
                           size="sm"
-                          icon="restart_alt"
+                          :icon="matRestartAlt"
                           color="deep-orange"
                           class="q-mr-sm"
                           :loading="recovering.has(j.job_id)"
@@ -919,7 +933,7 @@ onUnmounted(() => {
                         class="q-mt-xs q-pl-md text-caption text-negative"
                       >
                         <div class="row items-center no-wrap">
-                          <q-icon name="report_problem" size="14px" />
+                          <q-icon :name="matReportProblem" size="14px" />
                           <span class="q-ml-xs">
                             {{
                               $t('pipeops_factor_errors_count', {
@@ -991,14 +1005,14 @@ onUnmounted(() => {
           <q-btn
             flat
             dense
-            icon="chevron_left"
+            :icon="matChevronLeft"
             :disable="store.offset === 0 || store.loading"
             @click="store.setPage(store.offset - store.limit)"
           />
           <q-btn
             flat
             dense
-            icon="chevron_right"
+            :icon="matChevronRight"
             :disable="
               store.offset + store.limit >= store.total || store.loading
             "
@@ -1020,7 +1034,7 @@ onUnmounted(() => {
           <q-btn
             flat
             size="md"
-            icon="o_close"
+            :icon="outlinedClose"
             color="grey-6"
             :disable="aborting"
             @click="abortDialog = false"
@@ -1062,7 +1076,13 @@ onUnmounted(() => {
         <q-card-section class="row items-center q-pb-none">
           <div class="text-subtitle1">{{ $t('pipeops_msg_title') }}</div>
           <q-space />
-          <q-btn v-close-popup flat size="md" icon="o_close" color="grey-6" />
+          <q-btn
+            v-close-popup
+            flat
+            size="md"
+            :icon="outlinedClose"
+            color="grey-6"
+          />
         </q-card-section>
         <q-separator />
         <q-card-section>
@@ -1080,7 +1100,7 @@ onUnmounted(() => {
         <q-card-actions class="q-px-md q-pb-md">
           <q-btn
             flat
-            icon="content_copy"
+            :icon="matContentCopy"
             :label="$t('pipeops_msg_copy')"
             @click="copyMsg"
           />

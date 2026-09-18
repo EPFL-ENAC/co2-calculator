@@ -1,3 +1,4 @@
+import { downloadBlob } from '@/utils/download';
 import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -220,13 +221,8 @@ export function useAuditLogs() {
   async function handleExport(format: 'csv' | 'json') {
     try {
       const blob = await exportAuditLogs(buildParams(), format);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
       const today = new Date().toISOString().slice(0, 10);
-      a.download = `audit_export_${today}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `audit_export_${today}.${format}`);
       Notify.create({
         color: 'positive',
         message: t('audit_msg_exported', { format: format.toUpperCase() }),

@@ -96,9 +96,9 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
                 return None
 
             spent_amount = ctx.get("spent_amount")
-            entry_currency = (ctx.get("currency", "") or "eur").lower()
+            entry_currency = ctx.get("currency", "") or "eur"
             ef = factor_values.get("ef_kg_co2eq_per_currency")
-            ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
+            ef_currency = factor_values.get("currency", "eur") or "eur"
             if spent_amount is None or ef is None:
                 return None
 

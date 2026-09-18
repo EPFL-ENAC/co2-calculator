@@ -2,6 +2,8 @@
 // store/api/i18n imports) extracted from PipelineOperationsConsolePage
 // while paying down its component-size overage.
 
+import { formatYmd } from '@/utils/date';
+
 export function fmtDuration(a: string | null, b: string | null): string {
   if (!a) return '—';
   const start = new Date(a).getTime();
@@ -35,5 +37,5 @@ export function fmtQueued(
 
 export function fmtWhen(s: string | null): string {
   if (!s) return '—';
-  return new Date(s).toLocaleString();
+  return formatYmd(new Date(s)) || '—';
 }

@@ -2,7 +2,10 @@ import { defineStore } from 'pinia';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { api } from '@/api/http';
-import { postExploreCarbonReport } from '@/api/carbon_reports';
+import {
+  getExploreCarbonReport,
+  postExploreCarbonReport,
+} from '@/api/carbon_reports';
 import type { SimulatorPlan } from '@/stores/simulatorPlans';
 import type { FlatUserPermissions } from '@/utils/permission';
 import { useModuleStore } from '@/stores/modules';
@@ -230,6 +233,27 @@ export const useWorkspaceStore = defineStore(
       return inv;
     }
 
+    /**
+     * Load the existing Explore sandbox without provisioning one (#2656).
+     * The printable report renders what the exploration holds, so it reads;
+     * only starting an exploration creates.
+     */
+    async function loadSimulatorExploreCarbonReport(
+      unitId: number,
+      referenceYear: number,
+    ) {
+      const moduleStore = useModuleStore();
+      const inv = await getExploreCarbonReport(unitId);
+      selectedCarbonReport.value = inv;
+      moduleStore.seedReportId(
+        unitId,
+        referenceYear,
+        CARBON_PROJECT.explorer,
+        inv.id,
+      );
+      return inv;
+    }
+
     function setUnit(unit: Unit) {
       selectedUnit.value = unit;
     }
@@ -367,6 +391,7 @@ export const useWorkspaceStore = defineStore(
       createCarbonReport,
       selectCarbonReportForYear,
       selectSimulatorExploreCarbonReport,
+      loadSimulatorExploreCarbonReport,
     };
   },
   {

@@ -61,13 +61,13 @@ already done.
 
 ## Data in transfer
 
-| Hop                           | Protection                         | Configured in                                           | Enforced   |
-| ----------------------------- | ---------------------------------- | ------------------------------------------------------- | ---------- |
-| Browser → ingress             | TLS, cert-manager + Let's Encrypt  | [Infra overview](../infra/01-overview.md#tlsssl)        | Yes        |
-| App → object storage (S3)     | HTTPS                              | `S3_ENDPOINT_PROTOCOL`, defaults to `https`             | Yes        |
-| App → PostgreSQL              | TLS 1.3, `TLS_AES_256_GCM_SHA384`  | `DB_URL` query string                                   | Not pinned |
-| App → external APIs (Tableau) | HTTPS, certificate verification on | `TABLEAU_VERIFY_SSL`, `CONNECTOR_ALLOWED_HOST_SUFFIXES` | Yes        |
-| Pod → pod inside the cluster  | None — segmented, not encrypted    | `helm/templates/network-policies.yaml`                  | n/a        |
+| Hop                           | Protection                                        | Configured in                                           | Enforced   |
+| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------- | ---------- |
+| Browser → Route               | TLS edge, cluster `*.epfl.ch` wildcard (DigiCert) | [Infra overview](../infra/01-overview.md#environments)  | Yes        |
+| App → object storage (S3)     | HTTPS                                             | `S3_ENDPOINT_PROTOCOL`, defaults to `https`             | Yes        |
+| App → PostgreSQL              | TLS 1.3, `TLS_AES_256_GCM_SHA384`                 | `DB_URL` query string                                   | Not pinned |
+| App → external APIs (Tableau) | HTTPS, certificate verification on                | `TABLEAU_VERIFY_SSL`, `CONNECTOR_ALLOWED_HOST_SUFFIXES` | Yes        |
+| Pod → pod inside the cluster  | None — segmented, not encrypted                   | `helm/templates/network-policies.yaml`                  | n/a        |
 
 Every database this service connects to negotiates TLS 1.3 with
 `TLS_AES_256_GCM_SHA384` today. Verified on 2026-08-24 against each
@@ -102,7 +102,8 @@ proportionate control for this deployment:
   except through the load balancer and the ingress route.
 - A `default-deny` NetworkPolicy denies all pod ingress, and named
   policies open only the routes actually needed — backend, frontend,
-  and the OTel collector (`helm/templates/network-policies.yaml`, plus
+  the OTel collector, and pod-to-pod ingress to the backend for the
+  taxonomy-cache broadcast (`helm/templates/network-policies.yaml`, plus
   per-environment `network/` overlays in the ops repository).
 - The trust boundary is therefore the namespace, enforced by policy,
   not by transport encryption.
@@ -172,12 +173,12 @@ Every key is a separate variable — none is reused across purposes
 ### Where keys live
 
 Keys are stored in ENAC-IT's self-hosted Infisical vault, scoped per
-environment, and reach the pod through the Infisical Kubernetes
-operator:
+environment, and reach the pod through the External Secrets
+Operator:
 
 ```text
 Infisical (per-env scope)
-  → InfisicalSecret CRD, machine identity auth, 120 s resync
+  → ExternalSecret + SecretStore (machine identity auth), 5 min refresh
   → managed Kubernetes Secret in the app namespace
   → secretKeyRef env vars (helm/templates/_helpers.tpl)
   → Settings (app/core/config.py) → Scrypt → Fernet

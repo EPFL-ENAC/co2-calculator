@@ -3,12 +3,6 @@
 # ==============================================================================
 FROM node:26.5.0-alpine AS base
 
-# Git SHA passed by CI via --build-arg. .git is not in the build context, so
-# quasar.config.js can't run `git rev-parse` itself; it reads this env var
-# instead. Defaults to "dev" so local `docker build` without --build-arg works.
-ARG GIT_SHA=dev
-ENV GIT_SHA=${GIT_SHA}
-
 WORKDIR /app
 
 # Copy package files for dependency installation
@@ -27,11 +21,17 @@ RUN --mount=type=cache,target=/root/.npm \
 # ---- Build ----
 FROM deps AS build
 
+# Git SHA passed by CI via --build-arg. .git is not in the build context, so
+# quasar.config.js can't run `git rev-parse` itself; it reads this env var
+# instead. Defaults to "dev" so local `docker build` without --build-arg works.
+# Declared here, after npm ci, on purpose: BuildKit folds ENV into the cache
+# key of every later RUN, so a per-commit value above npm ci re-installs all
+# packages on every CI build even when package-lock.json is unchanged.
+ARG GIT_SHA=dev
+ENV GIT_SHA=${GIT_SHA}
+
 # Copy source code
 COPY . .
-
-# Manually run the quasar prepare script
-RUN npx quasar prepare
 
 # Build the application (creates ./dist). GIT_SHA from above gets baked into
 # the bundle as APP_VERSION via quasar.config.js build.env.

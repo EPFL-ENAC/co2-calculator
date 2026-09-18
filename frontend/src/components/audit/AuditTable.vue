@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import {
+  matArrowDropDown,
+  matArrowDropUp,
+  matSearchOff,
+  matUnfoldMore,
+} from '@quasar/extras/material-icons';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AuditLogEntry, AuditAction } from '@/api/audit';
@@ -87,9 +93,9 @@ function getUserLabel(row: AuditLogEntry): string {
           :name="
             sortBy === col.key
               ? sortDesc
-                ? 'arrow_drop_down'
-                : 'arrow_drop_up'
-              : 'unfold_more'
+                ? matArrowDropDown
+                : matArrowDropUp
+              : matUnfoldMore
           "
           size="14px"
           class="sort-icon"
@@ -112,7 +118,7 @@ function getUserLabel(row: AuditLogEntry): string {
 
     <!-- Empty state -->
     <div v-else-if="rows?.length === 0" class="audit-table__empty">
-      <q-icon name="search_off" size="48px" color="grey-6" />
+      <q-icon :name="matSearchOff" size="48px" color="grey-6" />
       <p class="text-h6 text-grey-7 q-mt-sm q-mb-none">
         {{ t('audit_no_entries_found') }}
       </p>

@@ -11,8 +11,22 @@ scrub installed on the ``uvicorn.access`` logger.
 import logging
 import logging.handlers
 
+import pytest
+
 from app.core import logging as logging_module
+from app.core.config import get_settings
 from app.core.logging import _RedactSensitiveQueryStringFilter, setup_logging
+
+
+@pytest.fixture(autouse=True)
+def _restore_settings_cache():
+    """logging.py reads settings via get_settings() at call time, not a
+    module-level singleton (#2684/#2686) — so a monkeypatched env var stays
+    live in the lru_cache after the test unless cleared here too. Same
+    pattern as tests/unit/core/test_crypto.py.
+    """
+    yield
+    get_settings.cache_clear()
 
 
 def _make_record(msg: str, args: tuple = ()) -> logging.LogRecord:
@@ -121,9 +135,16 @@ def test_loki_handler_is_wrapped_in_a_queue_not_attached_directly(monkeypatch):
     root logger — QueueHandler.emit() only ever enqueues, so this is a
     structural (not timing-based) proof the blocking call can't happen
     inline, regardless of how slow Loki is when the listener thread runs.
+
+    Doubles as the #2686 regression guard: this module's own top-level
+    import happened before this test ever ran, so a QueueHandler only
+    appearing after this monkeypatch+cache_clear() proves setup_logging()
+    reads settings live (get_settings() at call time) rather than a
+    module-level `settings` singleton frozen at that earlier import.
     """
-    monkeypatch.setattr(logging_module.settings, "LOKI_ENABLED", True)
-    monkeypatch.setattr(logging_module.settings, "LOKI_URL", "http://loki.example:3100")
+    monkeypatch.setenv("LOKI_ENABLED", "true")
+    monkeypatch.setenv("LOKI_URL", "http://loki.example:3100")
+    get_settings.cache_clear()
 
     try:
         setup_logging()

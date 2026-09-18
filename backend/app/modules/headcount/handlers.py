@@ -25,7 +25,6 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
 
     kind_field = None
     subkind_field = None
-    require_subkind_for_factor = False
     require_factor_to_match = False
     default_where: list = []
     # sius labels are seeded reference data (en + fr) — search/sort match
@@ -104,7 +103,6 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
 
     kind_field = None
     subkind_field = None
-    require_subkind_for_factor = False
     require_factor_to_match = False
 
     sort_map = {

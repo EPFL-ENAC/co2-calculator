@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import {
+  matBadge,
+  matCalendarToday,
+  matCategory,
+  matPrecisionManufacturing,
+  matViewModule,
+} from '@quasar/extras/material-icons';
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AuditAction } from '@/api/audit';
@@ -154,7 +161,7 @@ function onCustomDateApply() {
       @update:model-value="onActionChange"
     >
       <template #prepend>
-        <q-icon name="manufacturing" size="18px" color="grey-7" />
+        <q-icon :name="matPrecisionManufacturing" size="18px" color="grey-7" />
       </template>
     </q-select>
 
@@ -169,7 +176,7 @@ function onCustomDateApply() {
       @update:model-value="onEntityTypeChange"
     >
       <template #prepend>
-        <q-icon name="category" size="18px" color="grey-7" />
+        <q-icon :name="matCategory" size="18px" color="grey-7" />
       </template>
     </q-select>
 
@@ -184,7 +191,7 @@ function onCustomDateApply() {
       @update:model-value="onModuleChange"
     >
       <template #prepend>
-        <q-icon name="view_module" size="18px" color="grey-7" />
+        <q-icon :name="matViewModule" size="18px" color="grey-7" />
       </template>
     </q-select>
 
@@ -198,7 +205,7 @@ function onCustomDateApply() {
       @update:model-value="onHandlerIdChange"
     >
       <template #prepend>
-        <q-icon name="badge" size="18px" color="grey-7" />
+        <q-icon :name="matBadge" size="18px" color="grey-7" />
       </template>
     </q-input>
 
@@ -213,7 +220,7 @@ function onCustomDateApply() {
       @update:model-value="onDatePresetChange"
     >
       <template #prepend>
-        <q-icon name="calendar_today" size="18px" color="grey-7" />
+        <q-icon :name="matCalendarToday" size="18px" color="grey-7" />
       </template>
     </q-select>
 

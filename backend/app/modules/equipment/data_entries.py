@@ -1,12 +1,13 @@
 from typing import Self
 
-from pydantic import ValidationInfo, field_validator, model_validator
+from pydantic import field_validator, model_validator
 
 from app.schemas.data_entry import (
     DataEntryCreate,
     DataEntryResponseGen,
     DataEntryUpdate,
 )
+from app.schemas.fields import ClassificationKey, OptionalClassificationKey
 
 MAX_WEEKLY_USAGE_HOURS = 168
 
@@ -71,27 +72,20 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
 
 
 class EquipmentHandlerCreate(_EquipmentUsageHoursValidationMixin, DataEntryCreate):
-    equipment_id: str
-    name: str
-    equipment_class: str
-    sub_class: str | None = None
+    equipment_id: ClassificationKey
+    name: ClassificationKey
+    equipment_class: ClassificationKey
+    sub_class: OptionalClassificationKey = None
     active_usage_hours_per_week: int | None = None
     standby_usage_hours_per_week: int | None = None
     note: str | None = None
     # kg_co2eq: Optional[float] = None  # from csv is __kg_co2eq_override__
 
-    @field_validator("equipment_id", "name", "equipment_class", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        return v.strip()
-
 
 class EquipmentHandlerUpdate(_EquipmentUsageHoursValidationMixin, DataEntryUpdate):
     active_usage_hours_per_week: int | None = None
     standby_usage_hours_per_week: int | None = None
-    name: str | None = None
-    equipment_class: str | None = None
-    sub_class: str | None = None
+    name: ClassificationKey | None = None
+    equipment_class: ClassificationKey | None = None
+    sub_class: OptionalClassificationKey = None
     note: str | None = None

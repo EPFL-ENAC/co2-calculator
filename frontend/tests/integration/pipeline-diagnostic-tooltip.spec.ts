@@ -41,6 +41,7 @@ const PIPELINE_UUID = '11111111-2222-3333-4444-555555555555';
 const HEADCOUNT_MODULE_TYPE_ID = 1;
 const RECALCULATING_LABEL = 'Recalculating…';
 const PIPELINE_LABEL = 'Pipeline:';
+const COPY_ID_LABEL = 'Copy ID';
 
 /**
  * Drive an SSE event into the in-page shim.  ``url`` is the full
@@ -181,9 +182,11 @@ test.describe('data-management — pipeline observability + a11y (Unit 11)', () 
 
     // Scope the lookup to the open diagnostic tooltip (the portal
     // containing the ``Pipeline:`` label): the data-management page
-    // itself also renders ``content_copy`` buttons (#740 "copy
-    // factors" feature), so a page-wide ``.first()`` would grab the
-    // wrong button.  Quasar's tooltip portal sets
+    // itself also renders copy buttons (#740 "copy factors" feature),
+    // so a page-wide ``.first()`` would grab the wrong button.  The
+    // button is keyed by its accessible name, not its icon: icons are
+    // SVG since #1603, so there is no ``content_copy`` ligature text
+    // to filter on any more.  Quasar's tooltip portal sets
     // ``no-pointer-events`` on the wrapper, so even
     // ``click({ force: true })`` lands on the overlay and the
     // underlying Vue ``@click`` handler never fires.  Dispatch a
@@ -194,8 +197,7 @@ test.describe('data-management — pipeline observability + a11y (Unit 11)', () 
       .filter({ hasText: PIPELINE_LABEL });
     await expect(diagnosticTooltip).toBeVisible();
     const copyButton = diagnosticTooltip
-      .locator('button')
-      .filter({ has: page.locator('.q-icon').getByText('content_copy') })
+      .getByRole('button', { name: COPY_ID_LABEL })
       .first();
     await copyButton.evaluate((el) =>
       el.dispatchEvent(new MouseEvent('click', { bubbles: true })),

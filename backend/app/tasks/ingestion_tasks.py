@@ -24,6 +24,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
+    EntityType,
     IngestionResult,
 )
 from app.models.module_type import DERIVED_DATA_ENTRY_TYPES
@@ -34,6 +35,28 @@ from app.tasks._locks import acquire_factor_recalc_lock
 from app.tasks.registry import register
 
 logger = get_logger(__name__)
+
+
+def _pinned_module_id(job: DataIngestionJob) -> int | None:
+    """The carbon report module an ingest job pinned, if any.
+
+    It scopes the chained recalc child for every data ingest, and — for
+    ``csv_ingest`` only — the advisory lock (#2527 B1). ``MODULE_PER_YEAR``
+    ingests resolve a module per unit from the CSV and delete across all of
+    them, so they have no pin. A non-int pin is reported and treated as
+    unpinned: that only widens the lock and the recalc, never narrows
+    either past what we wrote.
+    """
+    raw = ((job.meta or {}).get("config") or {}).get("carbon_report_module_id")
+    if raw is None:
+        return None
+    if not isinstance(raw, int):
+        logger.warning(
+            f"data ingest job {job.id}: non-int carbon_report_module_id="
+            f"{raw!r} in config — treating this ingest as unscoped"
+        )
+        return None
+    return raw
 
 
 # ---------------------------------------------------------------------------
@@ -62,19 +85,24 @@ async def csv_ingest_handler(
     that pair; a multi-det module upload (det NULL) fans out one
     child per det in ``MODULE_TYPE_TO_DATA_ENTRY_TYPES``.
     """
-    # Same per-``(module, year)`` advisory lock as the recalc chain:
-    # the pre-import DELETE's ON DELETE CASCADE into
-    # ``data_entry_emissions`` takes row locks on the very rows a
-    # still-running ``emission_recalc`` of the previous pipeline is
-    # rewriting.  Without this lock the DELETE sits in a row-level
-    # lock queue mid-statement (observed: 0.3s vs 3min for the same
-    # 9.5k-row delete); with it, the ingest waits politely at one
-    # well-known gate until the prior transaction commits.
+    # Same advisory lock as the recalc chain.  A per-year upload replaces
+    # the whole slice: its pre-import DELETE cascades into
+    # ``data_entry_emissions`` and would sit in a row-lock queue behind a
+    # still-running ``emission_recalc`` (observed: 0.3s vs 3min for the
+    # same 9.5k-row delete), so it takes the exclusive gate.
+    # #2527 B1 — a unit-scoped ingest only reads factors, so it shares
+    # the gate and other units' uploads no longer queue behind it.
+    # #2847 — it is also append-only (its only delete is its own rows
+    # from a crashed attempt), so it does not lock the module either:
+    # same-unit uploads insert concurrently and the chained recalc, which
+    # still holds the module, is the one step that serialises.
     await acquire_factor_recalc_lock(
         data_session,
         module_type_id=job.module_type_id,
         year=job.year,
         handler_label=f"csv_ingest job {job.id}",
+        carbon_report_module_id=_pinned_module_id(job),
+        module_write=job.entity_type != EntityType.MODULE_UNIT_SPECIFIC,
     )
     meta = await _run_ingest(job, job_session, data_session)
     if meta.get("result") == IngestionResult.ERROR:
@@ -105,7 +133,13 @@ async def api_ingest_handler(
     same (det, year) slice regardless of how the data_entries
     arrived).
     """
-    # Same serialization rationale as csv_ingest_handler above.
+    # Same serialization rationale as csv_ingest_handler above, but this
+    # one stays EXCLUSIVE (#2527 B1 divergence): an API feed is a complete
+    # yearly export, and `_delete_existing_api_entries` deletes by
+    # ``(year, det, source)`` across every unit's module
+    # (`base_tableau_api_provider.py:909-940`). No single
+    # carbon_report_module bounds what it writes, so it cannot share the
+    # gate even when the job config happens to carry a module pin.
     await acquire_factor_recalc_lock(
         data_session,
         module_type_id=job.module_type_id,
@@ -148,6 +182,8 @@ async def factor_ingest_handler(
     # ``emission_recalc_handler``) instead of reading half-written
     # factor values. Lock released when the runner commits
     # ``data_session`` after this handler returns.
+    # The factor writer is the reason the gate exists, so it stays
+    # EXCLUSIVE (#2527 B1): it excludes every shared data-path holder.
     await acquire_factor_recalc_lock(
         data_session,
         module_type_id=job.module_type_id,
@@ -333,7 +369,7 @@ async def _chain_recalc_for_stale(
     inheritance, runner-driven dispatch, no manual fire_and_forget).
 
     Each chain passes ``dedup_config=EMISSION_RECALC_DEDUP`` (#1064): the
-    partial unique index ``uq_emission_recalc_active`` collapses
+    partial unique index ``uq_emission_recalc_active_unscoped`` collapses
     back-to-back factor reuploads for the same ``(module, det, year)``
     into a single pending recalc.  Without this, a user re-uploading
     a corrected factors CSV seconds after the first upload would queue
@@ -559,23 +595,21 @@ async def _chain_emission_recalc_for_data_ingest(
     # entries instead of the whole (det, year) slice (a 20-row upload
     # was recomputing 15k+ entries).  Per-year ingests leave it None:
     # full-slice recalc is their contract.
-    parent_config = (job.meta or {}).get("config") or {}
-    raw_module_id = parent_config.get("carbon_report_module_id")
+    # One classifier for both the child's scope and the parent's lock
+    # scope — they must never disagree about which module we wrote.
+    pinned_module_id = _pinned_module_id(job)
     child_config: dict[str, Any] | None = None
-    if raw_module_id is not None:
-        try:
-            child_config = {"carbon_report_module_ids": [int(raw_module_id)]}
-        except TypeError, ValueError:
-            logger.warning(
-                f"data ingest job {job.id}: non-int carbon_report_module_id="
-                f"{raw_module_id!r} in config — chaining unscoped recalc"
-            )
+    if pinned_module_id is not None:
+        child_config = {"carbon_report_module_ids": [pinned_module_id]}
 
     # ``dedup_config`` (Fix #1219): a pre-existing active recalc for
     # this scope now yields a logged no-op (``chain_job`` returns
     # ``None``) instead of an uncaught IntegrityError that poisoned the
     # job_session and stranded the parent.  Mirror the factor path.
     # Count only owned children — see ``_chain_recalc_for_stale``.
+    # It stays passed unconditionally: ``chain_job`` drops dedup for the
+    # module-scoped children below (#2527 Phase A) and keeps it for the
+    # per-year ingests that still chain a whole-slice recalc.
     chained = 0
     for row in targets:
         child_id = await chain_job(

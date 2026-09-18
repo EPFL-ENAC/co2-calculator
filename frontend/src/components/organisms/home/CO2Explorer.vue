@@ -1,16 +1,21 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import {
+  outlinedAdd,
+  outlinedExplore,
+} from '@quasar/extras/material-icons-outlined';
+</script>
 
 <template>
   <section class="co2-explorer">
     <div class="row items-start justify-between no-wrap q-mb-md">
       <div class="row items-center q-gutter-sm">
-        <q-icon name="o_explore" size="md" color="info" />
+        <q-icon :name="outlinedExplore" size="md" color="info" />
         <h2 class="text-h3 q-mb-none">{{ $t('co2_explorer_title') }}</h2>
       </div>
       <q-btn
         color="info"
         :label="$t('co2_explorer_btn')"
-        icon="o_add"
+        :icon="outlinedAdd"
         unelevated
         no-caps
         size="md"

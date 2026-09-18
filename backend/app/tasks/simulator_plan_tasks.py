@@ -2,9 +2,12 @@
 
 Copying a reference year into a plan year is the expensive half of both
 plan PATCHes: a 10-year range over a large baseline runs to tens of
-thousands of ``data_entries`` plus their emissions, measured at 21.9s on
-dev for a single year of a ~5k-entry module. The routes now persist only
-the cheap metadata change and hand the copy to this handler.
+thousands of ``data_entries`` plus their emissions. The routes now persist
+only the cheap metadata change and hand the copy to this handler.
+
+This job has never been measured on dev. An earlier version of this
+docstring cited 21.9s; that trace was the *synchronous* PATCH this job
+replaced, not the job -- see plan #2527, "What 21.9 s actually was".
 """
 
 from sqlmodel.ext.asyncio.session import AsyncSession

@@ -27,7 +27,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: 'upload', row: ImportRow, targetType: TargetType): void;
+  (e: 'upload', row: ImportRow, targetType: TargetType, file?: File): void;
   (e: 'recalculate', item: ImportRow): void;
   (e: 'abort'): void;
 }>();
@@ -49,8 +49,8 @@ const effectiveDataJob = computed(() =>
   mergeLivePipelineJob(props.row.lastDataJob, livePipelineJobsById.value),
 );
 
-function handleUpload() {
-  emit('upload', props.row, TargetType.DATA_ENTRIES);
+function handleUpload(_row: ImportRow, _targetType: TargetType, file?: File) {
+  emit('upload', props.row, TargetType.DATA_ENTRIES, file);
 }
 
 function handleDownload(row: ImportRow, targetType: TargetType) {

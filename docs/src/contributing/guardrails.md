@@ -37,7 +37,11 @@ be true for any of our projects belongs upstream in the kit, not here.
    highest-leverage habit in this repo.
 2. **No plan for your issue? Write one first.** Plan files are named
    `<issue-id>-<kebab-slug>.md` with `status`/`issue`/`last_updated`/`summary`
-   frontmatter; abandoned plans move to `implementation-plans/archive/`. Their
+   frontmatter. `status` is one of `delivered`, `in-progress`, `abandoned`:
+   the kit's `draft`/`accepted`/`superseded` are unknown to
+   `docs/gen_indexes.py` and fail the strict docs build (map draft/accepted
+   to `in-progress`, superseded to `abandoned`). Abandoned plans move to
+   `implementation-plans/archive/`. Their
    location is settled (#860) — do not propose moving plans out of
    `docs/src/`. Bot-review feedback and code-review notes live in
    `docs/code-review/`, not with the plans.

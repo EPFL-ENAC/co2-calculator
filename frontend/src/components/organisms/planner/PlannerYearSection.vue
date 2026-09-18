@@ -47,7 +47,7 @@
           class="reference-year-box reference-year-row row items-center no-wrap"
         >
           <q-icon
-            name="o_calendar_month"
+            :name="outlinedCalendarMonth"
             color="info"
             class="reference-year-row__icon"
           />
@@ -77,7 +77,10 @@
           :loading="settingReferenceYear"
           @click="referenceYearDialogOpen = true"
         >
-          <q-icon name="o_calendar_month" class="reference-year-row__icon" />
+          <q-icon
+            :name="outlinedCalendarMonth"
+            class="reference-year-row__icon"
+          />
           <span>{{ $t('planner_reference_year_set_button') }}</span>
         </q-btn>
         <div class="text-body2 text-grey-7 q-mt-sm">
@@ -284,11 +287,12 @@
               :disable="entry.module?.is_active === false"
             />
             <template v-else>
-              <!-- Grant equipment plans either line by line or with one
-                   global percentage over all prefilled lines (#1981); adding
-                   an equipment stays available in both modes. -->
+              <!-- Equipment plans either line by line or with one global
+                   percentage over all prefilled lines, in the grant (#1981)
+                   and the year sections (#2749) alike; adding an equipment
+                   stays available in both modes. -->
               <div
-                v-if="isGrantEquipmentModule(entry.config.module)"
+                v-if="isEquipmentModeModule(entry.config.module)"
                 class="q-mb-lg"
               >
                 <div class="text-weight-medium q-mb-sm">
@@ -343,11 +347,12 @@
                   }}
                 </div>
                 <!-- One budget for the whole module in global mode; the
-                     per-submodule fields carry it in per-line mode (#1981). -->
+                     per-submodule fields carry it in per-line mode (#1981).
+                     Budgets are grant-only, so the year sections skip it. -->
                 <template v-if="equipmentMode === 'global'">
                   <q-separator class="planner-equipment-separator q-my-md" />
                   <planner-submodule-budget
-                    v-if="entry.module"
+                    v-if="yearData.is_grant && entry.module"
                     :carbon-report-id="yearData.id"
                     :module-type-id="entry.module.module_type_id"
                     :submodule="entry.config.module"
@@ -357,7 +362,10 @@
                     :disable="entry.module.is_active === false"
                     @saving="savingEquipmentBudget = $event"
                   />
-                  <q-separator class="planner-equipment-separator q-my-md" />
+                  <q-separator
+                    v-if="yearData.is_grant"
+                    class="planner-equipment-separator q-my-md"
+                  />
                   <div
                     class="planner-equipment-global-row row items-center no-wrap"
                   >
@@ -478,7 +486,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import {
+  outlinedCalendarMonth,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
+import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -486,7 +498,6 @@ import { api } from '@/api/http';
 import { formatTonnesCO2 } from '@/utils/number';
 import ModuleIconBox from '@/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from '@/components/organisms/module/ModuleTableSection.vue';
-import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { moduleTooltipKey, type TooltipScope } from '@/utils/tooltipScope';
 import PlannerHeadcountRows from '@/components/organisms/planner/PlannerHeadcountRows.vue';
 import PlannerPurchaseRows from '@/components/organisms/planner/PlannerPurchaseRows.vue';
@@ -639,12 +650,13 @@ function isGrantRfModule(module: Module): boolean {
   return props.yearData.is_grant && module === MODULES.ResearchFacilities;
 }
 
-/** Grant equipment gets the per-line / global percentage toggle (#1981). */
-function isGrantEquipmentModule(module: Module): boolean {
-  return props.yearData.is_grant && module === MODULES.Equipment;
+/** Equipment gets the per-line / global percentage toggle in the grant
+ * section (#1981) and in the Detailed per Year sections (#2749). */
+function isEquipmentModeModule(module: Module): boolean {
+  return module === MODULES.Equipment;
 }
 
-// Grant equipment modes: per-line keeps the row sliders; global applies one
+// Equipment modes: per-line keeps the row sliders; global applies one
 // percentage to every prefilled line at once (#1981). View state only, the
 // entries are the same either way.
 const equipmentMode = ref<'per_line' | 'global'>('per_line');
@@ -664,11 +676,18 @@ const EQUIPMENT_PER_LINE_BUDGET_KEYS: string[] = Object.values(
   SUBMODULE_EQUIPMENT_TYPES,
 );
 
-const equipmentSwitchMessageKey = computed(() =>
-  equipmentMode.value === 'per_line'
-    ? 'planner_equipment_switch_to_global_message'
-    : 'planner_equipment_switch_to_per_line_message',
-);
+// The grant wording also names the budgets the switch clears; the year
+// sections carry no budgets (#2749).
+const equipmentSwitchMessageKey = computed(() => {
+  if (equipmentMode.value === 'per_line') {
+    return props.yearData.is_grant
+      ? 'planner_equipment_switch_to_global_message'
+      : 'planner_equipment_switch_to_global_year_message';
+  }
+  return props.yearData.is_grant
+    ? 'planner_equipment_switch_to_per_line_message'
+    : 'planner_equipment_switch_to_per_line_year_message';
+});
 
 function equipmentEntry(): ModuleEntry | undefined {
   return moduleEntries.value.find((e) => e.config.module === MODULES.Equipment);
@@ -716,10 +735,6 @@ async function deleteManualEquipmentRows() {
   );
 }
 
-function equipmentReferenceSum(items: EquipmentSnapshotItem[]): number {
-  return items.reduce((sum, item) => sum + (item.reference_kg_co2eq ?? 0), 0);
-}
-
 // Backend-computed plan total: the snapshot lines at the applied global
 // percentage plus any manually added equipment. The loaded module data when
 // it belongs to this module, the plan-year stats otherwise (the module store
@@ -737,6 +752,40 @@ function equipmentPlannedKg(entry: ModuleEntry): number | null {
   return typeof total === 'number' ? total : null;
 }
 
+// Same freshest-available precedence as equipmentPlannedKg: the just-loaded
+// module data when it belongs to this module, the plan-year stats otherwise.
+// #2783: equipment_reference_total_kg/equipment_applied_percentage are
+// persisted into stats (carbon_report_module_service.py's
+// _collect_module_extras) precisely so the frontend never has to fetch or
+// sum snapshot rows to know them.
+function equipmentStat(entry: ModuleEntry, key: string): number | null {
+  const data = moduleStore.state.data;
+  const value =
+    entry.module && data?.carbon_report_module_id === entry.module.id
+      ? data.stats?.[key]
+      : entry.module?.stats?.[key];
+  return typeof value === 'number' ? value : null;
+}
+
+// The mode is derived state, not stored client-side — an aggregate line's
+// percentage_of_reference_year, surfaced as equipment_applied_percentage, is
+// the only source of truth for whether a module is in global mode. Seeded
+// once on mount so a reload shows the right mode instead of always
+// resetting to per-line.
+onMounted(() => {
+  const entry = equipmentEntry();
+  if (!entry) return;
+  const applied = equipmentStat(entry, 'equipment_applied_percentage');
+  if (applied === null) return;
+  equipmentMode.value = 'global';
+  globalPercentage.value = applied;
+  appliedGlobalPercentage.value = applied;
+  equipmentReferenceTotalKg.value = equipmentStat(
+    entry,
+    'equipment_reference_total_kg',
+  );
+});
+
 // Same scale and rounding as the Calculator module banner (formatTonnesCO2).
 function formatTonnes(kg: number): string {
   return formatTonnesCO2(kg / 1000);
@@ -753,25 +802,16 @@ function equipmentModeControlsDisabled(entry: ModuleEntry): boolean {
 
 // Switching always confirms through the dialog: the confirmed switch resets
 // every line to 0% and clears the abandoned mode's budgets, so the user
-// must see what they are about to lose before it happens.
-async function onEquipmentModeRequest(next: 'per_line' | 'global') {
+// must see what they are about to lose before it happens. The reference
+// total for the dialog/global-mode display is already-loaded stats (#2783),
+// not a fetch — nothing here can fail, so no loading/error state needed.
+function onEquipmentModeRequest(next: 'per_line' | 'global') {
   if (next === equipmentMode.value || switchingEquipmentMode.value) return;
   if (next === 'global') {
-    switchingEquipmentMode.value = true;
-    try {
-      equipmentReferenceTotalKg.value = equipmentReferenceSum(
-        await fetchEquipmentSnapshotRows(),
-      );
-    } catch {
-      equipmentReferenceTotalKg.value = null;
-      $q.notify({
-        type: 'negative',
-        message: t('planner_equipment_reference_error'),
-      });
-      return;
-    } finally {
-      switchingEquipmentMode.value = false;
-    }
+    const entry = equipmentEntry();
+    equipmentReferenceTotalKg.value = entry
+      ? equipmentStat(entry, 'equipment_reference_total_kg')
+      : null;
   }
   pendingEquipmentMode.value = next;
   equipmentSwitchDialogOpen.value = true;
@@ -784,11 +824,18 @@ async function confirmEquipmentSwitch() {
   switchingEquipmentMode.value = true;
   try {
     await deleteManualEquipmentRows();
-    await plansStore.setModuleReferencePercentage(
-      props.yearData.id,
-      entry.module.module_type_id,
-      0,
-    );
+    if (next === 'global') {
+      await plansStore.setModuleReferencePercentage(
+        props.yearData.id,
+        entry.module.module_type_id,
+        0,
+      );
+    } else {
+      await plansStore.resetEquipmentToPerLine(
+        props.yearData.id,
+        entry.module.module_type_id,
+      );
+    }
     const budgets = entry.module.budgets ?? {};
     for (const key of abandonedBudgetKeys(equipmentMode.value)) {
       if (budgets[key] == null) continue;
@@ -818,7 +865,7 @@ async function confirmEquipmentSwitch() {
 }
 
 function isGlobalEquipment(module: Module): boolean {
-  return isGrantEquipmentModule(module) && equipmentMode.value === 'global';
+  return isEquipmentModeModule(module) && equipmentMode.value === 'global';
 }
 
 function moduleMountKey(module: Module): string {
@@ -955,17 +1002,14 @@ async function onReferenceYearChange(referenceYear: number | null) {
     if (equipmentMode.value === 'global') {
       globalPercentage.value = 0;
       appliedGlobalPercentage.value = 0;
-      try {
-        equipmentReferenceTotalKg.value = equipmentReferenceSum(
-          await fetchEquipmentSnapshotRows(),
-        );
-      } catch {
-        equipmentReferenceTotalKg.value = null;
-        $q.notify({
-          type: 'negative',
-          message: t('planner_equipment_reference_error'),
-        });
-      }
+      // A new reference year changes what the aggregate lines total, so
+      // reload the module before reading its stats (#2783) rather than the
+      // client-side snapshot-row sum this used to fetch.
+      await refreshExpandedModule(MODULES.Equipment);
+      const entry = equipmentEntry();
+      equipmentReferenceTotalKg.value = entry
+        ? equipmentStat(entry, 'equipment_reference_total_kg')
+        : null;
     } else {
       equipmentReferenceTotalKg.value = null;
     }

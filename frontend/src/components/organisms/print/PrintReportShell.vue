@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { outlinedPrint } from '@quasar/extras/material-icons-outlined';
 interface Props {
   /** Report data is still on its way. */
   loading?: boolean;
@@ -25,7 +26,7 @@ function printReport() {
       <q-space />
       <q-btn
         color="accent"
-        icon="o_print"
+        :icon="outlinedPrint"
         size="md"
         class="text-weight-medium"
         :label="$t('results_print')"

@@ -203,3 +203,37 @@ def test_fire_and_forget_inside_asyncio_run_is_cancelled(caplog):
         f"{[r.message for r in caplog.records]!r}.  If this fires only "
         "as DEBUG/INFO, restore the WARNING level in _background._on_done."
     )
+
+
+# ---------------------------------------------------------------------------
+# #2696: shutdown drain
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cancel_background_tasks_cancels_and_waits(monkeypatch):
+    """Every in-flight task gets a CancelledError and the call returns once
+    they have unwound (or the timeout passed), reporting how many there were.
+    """
+    from app.tasks import _background
+
+    monkeypatch.setattr(_background, "_SHUTTING_DOWN", False)
+    seen = []
+
+    async def _job(name):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            seen.append(name)
+            raise
+
+    _background.fire_and_forget(_job("a"), name="a")
+    _background.fire_and_forget(_job("b"), name="b")
+    await asyncio.sleep(0)
+
+    cancelled = await _background.cancel_background_tasks(timeout=2)
+
+    assert cancelled == 2
+    assert sorted(seen) == ["a", "b"]
+    assert _background._SHUTTING_DOWN is True
+    assert not {t for t in _background._BACKGROUND_TASKS if not t.done()}

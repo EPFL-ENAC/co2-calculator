@@ -78,6 +78,9 @@ nav:
       - Release Management: architecture/release-management.md
       - Dev Release Runbook: architecture/release-runbook.md
       - Global Conventions: architecture/07-global-conventions.md
+      - Security Documentation: architecture/security-documentation.md
+      - Encryption & Key Management: architecture/encryption.md
+      - Incident Response: architecture/incident-response.md
       - Tech Stack: architecture/08-tech-stack.md
       - Component Breakdown: architecture/09-component-breakdown.md
       - Data Flow: architecture/10-data-flow.md
@@ -106,6 +109,7 @@ nav:
       - ADR-012 JWT Authentication: architecture-decision-records/012-jwt-authentication-strategy.md
       - ADR-013 Object Storage: architecture-decision-records/013-object-storage-strategy.md
       - ADR-014 Security Checklist: architecture-decision-records/014-security-checklist.md
+      - ADR-014 Backend Layering & Workflows: architecture-decision-records/014-backend-layering-workflows.md
       - ADR-015 Atomic Job Claiming: architecture-decision-records/015-claim-job-atomic-state-is-current.md
       - ADR-016 Two-Path Pipeline: architecture-decision-records/016-pipeline-two-path-principle.md
       - ADR-017 /me Async Role Sync: architecture-decision-records/017-me-endpoint-async-role-sync.md
@@ -119,6 +123,9 @@ nav:
       - Request Flow: backend/05-REQUEST_FLOW.md
       - Permission System: backend/06-PERMISSION-SYSTEM.md
       - Location Search: backend/09-LOCATION-SEARCH.md
+      - File Upload Flow: backend/08-FILE-UPLOAD-FLOW.md
+      - Integration Testing: backend/10-INTEGRATION-TESTING.md
+      - Seed Data: backend/11-SEED-DATA.md
       - Emission Type Resolution: backend/emission-type-resolution.md
       - CSV seed formats: backend/csv-seed-formats.md
       - "CSV column inventory": backend/csv-seed-formats/inventory.md
@@ -140,11 +147,25 @@ nav:
 
   - Database:
       - Overview: database/01-overview.md
+      - Connection budget: database/02-connection-budget.md
+      - ERD: database/erd.md
 
-  - Infrastructure:
+  - Infrastructure & Operations:
+      - Operations, something is broken: infra/04-operations.md
+      - Tools and access: infra/05-tools-and-access.md
+      - Debugging with traces: infra/06-debugging-with-traces.md
       - Overview: infra/01-overview.md
+      - Observability & SLOs: infra/03-observability-slo.md
+      - Postmortem, OAuth HTTP redirect: infra/02-postmortem-oauth-http-redirect.md
+      - Postmortem, prod DB dropped: infra/07-postmortem-prod-db-dropped.md
 
   - Implementation Plans: implementation-plans/_index.md
+
+  - Contributing:
+      - Engineering Guardrails: contributing/guardrails.md
+      - ENAC IT4R Rules: contributing/it4r-rules.md
+      - Project Board: contributing/project-board.md
+      - Auto-index Frontmatter: contributing/auto-index.md
 
   - User Documentation:
       - Overview: user-docs/01-overview.md
@@ -171,25 +192,30 @@ plugins:
   #     enabled_if_env: ENABLE_PDF_EXPORT
   #     # custom_styles: styles/pdf-custom.css
   #     verbose: false
-  - awesome-pages
   - gen-files:
       scripts:
         - gen_indexes.py
   - literate-nav
+  # MKDOCS_FULL_BUILD=false (set in docs/Dockerfile) skips the three plugins
+  # below. The two git plugins cost ~25s of a ~33s build and the image has
+  # no git history to read, so they only ever produced the build date and
+  # the author "Build" there. Minify costs ~3s; nginx gzips the same bytes.
   - git-authors:
+      enabled: !ENV [MKDOCS_FULL_BUILD, true]
       # Auto-generated INDEX.md files live in a temp dir from gen-files
       # and have no git history. Don't escalate that to a build error.
       strict: false
       fallback_to_empty: true
   - git-revision-date-localized:
+      enabled: !ENV [MKDOCS_FULL_BUILD, true]
       fallback_to_build_date: true
       locale: en
       timezone: Europe/Zurich
       strict: false
   - minify:
-      minify_html: true
-      minify_css: true
-      minify_js: true
+      minify_html: !ENV [MKDOCS_FULL_BUILD, true]
+      minify_css: !ENV [MKDOCS_FULL_BUILD, true]
+      minify_js: !ENV [MKDOCS_FULL_BUILD, true]
 
 # Auto-generated section indexes are intentionally excluded from `nav:`;
 # whitelist them so `mkdocs build --strict` keeps passing.
@@ -199,7 +225,6 @@ not_in_nav: |
   /architecture/_index.md
   /backend/_index.md
   /frontend/_index.md
-  /contributing/auto-index.md
 
 copyright: >
   2025 EPFL — GPL-3.0 License. Built with MkDocs

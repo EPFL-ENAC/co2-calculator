@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
 import asyncio
+import ipaddress
+import os
 from contextlib import asynccontextmanager
 
 import httpx
@@ -22,6 +24,7 @@ from app.core.exceptions import (
 from app.core.logging import get_logger, setup_logging
 from app.core.request_origin import RequestOriginMiddleware
 from app.db import engine
+from app.tasks._background import cancel_background_tasks
 from app.tasks._db_health import DBHealthState, get_db_health_state, is_fresh
 
 # Setup logging
@@ -53,6 +56,39 @@ def assert_security_settings(settings) -> None:
     ]
     if missing:
         raise RuntimeError(f"Missing required security settings: {missing}")
+
+
+def assert_proxy_trust_settings() -> None:
+    """Fail closed at boot when uvicorn is told to trust every proxy (#2530).
+
+    ``FORWARDED_ALLOW_IPS`` is uvicorn's own env var, not a ``Settings`` field
+    (``backend/.env`` is never read by the uvicorn process). Rejects both
+    ``*`` and any ``/0`` network — uvicorn reaches the same forgeable
+    leftmost-XFF-entry result by two different code paths in
+    ``uvicorn/middleware/proxy_headers.py``. See the #2530 plan for detail.
+    """
+    raw = os.environ.get("FORWARDED_ALLOW_IPS", "").strip()
+    if not raw:
+        return
+    entries = [entry.strip() for entry in raw.split(",")]
+    offenders = [entry for entry in entries if _trusts_every_address(entry)]
+    if not offenders:
+        return
+    raise RuntimeError(
+        f"FORWARDED_ALLOW_IPS entries {offenders} trust every proxy, which "
+        "makes X-Forwarded-For client-forgeable (#2530). Set it to the CIDRs "
+        "of this cluster's proxies only."
+    )
+
+
+def _trusts_every_address(entry: str) -> bool:
+    """True when this one allowlist entry matches every possible client."""
+    if entry == "*":
+        return True
+    try:
+        return ipaddress.ip_network(entry).prefixlen == 0
+    except ValueError:
+        return False
 
 
 def assert_accred_settings(settings) -> None:
@@ -110,6 +146,7 @@ def assert_poller_isolation(settings) -> None:
 async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_security_settings(settings)
+    assert_proxy_trust_settings()
     assert_accred_settings(settings)
     assert_poller_isolation(settings)
 
@@ -211,6 +248,13 @@ async def lifespan(app: FastAPI):
             await task
         except asyncio.CancelledError:
             logger.info("Safety poller cancelled successfully")
+    # #2696: with the poller stopped nothing dispatches anymore; now cancel
+    # the jobs already running so each hands its row back (NOT_STARTED,
+    # unlocked) while the pool is still open. Before the other loops:
+    # the hand-back needs the heartbeat to still own the lock.
+    in_flight = await cancel_background_tasks()
+    if in_flight:
+        logger.info("Handed back %s in-flight job(s)", in_flight)
     reconciler_task = getattr(app.state, "pipeline_reconciler_task", None)
     if reconciler_task:
         logger.info("Cancelling pipeline reconciler")

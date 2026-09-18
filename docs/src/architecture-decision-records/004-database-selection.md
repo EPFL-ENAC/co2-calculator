@@ -55,12 +55,11 @@ identical application code.
   20 connections max per pod), paired with `MAX_CONCURRENT_JOBS`
   (default 4/pod) bounding background-job connection usage — see
   [#1723](../implementation-plans/1723-job-concurrency-and-db-pool.md).
-  No PgBouncer yet: direct connections fit comfortably at 2-3
-  replicas, and PgBouncer's transaction-pooling mode sits badly with
-  long recalc transactions. Revisit when
-  `replicas * (pool_size + overflow)` approaches ~80% of Postgres
-  `max_connections` — roughly 4+ replicas at these defaults, or
-  sooner on a managed-PG tier with a small `max_connections`.
+  **Superseded 2026-09-08:** the "no PgBouncer, revisit at ~80% of
+  `max_connections`" rule that stood here assumed direct connections.
+  DBaaS now runs PgBouncer in front of dev, stage and prod, so the
+  bouncer's server pool is the ceiling — see the
+  [database overview](../database/01-overview.md#notes).
 
 **Negative**:
 

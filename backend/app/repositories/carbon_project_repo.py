@@ -1,6 +1,6 @@
 """Carbon project repository for simulator plan database operations."""
 
-from sqlmodel import col, exists, func, select
+from sqlmodel import col, exists, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -104,47 +104,30 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
-    async def get_latest_calculator_year(self, unit_id: int) -> int | None:
-        """Year of the unit's most recent Calculator report, or None.
-
-        The default factor year of plan years without a reference year.
-        """
-        statement = (
-            select(func.max(col(CarbonReport.year)))
-            .join(
-                CarbonProject,
-                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
-            )
-            .where(
-                col(CarbonReport.unit_id) == unit_id,
-                col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR,
-            )
-        )
-        result = await self.session.execute(statement)
-        return result.scalar_one_or_none()
-
     async def list_report_stats_by_project(
         self, project_ids: list[int]
-    ) -> list[tuple[int, dict | None]]:
-        """Return ``(project_id, report.stats)`` for many projects in one query.
+    ) -> list[tuple[int, bool, dict | None]]:
+        """Return ``(project_id, is_grant, report.stats)`` for many projects.
 
         Backs the plan totals shown in the home-page planner table: one query
         for the whole unit instead of one per plan.
 
-        Project Grant reports are excluded: how grant results combine with the
-        per-year results is still open (#1977), and summing both would count
-        the same project twice.
+        Grant reports are returned alongside the per-year reports, flagged so
+        the caller can total them separately — the two views count the same
+        project and must never be summed together (#1977, #2805).
         """
         if not project_ids:
             return []
         statement = select(
-            col(CarbonReport.carbon_project_id), col(CarbonReport.stats)
-        ).where(
-            col(CarbonReport.carbon_project_id).in_(project_ids),
-            col(CarbonReport.is_grant).is_(False),
-        )
+            col(CarbonReport.carbon_project_id),
+            col(CarbonReport.is_grant),
+            col(CarbonReport.stats),
+        ).where(col(CarbonReport.carbon_project_id).in_(project_ids))
         result = await self.session.execute(statement)
-        return [(project_id, stats) for project_id, stats in result.all()]
+        return [
+            (project_id, bool(is_grant), stats)
+            for project_id, is_grant, stats in result.all()
+        ]
 
     async def list_reports_for_project(self, project_id: int) -> list[CarbonReport]:
         """Return the carbon reports of a project, ordered by year."""

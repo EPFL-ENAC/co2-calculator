@@ -546,6 +546,22 @@ class FactorRepository:
         rows = (await self.session.exec(stmt)).all()
         return [(row[0], row[1]) for row in rows]
 
+    async def list_classification_values(
+        self, data_entry_type_id: DataEntryTypeEnum, field: str
+    ) -> set[str]:
+        """Distinct non-null ``classification->>field`` values, every year."""
+        value_col = Factor.classification[field].as_string()
+        stmt = (
+            select(value_col)
+            .where(
+                col(Factor.data_entry_type_id) == data_entry_type_id,
+                value_col.is_not(None),
+            )
+            .distinct()
+        )
+        result = await self.session.exec(stmt)
+        return set(result.all())
+
     async def list_by_data_entry_type(
         self,
         data_entry_type_id: DataEntryTypeEnum,

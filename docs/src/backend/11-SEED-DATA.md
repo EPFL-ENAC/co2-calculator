@@ -14,14 +14,14 @@ For broader backend context see:
 ## The seed targets
 
 Four `make` targets seed different things. Verified against
-`backend/Makefile` on 2026-08-25.
+`backend/Makefile` on 2026-09-11.
 
-| Target                   | Volume                  | Runs                                                            | Use when                                                                                                                                                  |
-| ------------------------ | ----------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `make seed-data`         | Small, deterministic    | `seed_locations`, `seed_building_rooms`, `seed_generic_factors` | You need predictable reference data. Default for local dev and CI fixtures. **Does not** create data entries.                                             |
-| `make seed-generic-data` | Small, deterministic    | `seed_generic_data_entries` — CSVs in `backend/seed_data/`      | You need data entries to go with the reference data above. Run it after `seed-data`.                                                                      |
-| `make seed-units`        | Institutional units     | `seed_units_from_accred`                                        | You need the real EPFL unit tree rather than generated units.                                                                                             |
-| `make seed-data-random`  | ~800k `data_entry` rows | `random_generator.seed_all`                                     | You need scale: perf testing, pagination work, query-plan checks, populated charts. Issue [#222](https://github.com/EPFL-ENAC/co2-calculator/issues/222). |
+| Target                   | Volume                  | Runs                                                            | Use when                                                                                                                                                                                                 |
+| ------------------------ | ----------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make seed-data`         | Small, deterministic    | `seed_locations`, `seed_generic_factors`, `seed_reference_data` | You need predictable reference data. Default for local dev and CI fixtures. **Does not** create data entries. Factors seed before the building rooms reference, which is validated against them (#2716). |
+| `make seed-generic-data` | Small, deterministic    | `seed_generic_data_entries` — CSVs in `backend/seed_data/`      | You need data entries to go with the reference data above. Run it after `seed-data`.                                                                                                                     |
+| `make seed-units`        | Institutional units     | `seed_units_from_accred`                                        | You need the real EPFL unit tree rather than generated units.                                                                                                                                            |
+| `make seed-data-random`  | ~800k `data_entry` rows | `random_generator.seed_all`                                     | You need scale: perf testing, pagination work, query-plan checks, populated charts. Issue [#222](https://github.com/EPFL-ENAC/co2-calculator/issues/222).                                                |
 
 The ~800k figure is 500 units × 3 years × 8 modules × 60–74 entries
 (`NUM_UNITS` in `populate_units_and_users.py`, `ENTRIES_PER_MODULE_MIN/MAX`

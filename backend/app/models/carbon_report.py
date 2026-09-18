@@ -12,6 +12,12 @@ class CarbonReportType(str, Enum):
     SIMULATOR_PLAN = "Simulator_Plan"
 
 
+SIMULATOR_REPORT_TYPES = (
+    CarbonReportType.SIMULATOR_EXPLORE,
+    CarbonReportType.SIMULATOR_PLAN,
+)
+
+
 class CarbonReportBase(SQLModel):
     """Base carbon report model."""
 

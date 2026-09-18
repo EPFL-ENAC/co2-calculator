@@ -22,6 +22,7 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 from app.utils.datetime_utc import as_utc
+from app.utils.factor_year import effective_factor_year_col
 
 logger = get_logger(__name__)
 
@@ -185,6 +186,38 @@ class DataIngestionRepository:
             await self.session.flush()
             await self.session.refresh(result_job)
         return result_job
+
+    async def release_job(self, job_id: int, pod_id: str) -> bool:
+        """Hand a RUNNING job we own back to the queue (#2696).
+
+        The pod is shutting down mid-handler. Same CAS guard as
+        ``finish_job`` (``locked_by == pod_id AND state == RUNNING``) and
+        the same target as the stale sweep's recoverable bucket:
+        NOT_STARTED, unlocked, ``attempts`` preserved so ``claim_job``'s
+        retry cap still counts this run. Any poller re-dispatches it on
+        its next tick instead of after ``STALE_JOB_TIMEOUT_MINUTES``.
+
+        Returns True when the row was ours and is back in the queue.
+        """
+        result = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.locked_by) == pod_id,
+                col(DataIngestionJob.state) == IngestionState.RUNNING,
+            )
+            .values(
+                state=IngestionState.NOT_STARTED,
+                locked_by=None,
+                locked_at=None,
+                is_current=False,
+                run_after=None,
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        released = result.scalar_one_or_none() is not None
+        await self.session.commit()
+        return released
 
     async def finish_job(
         self,
@@ -1174,21 +1207,41 @@ class DataIngestionRepository:
         """Auto-recovery sweep for jobs stuck in RUNNING after a pod crash.
 
         The poller calls this once per tick.  Jobs whose ``locked_at`` is
-        older than the stale window are split into two buckets:
+        older than the stale window are split into three buckets:
 
-        - **Recoverable** (``attempts < max_attempts``) — reset to
-          NOT_STARTED so the next poll cycle can re-dispatch them.  Unlike
-          ``recover_job`` (the manual API path, which resets ``attempts=0``
-          on operator intent), this preserves ``attempts`` so a genuinely
-          broken job that crashes every claim can't loop forever — once
-          ``attempts`` reaches ``max_attempts`` the next sweep abandons it.
+        - **MODULE_UNIT_SPECIFIC** (#2700 Part 2) — never auto-retried,
+          regardless of ``attempts`` remaining.  Always abandoned straight
+          to FINISHED+ERROR.  This upload path is append-only with no
+          delete-before-insert and almost no DB uniqueness constraint on
+          ``data_entries`` (see
+          ``docs/src/implementation-plans/2700-module-unit-specific-no-auto-retry.md``),
+          so a dead job may already have committed some batches
+          (``data_session`` commits per ``INGEST_COPY_BATCH_SIZE`` batch,
+          not once at the end) — resetting it to NOT_STARTED for reclaim
+          would let a retry re-``COPY`` rows a prior attempt already
+          wrote, duplicating them silently.  A human must verify and
+          clean up before re-uploading; there is no safe automated retry
+          for this entity type.
 
-        - **Abandoned** (``attempts >= max_attempts``) — moved to
-          ``state=FINISHED, result=ERROR`` with a diagnostic
-          ``status_message``.  Operators see the failure on the dashboard
-          instead of a silently-stuck row.
+        - **Recoverable** (every other entity type, ``attempts <
+          max_attempts``) — reset to NOT_STARTED so the next poll cycle
+          can re-dispatch them.  Unlike ``recover_job`` (the manual API
+          path, which resets ``attempts=0`` on operator intent), this
+          preserves ``attempts`` so a genuinely broken job that crashes
+          every claim can't loop forever — once ``attempts`` reaches
+          ``max_attempts`` the next sweep abandons it.  Safe for these
+          entity types because their handlers delete-and-reinsert their
+          scope on every attempt (``MODULE_PER_YEAR``) or otherwise don't
+          write ``data_entries`` at all.
 
-        Returns ``(recovered_count, abandoned_count)``.
+        - **Abandoned, attempts exhausted** — moved to ``state=FINISHED,
+          result=ERROR`` with a diagnostic ``status_message``.  Operators
+          see the failure on the dashboard instead of a silently-stuck
+          row.
+
+        Returns ``(recovered_count, abandoned_count)`` — the latter sums
+        both abandon reasons; each row's own ``status_message``
+        distinguishes them.
 
         ``locked_at`` is refreshed by the 310-C runner's per-job
         heartbeat (``_heartbeat_loop``, every quarter of the stale
@@ -1198,8 +1251,39 @@ class DataIngestionRepository:
         evicted, or was SIGTERMed mid-job (stage incident 2026-07-17).
         """
         stale_filter = stale_running_clause(stale_job_cutoff(stale_timeout_minutes))
+        is_module_unit_specific = col(DataIngestionJob.entity_type) == (
+            EntityType.MODULE_UNIT_SPECIFIC
+        )
+        is_not_module_unit_specific = col(DataIngestionJob.entity_type) != (
+            EntityType.MODULE_UNIT_SPECIFIC
+        )
 
-        # Bucket 1: still has retries left → unlock and let claim_job pick
+        # Bucket 1: MODULE_UNIT_SPECIFIC — abandon unconditionally, before
+        # the other two buckets run, so neither can also match this row
+        # (both explicitly exclude this entity type below, but ordering
+        # first plus the shared state==RUNNING in stale_filter is a
+        # second, structural guarantee: once this UPDATE moves a row out
+        # of RUNNING, the later queries' stale_filter no longer sees it).
+        no_retry_abandoned = await self.session.execute(
+            update(DataIngestionJob)
+            .where(stale_filter, is_module_unit_specific)
+            .values(
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
+                finished_at=func.now(),
+                status_message=(
+                    "Job stopped mid-run (pod lost or crashed) and cannot be "
+                    "safely retried automatically — this upload has no "
+                    "duplicate protection. Verify data_entries for this "
+                    "report against the source file before re-uploading; "
+                    "delete any rows this job may have already written."
+                ),
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        no_retry_abandoned_ids = list(no_retry_abandoned.scalars().all())
+
+        # Bucket 2: still has retries left → unlock and let claim_job pick
         # it up next cycle.  Preserve ``attempts`` so claim_job's
         # ``attempts < max_attempts`` guard caps the retry count.
         recovered = await self.session.execute(
@@ -1207,6 +1291,7 @@ class DataIngestionRepository:
             .where(
                 stale_filter,
                 col(DataIngestionJob.attempts) < col(DataIngestionJob.max_attempts),
+                is_not_module_unit_specific,
             )
             .values(
                 state=IngestionState.NOT_STARTED,
@@ -1219,12 +1304,13 @@ class DataIngestionRepository:
         )
         recovered_ids = list(recovered.scalars().all())
 
-        # Bucket 2: out of retries → mark FINISHED+ERROR loud and clear.
+        # Bucket 3: out of retries → mark FINISHED+ERROR loud and clear.
         abandoned = await self.session.execute(
             update(DataIngestionJob)
             .where(
                 stale_filter,
                 col(DataIngestionJob.attempts) >= col(DataIngestionJob.max_attempts),
+                is_not_module_unit_specific,
             )
             .values(
                 state=IngestionState.FINISHED,
@@ -1244,7 +1330,7 @@ class DataIngestionRepository:
         abandoned_ids = list(abandoned.scalars().all())
 
         await self.session.commit()
-        return len(recovered_ids), len(abandoned_ids)
+        return len(recovered_ids), len(abandoned_ids) + len(no_retry_abandoned_ids)
 
     async def recover_job(
         self, job_id: int, stale_timeout_minutes: int
@@ -1745,13 +1831,16 @@ class DataIngestionRepository:
             .subquery()
         )
 
-        # Seed: distinct (module_type_id, carbon_reports.year) the modules
-        # themselves declare.  DISTINCT keeps the seed one row per scope
-        # even when many units share the same (module_type_id, year).
+        # Seed: distinct (module_type_id, factor year) the modules themselves
+        # declare.  DISTINCT keeps the seed one row per scope even when many
+        # units share the same scope.  A Simulator Plan seeds its
+        # ``reference_year`` rather than its planning year (#2775) — seeding
+        # the planning year invented a scope no aggregation can ever target,
+        # which then reported as ``no_aggregation_ever`` forever.
         scopes_sub = (
             select(
                 col(CarbonReportModule.module_type_id).label("module_type_id"),
-                col(CarbonReport.year).label("year"),
+                effective_factor_year_col().label("year"),
             )
             .join(
                 CarbonReport,
@@ -1863,11 +1952,19 @@ class DataIngestionRepository:
         recompute-stats trigger to fan out one full-recompute aggregation
         job per scope, regardless of whether the last aggregation looked
         fresh (a stats-shape change makes even a fresh row wrong).
+
+        The scope year is the *factor* year (``effective_factor_year_col``),
+        so a Simulator Plan report folds into its ``reference_year`` scope
+        instead of raising a scope for its planning year (#2775). That keeps
+        plans inside the jobs already dispatched for the baseline year — no
+        extra scopes, and the factor-availability filter downstream asks
+        about a year that actually has factors.
         """
+        scope_year = effective_factor_year_col()
         stmt = (
             select(
                 col(CarbonReportModule.module_type_id),
-                col(CarbonReport.year),
+                scope_year,
             )
             .join(
                 CarbonReport,
@@ -1876,7 +1973,7 @@ class DataIngestionRepository:
             .distinct()
         )
         if year is not None:
-            stmt = stmt.where(col(CarbonReport.year) == year)
+            stmt = stmt.where(scope_year == year)
         if module_type_id is not None:
             stmt = stmt.where(col(CarbonReportModule.module_type_id) == module_type_id)
         rows = (await self.session.execute(stmt)).all()
@@ -1894,6 +1991,20 @@ class DataIngestionRepository:
         ``get_recalculation_status_by_year`` already uses, reused here so
         the admin recompute-stats trigger doesn't spend a job (and a
         pooled DB connection) on scopes that can't produce real numbers.
+
+        **Simulator Explore is knowingly unreachable here** (#2775, decided).
+        Its scope year is its creation year (``now.year``) while it prices
+        against N-1, so it sits in a scope that usually has no factors and
+        gets skipped. Plan was fixed because its factor year is a stored
+        column (``reference_year``) the scope query can read; Explore's is
+        derived from today's date plus ``users.provider`` and
+        ``year_configurations``, with nothing stored to key on. Not worth the
+        machinery: sandboxes are recreated on every "start exploration" with
+        the previous ones deleted in the background (#2656) and their stats
+        are NULL until edited, so a stats-shape change self-heals on the next
+        exploration. Revisit only if Explore sandboxes gain a long lifespan
+        or their stats start being read somewhere durable — see
+        ``docs/src/implementation-plans/2775-recompute-stats-plan-reference-year.md``.
         """
         if not scopes:
             return []
@@ -1978,7 +2089,15 @@ class DataIngestionRepository:
             provider=provider,
             pipeline_id=pipeline_id,
             run_after=None,
-            meta={"config": {"skip_module_status_update": True}},
+            meta={
+                "config": {
+                    "skip_module_status_update": True,
+                    # #2775 — reach Simulator Plan reports baselined on this
+                    # year; their own year is a planning year that no scope
+                    # targets. Recalc-chained aggregations don't set this.
+                    "include_reference_year_reports": True,
+                }
+            },
         )
         try:
             created = await self.create_ingestion_job(job)

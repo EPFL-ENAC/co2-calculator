@@ -1,3 +1,8 @@
+import {
+  outlinedCategory,
+  outlinedDonutLarge,
+  outlinedElectricBolt,
+} from '@quasar/extras/material-icons-outlined';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { formatTonnesCO2 } from '@/utils/number';
 import type { Module, EquipmentSubType } from '@/constant/modules';
@@ -64,7 +69,7 @@ const baseModuleFields: ModuleField[] = [
     readOnly: false,
     editableInline: true,
     ratio: '1/2',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'lg',
   },
   {
@@ -82,7 +87,7 @@ const baseModuleFields: ModuleField[] = [
     editableInline: true,
     readOnly: false,
     ratio: '1/2',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'sm',
     maxColumnWidth: 160,
   },
@@ -94,6 +99,7 @@ const baseModuleFields: ModuleField[] = [
     required: true,
     min: 0,
     max: 168,
+    integer: true,
     maxColumnWidth: 200,
     unit: 'hrs/wk',
     sortable: true,
@@ -103,7 +109,7 @@ const baseModuleFields: ModuleField[] = [
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
-    icon: 'o_donut_large',
+    icon: outlinedDonutLarge,
   },
   {
     id: 'standby_usage_hours_per_week',
@@ -113,6 +119,7 @@ const baseModuleFields: ModuleField[] = [
     required: true,
     min: 0,
     max: 168,
+    integer: true,
     maxColumnWidth: 200,
     unit: 'hrs/wk',
     sortable: true,
@@ -122,7 +129,7 @@ const baseModuleFields: ModuleField[] = [
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
-    icon: 'o_donut_large',
+    icon: outlinedDonutLarge,
   },
   {
     id: 'active_power_w',
@@ -137,7 +144,7 @@ const baseModuleFields: ModuleField[] = [
     tooltip: 'module-equipment-submodule-scientific-table-active_power_w',
     readOnly: true,
     ratio: '3/12',
-    icon: 'o_electric_bolt',
+    icon: outlinedElectricBolt,
     hideIn: {
       form: false,
     },
@@ -160,7 +167,7 @@ const baseModuleFields: ModuleField[] = [
     },
     editableInline: false,
     ratio: '3/12',
-    icon: 'o_electric_bolt',
+    icon: outlinedElectricBolt,
     maxColumnWidth: 150,
   },
   {
@@ -223,6 +230,12 @@ export const equipment: ModuleConfig = {
   totalFormatter: formatTonnesCO2,
 
   formStructure: 'perSubmodule',
+
+  // #2681: the usage-hours refresh reloads the whole table, so a long page
+  // makes bulk edits impractical. Fixed at 10 in Calculator, Planner and
+  // Explorer alike.
+  tablePageSize: 10,
+  tablePageSizeLocked: true,
 
   submodules: [
     {

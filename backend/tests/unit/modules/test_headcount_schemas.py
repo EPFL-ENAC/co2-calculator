@@ -10,7 +10,8 @@ contract (data-description.md → Headcount):
     user_institutional_id ✅ non-empty string, stripped (doc says numbers-only,
                               code allows letters, e.g. "test-412424");
                               mandatory again as of #2138 (reverts #951)
-    fte                   ✅ float, 0 ≤ fte ≤ 1
+    fte                   ✅ float, 0 ≤ fte ≤ 1, at most one decimal (#2464,
+                              the server-side twin of #2318's maxDecimals)
     note                  ❌ optional
 
 ``unit_institutional_id`` is a data.csv-only column used to scope the row to
@@ -32,6 +33,7 @@ from app.modules.headcount import (
     HeadCountCreate,
     HeadcountMemberModuleHandler,
     HeadCountStudentCreate,
+    HeadCountStudentUpdate,
     HeadCountUpdate,
 )
 
@@ -78,8 +80,8 @@ def _student(**overrides) -> dict:
         pytest.param(_member(), id="baseline"),
         pytest.param(_member(fte=0.0), id="fte-lower-bound"),
         pytest.param(_member(fte=1.0), id="fte-upper-bound"),
-        pytest.param(_member(fte=0.05), id="fte-doc-example"),
-        pytest.param(_member(fte="0.75"), id="fte-numeric-string-coerced"),
+        pytest.param(_member(fte=0.7), id="fte-one-decimal"),
+        pytest.param(_member(fte="0.7"), id="fte-numeric-string-coerced"),
         pytest.param(_member(note="seconded 50%"), id="note-present"),
         pytest.param(_member(note=_OMIT), id="note-omitted"),
         pytest.param(_member(name="  Bob Jones  "), id="name-stripped"),
@@ -131,6 +133,10 @@ def test_headcount_member_strips_name_and_uid() -> None:
         pytest.param(_member(fte=1.5), id="fte-above-one"),
         pytest.param(_member(fte=-0.1), id="fte-negative"),
         pytest.param(_member(fte="not-a-number"), id="fte-uncoercible"),
+        # #2464: the frontend caps FTE at one decimal (#2318); the API must
+        # too, or a direct call stores a value the edit form then refuses.
+        pytest.param(_member(fte=0.75), id="fte-two-decimals"),
+        pytest.param(_member(fte=0.05), id="fte-doc-example-two-decimals"),
     ],
 )
 def test_headcount_member_invalid(payload: dict) -> None:
@@ -165,6 +171,7 @@ def test_headcount_student_valid(payload: dict) -> None:
         pytest.param(_student(fte=_OMIT), id="fte-missing"),
         pytest.param(_student(fte=-0.1), id="fte-negative"),
         pytest.param(_student(fte="not-a-number"), id="fte-uncoercible"),
+        pytest.param(_student(fte=0.75), id="fte-two-decimals"),
     ],
 )
 def test_headcount_student_invalid(payload: dict) -> None:
@@ -204,12 +211,18 @@ def test_headcount_update_valid(payload: dict) -> None:
         pytest.param({**_MEMBER_META, "sius_code": "invalid"}, id="sius-invalid"),
         pytest.param({**_MEMBER_META, "fte": 1.5}, id="fte-above-one"),
         pytest.param({**_MEMBER_META, "fte": -1}, id="fte-negative"),
+        pytest.param({**_MEMBER_META, "fte": 0.75}, id="fte-two-decimals"),
         pytest.param({**_MEMBER_META, "user_institutional_id": "   "}, id="uid-blank"),
     ],
 )
 def test_headcount_update_invalid(payload: dict) -> None:
     with pytest.raises(ValidationError):
         HeadCountUpdate.model_validate(payload)
+
+
+def test_headcount_student_update_rejects_two_decimals() -> None:
+    with pytest.raises(ValidationError):
+        HeadCountStudentUpdate.model_validate({**_STUDENT_META, "fte": 0.75})
 
 
 # ---------------------------------------------------------------------------

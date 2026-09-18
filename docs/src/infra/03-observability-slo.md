@@ -64,18 +64,18 @@ then promote. Tracked in
 | `BackendMetricsAbsent` (deadman's switch)                | ✅                                  | ✅                          | ✅                                                        |
 | `HighErrorRate` -- global (not per-pod) 5xx ratio        | ✅ 2%                               | ✅ 2%                       | ✅ 1% (retuned from data)                                 |
 | `ErrorRateSustainedElevated` -- 6h window, severity:info | ✅ 0.3%                             | ✅ 0.3%                     | ✅ 0.3%                                                   |
-| `UploadLatencySLOBreach` / `JobLatencySLOBreach`         | ✅ (thresholds from 4wk stage data) | ✅                          | 🟡 interim -- stage-derived thresholds, see below (#2301) |
+| `UploadLatencySLOBreach`                                 | ✅ (thresholds from 4wk stage data) | ✅                          | 🟡 interim -- stage-derived thresholds, see below (#2301) |
+| Job-class latency alerts                                 | ❌ removed 2026-09-07               | ❌ removed 2026-09-07       | ❌ removed 2026-09-07                                     |
 | Probe trace sampling -- latency-aware, not blanket drop  | ✅                                  | ⬜ not yet promoted (#2302) | ⬜ not yet promoted (#2302)                               |
 
-Prod's `route_class` transform only shipped recently. `UploadLatencySLOBreach`/
-`JobLatencySLOBreach` are live there now, but running on **stage's**
-4-week-derived thresholds (5s@2%, 10s@5%) as an explicit interim value --
-prod has no traffic history of its own yet to derive a number from, and
-1402's own precedent is "pull real numbers, don't guess." Zero coverage for
-the weeks it takes to accumulate that data seemed worse than a
-clearly-labeled approximation; both alerts say "interim" in their summary
-text. Retune from real prod `route_class="upload"`/`"job"` history once
-available -- tracked in
+Prod's `route_class` transform only shipped recently. `UploadLatencySLOBreach`
+is live there now, but running on **stage's** 4-week-derived threshold
+(5s@2%) as an explicit interim value -- prod has no traffic history of its
+own yet to derive a number from, and 1402's own precedent is "pull real
+numbers, don't guess." Zero coverage for the weeks it takes to accumulate
+that data seemed worse than a clearly-labeled approximation; the alert says
+"interim" in its summary text. Retune from real prod `route_class="upload"`
+history once available -- tracked in
 [co2-calculator#2301](https://github.com/EPFL-ENAC/co2-calculator/issues/2301).
 
 **`HighErrorRate` was retuned from real data, not carried over.** Pulled
@@ -98,16 +98,44 @@ doesn't page differently, it just doesn't get lost as another `warning`.
 
 ## Alert catalog (dev/stage; prod matches except where noted above)
 
-| Alert                          | Fires when                                                                       | Why                                                                                                                                                                                 |
-| ------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HaproxyRouteHighLatency`      | avg HAProxy latency > 1s for 5m, per route                                       | Edge-level slowness, independent of app metrics                                                                                                                                     |
-| `HaproxyHighErrorRatePerRoute` | HAProxy non-2xx rate > 5% for 5m, per route                                      | Edge-level errors (includes upstream-down cases the app never sees)                                                                                                                 |
-| `LatencyP50/95/99High`         | app P50/95/99 (route_class=api) over threshold for 5m                            | Normal-API latency only -- streams/uploads/jobs excluded so they can't skew it                                                                                                      |
-| `HighErrorRate`                | global 5xx rate > threshold for 5m (2% dev/stage, 1% prod), with a traffic floor | Fast incident signal; 4xx excluded (client errors, not backend health); per-pod grouping fixed so one hot replica can't trip it alone                                               |
-| `ErrorRateSustainedElevated`   | global 5xx rate > 0.3% over a rolling 6h window, for 30m                         | Slow-burn companion to `HighErrorRate` -- catches a persistent low-grade error rate the 5-minute window and its traffic floor structurally can't see; `severity:info`, doesn't page |
-| `BackendMetricsAbsent`         | no `http_server_duration_milliseconds_count` for 10m                             | Deadman's switch -- every alert above depends on this metric existing                                                                                                               |
-| `UploadLatencySLOBreach`       | >2% of uploads slower than 5s over 15m                                           | Proportion-of-slow-requests, not a raw quantile -- the 1402 job-class p95/p99 saturated at the histogram's last bucket, making raw quantiles meaningless there                      |
-| `JobLatencySLOBreach`          | >5% of job-class requests slower than 10s over 15m                               | Same reasoning; 10s is this histogram's last resolvable bucket                                                                                                                      |
+| Alert                              | Fires when                                                                                          | Why                                                                                                                                                                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HaproxyRouteHighLatency`          | avg HAProxy latency > 1s for 5m, per route                                                          | Edge-level slowness, independent of app metrics                                                                                                                                                                      |
+| `HaproxyHighErrorRatePerRoute`     | HAProxy non-2xx rate > 5% for 5m, per route                                                         | Edge-level errors (includes upstream-down cases the app never sees)                                                                                                                                                  |
+| `LatencyP50/95/99High`             | app P50/95/99 (route_class=api) over threshold for 5m                                               | Normal-API latency only -- streams/uploads/jobs excluded so they can't skew it                                                                                                                                       |
+| `HighErrorRate`                    | global 5xx rate > threshold for 5m (2% dev/stage, 1% prod), with a traffic floor                    | Fast incident signal; 4xx excluded (client errors, not backend health); per-pod grouping fixed so one hot replica can't trip it alone                                                                                |
+| `ErrorRateSustainedElevated`       | global 5xx rate > 0.3% over a rolling 6h window, for 30m                                            | Slow-burn companion to `HighErrorRate` -- catches a persistent low-grade error rate the 5-minute window and its traffic floor structurally can't see; `severity:info`, doesn't page                                  |
+| `BackendMetricsAbsent`             | no `http_server_duration_milliseconds_count` for 10m                                                | Deadman's switch -- every alert above depends on this metric existing                                                                                                                                                |
+| `UploadLatencySLOBreach`           | >2% of uploads slower than 5s over 15m                                                              | Proportion-of-slow-requests, not a raw quantile -- the 1402 job-class p95/p99 saturated at the histogram's last bucket, making raw quantiles meaningless there                                                       |
+| `DbPoolSaturationHigh`             | per-pod `checked_out` / (`size` + `max_overflow`) > 80% for 10m                                     | Byte-identical to the "DB pool saturation per pod" panel query on purpose; fires for the worker too (tasks queue, not requests); more replicas hit the server wall sooner, not later                                 |
+| `DbServerConnectionsHigh`          | `max(db_server_connections)` > 80 for 2m                                                            | Server-wide, every client: pods, pgAdmin, Alembic, dumps, laptops, orphaned backends. `max` not `sum` (every pod reports the same number); 2m because dev went healthy to every-request-500 in minutes on 2026-08-31 |
+| `DbPoolMetricsAbsent`              | no `checked_out` or `max_overflow` gauge for 30m                                                    | Deadman for `DbPoolSaturationHigh`: `max_overflow` is its denominator, and a missing denominator makes the rule permanently green, not noisy                                                                         |
+| `DbServerMetricAbsent`             | no `db_server_connections` for 30m                                                                  | Deadman for `DbServerConnectionsHigh`, the one rule that sees orphans. Written by the pod heartbeat, Postgres only; separate so an environment without #2567 can be silenced alone                                   |
+| `DbPoolCheckoutTimeout`            | `db_pool_timeouts_total` increases, or is born, within 15m                                          | DB layer 1 counted instead of inferred (#2572): a request waited `DB_POOL_TIMEOUT` 5s for a pool slot and gave up. Local and recoverable; sustained means demand exceeds the pod ceiling                             |
+| `DbServerConnectionSlotsExhausted` | `db_connect_failures_total{sqlstate="53300"}` increases, or is born, within 15m                     | DB layer 3: Postgres full, everyone locked out including pgAdmin and migrations. The 2026-08-31 mode; `HighErrorRate` sees the 500s but cannot name the cause                                                        |
+| `DbBouncerQueued` (dev only)       | `db_pgbouncer_queued_total` increases, or is born, within 15m                                       | DB layer 2: PgBouncer's 25-slot server pool is full and a login is queued. 120s of warning before that login errors; `severity:warning`                                                                              |
+| `DbBouncerQueueTimeout` (dev only) | `db_pgbouncer_queue_timeouts_total` increases, or is born, within 15m                               | The queued login was refused after `query_wait_timeout` 120s; the request or job failed and `/ready` flaps on that pod. `severity:critical`                                                                          |
+| `RoleSyncSuspiciousEmpty`          | `role_sync_skipped_total{outcome="skipped_suspicious_empty"}` increases, or is born, within 15m     | Role sync refused to wipe a user's stored roles on an empty provider response (#2531/#2538); a second empty answer 2× `ROLE_SYNC_TTL_MINUTES` later is believed. `severity:warning`                                  |
+| `RoleSyncProviderUnavailable`      | `role_sync_skipped_total{outcome="skipped_provider_unavailable"}` increases, or is born, within 15m | Role sync could not reach the role provider and kept the stored roles; check `/api/health/deps`. `severity:warning`                                                                                                  |
+| `OtelExporterQueueSaturated`       | `otelcol_exporter_queue_size / otelcol_exporter_queue_capacity` > 90% for 10m                       | The collector's export queue is nearly full; spans and metrics are about to be dropped. `severity:critical`                                                                                                          |
+| `OtelExporterDroppingSpans`        | `otelcol_exporter_enqueue_failed_spans_total` increases within 10m, for 10m                         | Spans dropped at enqueue: traces in Tempo are partial from here on. `severity:warning`                                                                                                                               |
+| `OtelCollectorSelfMetricsAbsent`   | no `otelcol_exporter_queue_size` for 15m                                                            | Deadman for the two rules above: the collector's own metrics stopped, so their silence means nothing. `severity:warning`                                                                                             |
+
+The four counter rules are sparse series with no samples until the first
+event, so each `expr` has two arms: `increase()` for later events and
+`unless ... offset` for series birth, which `increase()` alone reads as no
+increase. No `absent()` deadman is possible for them: silence is
+indistinguishable from health on an event counter. What each DB alert means
+and which knob to turn: [connection budget](../database/02-connection-budget.md#which-knob-when-an-alert-fires);
+first response per alert: [operations runbook](04-operations.md#ours-symptom-cause-action).
+
+**No job-class latency alert, by decision (2026-09-07).** Dev's
+`JobPollLatencySLOBreach` / `JobTriggerLatencySLOBreach` /
+`JobRouteClassAbsent` and stage/prod's `JobLatencySLOBreach` were removed.
+Job endpoints are expected to run long, the 10s bucket could not resolve
+"how much worse", and the deadman fired on every quiet dev weekend. The
+`route_class="job*"` label still exists for dashboards and TraceQL; only the
+rules are gone.
 
 ## Known gaps (not yet actioned)
 

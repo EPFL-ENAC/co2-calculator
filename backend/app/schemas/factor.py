@@ -135,6 +135,7 @@ class FactorHandler(Protocol[T]):
     def to_response(self, factor: T) -> FactorResponseGen: ...
     def validate_create(self, payload: dict) -> FactorCreate: ...
     def validate_update(self, payload: dict) -> FactorUpdate: ...
+    def validate_year_factors(self, factors: list[Factor]) -> None: ...
 
 
 FACTOR_HANDLERS: dict[DataEntryTypeEnum, FactorHandler] = {}
@@ -231,3 +232,12 @@ class BaseFactorHandler(metaclass=FactorHandlerMeta):
 
     def validate_update(self, payload: dict) -> FactorUpdate:
         return self.update_dto.model_validate(self._prepare_payload(payload))
+
+    def validate_year_factors(self, factors: list[Factor]) -> None:
+        """Cross-row check on the full factor set of one (type, year).
+
+        Runs after an upload has upserted its rows and swept the stale ones,
+        so it sees exactly what the year will resolve against. Raise
+        ``ValueError`` to fail the upload; the default accepts any set.
+        """
+        return None
