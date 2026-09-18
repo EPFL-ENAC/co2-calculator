@@ -102,17 +102,70 @@ backend-deployment.yaml`), so one extra backend and one extra worker are
   one psql: reserve 3. A laptop running the app with the default
   `DB_POOL_SIZE=20` from `.env.example` takes 20 slots on its own; point
   local runs at Docker Postgres.
-- `DB_POOL_SIZE` is what stays open forever. Set it at the measured steady
-  `checked_out` where the budget allows, so normal traffic never churns a
-  login; on a small budget set it to 2 and accept the churn.
-- Worker ceiling ≥ `MAX_CONCURRENT_JOBS` × 3 + 3 loops, or jobs queue on
-  the pod's own pool. Measured peak is `MAX_CONCURRENT_JOBS` + 2 (table
-  above), so the rule carries a 2× margin; when the budget is tight,
-  spend that margin on the backend, not on more worker overflow.
+- `DB_POOL_SIZE` is what stays open forever. Behind a bouncer in session
+  mode an idle persistent connection still holds a server slot, so set it
+  to 1 there. On direct Postgres an idle connection is only a cheap
+  backend process, so set it at the measured steady `checked_out` (5 on
+  prod) and avoid churning a login per request.
+- Worker ceiling: `MAX_CONCURRENT_JOBS` + 3 at the floor, 3 ×
+  `MAX_CONCURRENT_JOBS` + 3 when the budget allows. Measured peak is
+  `MAX_CONCURRENT_JOBS` + 2 (table above); the floor leaves 1 spare, the
+  full rule a 2× margin. When the budget is tight, spend that margin on
+  the backend, not on more worker overflow.
 - `DB_POOL_TIMEOUT` stays 5 s. Failing in-process in 5 s beats the
   bouncer's 120 s, and nothing on the SQLAlchemy side bounds that 120 s.
 - Never `-1` for `DB_MAX_OVERFLOW`: it moves the wall to the bouncer, where
   the wait is 120 s per query.
+
+### Sizing formula
+
+Inputs, then two lines of arithmetic. Size the **ceiling**, never the
+steady state: the ceiling is what a burst reaches, and reaching the wall
+is the incident (dev, 2026-09-17).
+
+```text
+W  = the wall: bouncer default_pool_size in session mode,
+     else Postgres max_connections − superuser_reserved (100 − 3 = 97)
+R  = other clients on that same pool: migration Job, dump CronJob,
+     one psql = 3; on direct Postgres add what pg_stat_activity shows
+     outside the fleet (pgAdmin: 2)
+B  = W − R                                      fleet ceiling budget
+J  = MAX_CONCURRENT_JOBS per worker pod
+P  = pool_size: 1 behind a bouncer, measured steady (5) on direct Postgres
+nb, nw = backend and worker replicas
+
+Cw = worker ceiling per pod  = 3J + 3, floor J + 3       (measured peak J + 2)
+Cb = backend ceiling per pod = ⌊(B − nw·Cw − P) / nb⌋   (− P: the surge pod at base)
+DB_MAX_OVERFLOW = C − P for each role
+
+check: nb·Cb + nw·Cw ≤ B, Cb ≥ 3 (a request holds 1 for its duration;
+       95 rps × 80 ms ≈ 8 in flight fleet-wide at the dev load-test peak)
+```
+
+Worked, with the reserve of 3 and the measured peaks:
+
+| Environment                       | W     | B       | nb / nw | J   | Cw        | Cb  | backend / worker | ceiling / surge |
+| --------------------------------- | ----- | ------- | ------- | --- | --------- | --- | ---------------- | --------------- |
+| dev, bouncer 25, one job          | 25    | 22      | 3 / 1   | 1   | 4 floor   | 5   | 1+4 / 1+3        | 19 / 20         |
+| dev, bouncer 25, two jobs         | 25    | 22      | 3 / 1   | 2   | 5 floor   | 5   | 1+4 / 1+4        | 20 / 21         |
+| dev, bouncer 40 (asked, #2854)    | 40    | 37      | 3 / 1   | 2   | 9 full    | 9   | 1+8 / 1+8        | 36 / 37         |
+| stage, prod, direct Postgres      | 97    | 92      | 3 / 2   | 4   | 15 full   | 19  | 5+14 / 5+10      | 87 / 92         |
+| stage, prod, six jobs, same pools | 97    | 92      | 3 / 2   | 6   | 15 (2J+3) | 19  | 5+14 / 5+10      | 87 / 92         |
+| stage, prod, bands 65 / 35        | 65+35 | 62 / 35 | 3 / 2   | 4   | 15 full   | 20  | 1+19 / 1+14      | 60+30 / 61+30   |
+
+Two jobs on dev cost nothing on the backend side: the worker floor grows
+by 1, the backend keeps 1+4, and the fleet still fits with 1 spare under
+the surge. The deployed dev values (#51: backend 1+5, worker 1+3, one
+job) spend that spare on backend overflow instead; either is within the
+rule.
+
+Stage and prod can run six jobs per worker without touching a pool: the
+worker's 15 is 2J + 3 at J = 6, a 1.9× margin over the measured peak of 8. What that buys is a different question: a worker pod requests 250m
+CPU, and six CPU-bound ingests on a quarter core each run slower, so
+raise `MAX_CONCURRENT_JOBS` there together with the CPU request, on
+stage first, and watch `db_pool_timeouts_total` stay at zero. Behind a
+bouncer with per-role bands the backend's `P` drops to 1 too, which is
+where the extra backend overflow in the last row comes from.
 
 ## Budgets per environment (dev updated 2026-09-15)
 
