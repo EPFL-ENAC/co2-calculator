@@ -82,7 +82,7 @@ import {
 } from '@/constant/charts';
 import type { EmissionBreakdownResponse } from '@/stores/modules';
 import { downloadEchartAsPng } from '@/utils/chartDownload';
-import { downloadCsv, escapeCsvValue } from '@/utils/csvDownload';
+import { downloadCsv, escapeCsvValue } from '@/utils/download';
 import { withYearRange } from '@/utils/plannerYearRange';
 import { usePrintMode } from '@/composables/print/usePrintMode';
 

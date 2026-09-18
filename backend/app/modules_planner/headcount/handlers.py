@@ -31,7 +31,6 @@ class PlannerHeadcountModuleHandler(BaseModuleHandler):
 
     kind_field = None
     subkind_field = None
-    require_subkind_for_factor = False
     require_factor_to_match = False
     # Same seeded sius reference labels as the Calculator member handler
     # (#2401): planner rows search and sort by the label in any locale.

@@ -400,6 +400,70 @@ class DataEntryRepository:
         await self.session.execute(statement)
         await self.session.flush()
 
+    async def get_percentage_aggregate_entry(
+        self, carbon_report_module_id: int, data_entry_type_id: int
+    ) -> DataEntry | None:
+        """The one global-percentage aggregate row for a type, if any.
+
+        #2783: an aggregate row carries ``percentage_of_reference_year``
+        but no ``source_data_entry_id`` (it represents the reference
+        year's whole total for the type, not one source line) — see
+        docs/src/implementation-plans/
+        2783-equipment-global-percentage-aggregate-line.md.
+        """
+        statement = select(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+            DataEntry.data["source_data_entry_id"].as_string().is_(None),
+            DataEntry.data["percentage_of_reference_year"].as_string().isnot(None),
+        )
+        result = await self.session.exec(statement)
+        return result.first()
+
+    async def delete_legacy_percentage_snapshots(
+        self, carbon_report_module_id: int
+    ) -> int:
+        """Delete leftover per-line snapshot rows (both keys set) — #2783.
+
+        A one-time cleanup the first time a module's global-percentage
+        PATCH runs after the aggregate-line rewrite; a module already on
+        the aggregate shape has none of these.
+        """
+        statement = delete(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            DataEntry.data["source_data_entry_id"].as_string().isnot(None),
+            DataEntry.data["percentage_of_reference_year"].as_string().isnot(None),
+        )
+        result = await self.session.execute(statement)
+        return getattr(result, "rowcount", 0) or 0
+
+    async def get_applied_percentages(
+        self, carbon_report_module_ids: list[int]
+    ) -> dict[int, float]:
+        """The currently-applied global percentage per module, if any — #2783.
+
+        Every row in a module carries the same value once applied (the PATCH
+        sets it uniformly, aggregate or legacy per-line shape alike), so any
+        one match per module is authoritative — ``max`` just collapses
+        duplicates into one grouped query instead of one query per module.
+        A module never in global mode is absent from the result.
+        """
+        if not carbon_report_module_ids:
+            return {}
+        statement = (
+            select(
+                col(DataEntry.carbon_report_module_id),
+                func.max(DataEntry.data["percentage_of_reference_year"].as_float()),
+            )
+            .where(
+                col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids),
+                DataEntry.data["percentage_of_reference_year"].as_string().isnot(None),
+            )
+            .group_by(col(DataEntry.carbon_report_module_id))
+        )
+        rows = (await self.session.exec(statement)).all()
+        return {module_id: float(pct) for module_id, pct in rows}
+
     async def bulk_delete_by_modules(self, carbon_report_module_ids: list[int]) -> int:
         """Delete every data entry of the given modules. Returns the row count.
 

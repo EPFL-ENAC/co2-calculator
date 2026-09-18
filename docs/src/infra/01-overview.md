@@ -26,9 +26,9 @@ for SSE streams and long exports.
 
 - **Frontend**: nginx serving the Quasar SPA. 2 to 3 pods (HPA on CPU),
   PodDisruptionBudget. Health: `/healthz`, `/ready`.
-- **Backend**: FastAPI + Uvicorn, 2 to 3 pods (HPA), plus **one worker
-  pod** running the same image with `OTEL_SERVICE_NAME=worker` for
-  background jobs. No Redis, no broker: jobs are claimed in PostgreSQL
+- **Backend**: FastAPI + Uvicorn, 3 pods on dev and stage, 2 to 3 on prod
+  (HPA), plus **worker pods** (one on dev, two on stage and prod) running
+  the same image with `OTEL_SERVICE_NAME=worker` for background jobs. No Redis, no broker: jobs are claimed in PostgreSQL
   ([ADR-010](../architecture-decision-records/010-background-job-processing.md),
   [ADR-015](../architecture-decision-records/015-claim-job-atomic-state-is-current.md)).
   Health: `/api/healthz` (liveness, always 200) and `/api/health/deps`

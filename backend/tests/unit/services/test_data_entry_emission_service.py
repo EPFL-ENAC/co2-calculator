@@ -257,6 +257,29 @@ async def test_prepare_create_does_not_read_kg_co2eq_from_data():
     assert results[0].primary_factor_id == 99
 
 
+@pytest.mark.asyncio
+async def test_prepare_create_equipment_without_factor_yields_no_row_not_zero():
+    """Imported inventory without a sub_class resolves no factor: the entry
+    gets no emission row (kg_co2eq null, skipped by totals), never a 0.
+    """
+    service = _make_service()
+    resolver = MagicMock()
+    resolver.resolve = AsyncMock(return_value=None)
+    de = DataEntryResponse(
+        id=7,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        carbon_report_module_id=10,
+        data={"equipment_id": "INV-1", "equipment_class": "Optical microscopes"},
+    )
+
+    with patch.object(
+        service, "_get_year_from_data_entry", new=AsyncMock(return_value=2025)
+    ):
+        results = await service.prepare_create(de, factor_resolver=resolver)
+
+    assert results == []
+
+
 # ---------------------------------------------------------------------------
 # #2527 — the denormalized join keys are stamped on every produced row
 # ---------------------------------------------------------------------------

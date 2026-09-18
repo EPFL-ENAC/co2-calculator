@@ -53,6 +53,16 @@ template-docs-disabled: ## Render Helm templates with docs disabled
 	@echo "🧪 Rendering Helm templates with docs.enabled=false..."
 	@helm template . --values values.yaml --set docs.enabled=false | grep -i "kind:.*\(Deployment\|Service\)" || echo "No docs resources rendered"
 
+.PHONY: check-network-policies
+check-network-policies: ## Fail unless pod-to-pod ingress to the backend renders (#2845)
+	@echo "🧪 Checking network policies render pod-to-pod backend ingress..."
+	@helm template . --values values.yaml --set networkPolicies.enabled=true \
+		--set backend.existingSecret.name=placeholder \
+		-s templates/network-policies.yaml \
+		| grep -q "name: allow-backend-from-pods" \
+		|| { echo "❌ allow-backend-from-pods missing: worker→backend broadcast would be dropped"; exit 1; }
+	@echo "✅ allow-backend-from-pods present"
+
 .PHONY: template-frontend-disabled
 template-frontend-disabled: ## Render Helm templates with frontend disabled
 	@echo "🧪 Rendering Helm templates with frontend.enabled=false..."

@@ -490,7 +490,7 @@ import {
   outlinedCalendarMonth,
   outlinedInfo,
 } from '@quasar/extras/material-icons-outlined';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -735,10 +735,6 @@ async function deleteManualEquipmentRows() {
   );
 }
 
-function equipmentReferenceSum(items: EquipmentSnapshotItem[]): number {
-  return items.reduce((sum, item) => sum + (item.reference_kg_co2eq ?? 0), 0);
-}
-
 // Backend-computed plan total: the snapshot lines at the applied global
 // percentage plus any manually added equipment. The loaded module data when
 // it belongs to this module, the plan-year stats otherwise (the module store
@@ -756,6 +752,40 @@ function equipmentPlannedKg(entry: ModuleEntry): number | null {
   return typeof total === 'number' ? total : null;
 }
 
+// Same freshest-available precedence as equipmentPlannedKg: the just-loaded
+// module data when it belongs to this module, the plan-year stats otherwise.
+// #2783: equipment_reference_total_kg/equipment_applied_percentage are
+// persisted into stats (carbon_report_module_service.py's
+// _collect_module_extras) precisely so the frontend never has to fetch or
+// sum snapshot rows to know them.
+function equipmentStat(entry: ModuleEntry, key: string): number | null {
+  const data = moduleStore.state.data;
+  const value =
+    entry.module && data?.carbon_report_module_id === entry.module.id
+      ? data.stats?.[key]
+      : entry.module?.stats?.[key];
+  return typeof value === 'number' ? value : null;
+}
+
+// The mode is derived state, not stored client-side — an aggregate line's
+// percentage_of_reference_year, surfaced as equipment_applied_percentage, is
+// the only source of truth for whether a module is in global mode. Seeded
+// once on mount so a reload shows the right mode instead of always
+// resetting to per-line.
+onMounted(() => {
+  const entry = equipmentEntry();
+  if (!entry) return;
+  const applied = equipmentStat(entry, 'equipment_applied_percentage');
+  if (applied === null) return;
+  equipmentMode.value = 'global';
+  globalPercentage.value = applied;
+  appliedGlobalPercentage.value = applied;
+  equipmentReferenceTotalKg.value = equipmentStat(
+    entry,
+    'equipment_reference_total_kg',
+  );
+});
+
 // Same scale and rounding as the Calculator module banner (formatTonnesCO2).
 function formatTonnes(kg: number): string {
   return formatTonnesCO2(kg / 1000);
@@ -772,25 +802,16 @@ function equipmentModeControlsDisabled(entry: ModuleEntry): boolean {
 
 // Switching always confirms through the dialog: the confirmed switch resets
 // every line to 0% and clears the abandoned mode's budgets, so the user
-// must see what they are about to lose before it happens.
-async function onEquipmentModeRequest(next: 'per_line' | 'global') {
+// must see what they are about to lose before it happens. The reference
+// total for the dialog/global-mode display is already-loaded stats (#2783),
+// not a fetch — nothing here can fail, so no loading/error state needed.
+function onEquipmentModeRequest(next: 'per_line' | 'global') {
   if (next === equipmentMode.value || switchingEquipmentMode.value) return;
   if (next === 'global') {
-    switchingEquipmentMode.value = true;
-    try {
-      equipmentReferenceTotalKg.value = equipmentReferenceSum(
-        await fetchEquipmentSnapshotRows(),
-      );
-    } catch {
-      equipmentReferenceTotalKg.value = null;
-      $q.notify({
-        type: 'negative',
-        message: t('planner_equipment_reference_error'),
-      });
-      return;
-    } finally {
-      switchingEquipmentMode.value = false;
-    }
+    const entry = equipmentEntry();
+    equipmentReferenceTotalKg.value = entry
+      ? equipmentStat(entry, 'equipment_reference_total_kg')
+      : null;
   }
   pendingEquipmentMode.value = next;
   equipmentSwitchDialogOpen.value = true;
@@ -803,11 +824,18 @@ async function confirmEquipmentSwitch() {
   switchingEquipmentMode.value = true;
   try {
     await deleteManualEquipmentRows();
-    await plansStore.setModuleReferencePercentage(
-      props.yearData.id,
-      entry.module.module_type_id,
-      0,
-    );
+    if (next === 'global') {
+      await plansStore.setModuleReferencePercentage(
+        props.yearData.id,
+        entry.module.module_type_id,
+        0,
+      );
+    } else {
+      await plansStore.resetEquipmentToPerLine(
+        props.yearData.id,
+        entry.module.module_type_id,
+      );
+    }
     const budgets = entry.module.budgets ?? {};
     for (const key of abandonedBudgetKeys(equipmentMode.value)) {
       if (budgets[key] == null) continue;
@@ -974,17 +1002,14 @@ async function onReferenceYearChange(referenceYear: number | null) {
     if (equipmentMode.value === 'global') {
       globalPercentage.value = 0;
       appliedGlobalPercentage.value = 0;
-      try {
-        equipmentReferenceTotalKg.value = equipmentReferenceSum(
-          await fetchEquipmentSnapshotRows(),
-        );
-      } catch {
-        equipmentReferenceTotalKg.value = null;
-        $q.notify({
-          type: 'negative',
-          message: t('planner_equipment_reference_error'),
-        });
-      }
+      // A new reference year changes what the aggregate lines total, so
+      // reload the module before reading its stats (#2783) rather than the
+      // client-side snapshot-row sum this used to fetch.
+      await refreshExpandedModule(MODULES.Equipment);
+      const entry = equipmentEntry();
+      equipmentReferenceTotalKg.value = entry
+        ? equipmentStat(entry, 'equipment_reference_total_kg')
+        : null;
     } else {
       equipmentReferenceTotalKg.value = null;
     }

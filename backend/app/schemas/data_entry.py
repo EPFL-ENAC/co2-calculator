@@ -152,9 +152,7 @@ class ModuleHandler(Protocol[T]):
     # Type info
     module_type: ModuleTypeEnum
     data_entry_type: DataEntryTypeEnum | None = None
-    require_subkind_for_factor: bool = (
-        True  # default to True, can be overridden by specific handlers
-    )
+    require_subkind_for_factor: bool = True
     require_factor_to_match: bool = True
 
     # DTOs
@@ -306,8 +304,9 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # unit the planner shows as an input suffix (#2391). Display metadata only:
     # emission coefficients never travel on this payload (#2396).
     taxonomy_meta_fields: tuple[str, ...] = ()
-    # When True, factor lookup requires both kind and subkind to match.
-    # Set to False for modules where subkind is optional (e.g. equipment).
+    # When True, an entry whose kind only has subkind-split factors must give
+    # a subkind (``factor_resolver.unresolved_reason``). False only for
+    # equipment, whose sub_class the user picks after the inventory import.
     require_subkind_for_factor: bool = True
     # When True, a matching factor must exist for the entry to be valid.
     # Set to False for modules that allow entries without a linked factor.

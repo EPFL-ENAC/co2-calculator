@@ -102,7 +102,8 @@ proportionate control for this deployment:
   except through the load balancer and the ingress route.
 - A `default-deny` NetworkPolicy denies all pod ingress, and named
   policies open only the routes actually needed — backend, frontend,
-  and the OTel collector (`helm/templates/network-policies.yaml`, plus
+  the OTel collector, and pod-to-pod ingress to the backend for the
+  taxonomy-cache broadcast (`helm/templates/network-policies.yaml`, plus
   per-environment `network/` overlays in the ops repository).
 - The trust boundary is therefore the namespace, enforced by policy,
   not by transport encryption.

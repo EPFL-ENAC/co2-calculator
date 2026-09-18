@@ -14,7 +14,7 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
-from app.schemas.data_entry import BaseModuleHandler
+from app.schemas.data_entry import MODULE_HANDLERS, BaseModuleHandler
 from app.services.factor_resolver import FactorResolver, unresolved_reason
 
 
@@ -427,6 +427,55 @@ def test_energy_combustion_unit_must_equal_the_factor_unit():
         unresolved_reason(ENERGY_HANDLER, {"name": "pellets", "unit": "kg"}, factors)
         is None
     )
+
+
+_EQUIPMENT_FACTORS = [
+    _factor(
+        10,
+        EQUIPMENT,
+        2025,
+        {"equipment_class": "Optical microscopes", "sub_class": "FL microscopes"},
+    ),
+    _factor(
+        11,
+        EQUIPMENT,
+        2025,
+        {"equipment_class": "Optical microscopes", "sub_class": "Confocal"},
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"equipment_class": "Optical microscopes"},
+        {"equipment_class": "Optical microscopes", "sub_class": ""},
+    ],
+)
+def test_equipment_sub_class_stays_optional_when_every_factor_has_one(data: dict):
+    # Inventory CSVs carry no sub_class; the user picks it after import.
+    assert unresolved_reason(HANDLER, data, _EQUIPMENT_FACTORS) is None
+
+
+def test_equipment_unknown_sub_class_is_still_rejected():
+    reason = unresolved_reason(
+        HANDLER,
+        {"equipment_class": "Optical microscopes", "sub_class": "Nope"},
+        _EQUIPMENT_FACTORS,
+    )
+    assert reason == (
+        "Unknown sub_class='Nope' for equipment_class='Optical microscopes':"
+        " one of ['Confocal', 'FL microscopes']"
+    )
+
+
+def test_only_equipment_makes_the_subkind_optional():
+    optional = {
+        type(h).__name__
+        for h in MODULE_HANDLERS.values()
+        if not h.require_subkind_for_factor
+    }
+    assert optional == {"EquipmentModuleHandler"}
 
 
 @pytest.mark.asyncio

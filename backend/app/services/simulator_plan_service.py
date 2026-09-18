@@ -469,7 +469,7 @@ class SimulatorPlanService:
                 ref_cache=ref_cache,
                 allow_reference_copy=report.is_grant or baseline_access[project_id],
             )
-            await self._recalculate_report_emissions(report)
+            await self.recalculate_report_emissions(report)
         return len(reports)
 
     async def _plan_creator_has_baseline_access(self, project_id: int | None) -> bool:
@@ -637,7 +637,7 @@ class SimulatorPlanService:
             if copied == 0 and plan_module.id is not None:
                 emptied.append(plan_module.id)
         # Modules cleared above and modules prefill left empty are the same
-        # case — neither appears in _recalculate_report_emissions's
+        # case — neither appears in recalculate_report_emissions's
         # entry-driven module set, so both need a stats refresh here. One
         # call for all of them keeps the report rollup behind it to a single
         # run per report (plan #2050 Track F6).
@@ -866,7 +866,7 @@ class SimulatorPlanService:
         rows = await self._bulk_insert_entries(row_dicts)
         # An empty result is reported to the caller (see
         # prefill_module_from_reference) rather than refreshing stats here:
-        # an empty module never appears in _recalculate_report_emissions's
+        # an empty module never appears in recalculate_report_emissions's
         # entry-driven module set, so it still needs one — batched.
         return len(rows)
 
@@ -899,7 +899,7 @@ class SimulatorPlanService:
             for row_id, row in zip(ids, rows, strict=True)
         ]
 
-    async def _recalculate_report_emissions(
+    async def recalculate_report_emissions(
         self, report: CarbonReport | CarbonReportRead
     ) -> None:
         """Recompute emissions of the report's entries + refresh stats.

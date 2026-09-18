@@ -40,9 +40,14 @@ from pathlib import Path
 
 from locust import HttpUser, between, task
 
-from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
 from tests.performance.perf_common import (
+    CSV_BY_TYPE,
+    CSV_DIR,
+    JOB_TIMEOUT,
+    POLL_INTERVAL,
+    RESULT_ERROR,
+    STATE_FINISHED,
     TABLE_PAGE_LIMITS,
     mint_auth_cookie,
     module_of,
@@ -59,11 +64,6 @@ AUTH_COOKIE = os.environ.get("PERF_AUTH_COOKIE", "")
 # in the loop, no shared-user stampede. Requires the backend to read the
 # same backend/.env; for remote hosts use PERF_AUTH_COOKIE instead.
 USERS_FILE = os.environ.get("PERF_USERS_FILE", "")
-CSV_DIR = Path(
-    os.environ.get(
-        "PERF_CSV_DIR", str(Path(__file__).resolve().parents[2] / "INPUT_DATA" / "perf")
-    )
-)
 # Explicit unit-id pool, e.g. "4403-5002" or "12,13,20-40". Used when the
 # role has no unit memberships (the global backoffice login-test user):
 # unit listing is membership-based, so local admin runs pass the seeded ids
@@ -119,49 +119,11 @@ def units_from_env() -> list[int]:
 
 # How many unit_ids a merged explorer query aggregates over.
 MERGED_UNITS = int(os.environ.get("PERF_MERGED_UNITS", "10"))
-# Upload/prefill jobs poll every POLL_INTERVAL s until JOB_TIMEOUT s.
-JOB_TIMEOUT = float(os.environ.get("PERF_JOB_TIMEOUT", "600"))
-POLL_INTERVAL = float(os.environ.get("PERF_POLL_INTERVAL", "2"))
-
-# IngestionState / IngestionResult are int enums in the model, but the
-# pipeline endpoint serializes them by NAME.
-STATE_FINISHED = "FINISHED"
-RESULT_ERROR = "ERROR"
 
 CALCULATOR_TYPES_BY_MODULE = {
     module_type: [t for t in types if not t.is_planner_kind]
     for module_type, types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items()
     if any(not t.is_planner_kind for t in types)
-}
-
-# Output names of scripts/generate_perf_test_csvs.py, keyed by ingest type.
-CSV_BY_TYPE = {
-    DataEntryTypeEnum.member: "perf_headcount_member.csv",
-    DataEntryTypeEnum.student: "perf_headcount_student.csv",
-    DataEntryTypeEnum.scientific: "perf_equipment_scientific.csv",
-    DataEntryTypeEnum.it: "perf_equipment_it.csv",
-    DataEntryTypeEnum.other: "perf_equipment_other.csv",
-    DataEntryTypeEnum.plane: "perf_travel_planes.csv",
-    DataEntryTypeEnum.train: "perf_travel_trains.csv",
-    DataEntryTypeEnum.building: "perf_building_rooms.csv",
-    DataEntryTypeEnum.energy_combustion: "perf_building_energycombustions.csv",
-    DataEntryTypeEnum.external_clouds: "perf_external_clouds.csv",
-    DataEntryTypeEnum.external_ai: "perf_external_ai.csv",
-    DataEntryTypeEnum.process_emissions: "perf_processemissions.csv",
-    DataEntryTypeEnum.scientific_equipment: "perf_purchases_scientific_equipment.csv",
-    DataEntryTypeEnum.it_equipment: "perf_purchases_it_equipment.csv",
-    DataEntryTypeEnum.consumable_accessories: (
-        "perf_purchases_consumable_accessories.csv"
-    ),
-    DataEntryTypeEnum.biological_chemical_gaseous_product: (
-        "perf_purchases_biological_chemical_gaseous_product.csv"
-    ),
-    DataEntryTypeEnum.services: "perf_purchases_services.csv",
-    DataEntryTypeEnum.vehicles: "perf_purchases_vehicles.csv",
-    DataEntryTypeEnum.other_purchases: "perf_purchases_other_purchases.csv",
-    DataEntryTypeEnum.purchases_centralized: "perf_purchases_centralized.csv",
-    DataEntryTypeEnum.research_facilities: "perf_researchfacilities_common.csv",
-    DataEntryTypeEnum.animal_facilities: "perf_researchfacilities_animals.csv",
 }
 
 

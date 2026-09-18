@@ -451,6 +451,42 @@ async def update_carbon_report_module_reference_percentage(
     return {"updated_entries": updated}
 
 
+@router.post(
+    "/{carbon_report_id}/modules/{module_type_id}/reference-percentage/reset",
+    response_model=dict,
+)
+async def reset_carbon_report_module_reference_percentage(
+    carbon_report_id: int,
+    module_type_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Undo the equipment module's global percentage (#2783).
+
+    Deletes the aggregate lines the global mode created (and any hand-added
+    entries) and rebuilds the module from the reference year at 0%,
+    restoring individually editable per-line snapshot rows.
+    """
+    report_service, _ = await _require_plan_report_edit(
+        db, current_user, carbon_report_id
+    )
+    module_service = CarbonReportModuleService(db)
+    restored = await module_service.reset_equipment_to_per_line(
+        carbon_report_id, module_type_id
+    )
+    if restored is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Module type {module_type_id} not found for "
+                f"carbon report {carbon_report_id}"
+            ),
+        )
+    await report_service.recompute_report_stats(carbon_report_id)
+    await db.commit()
+    return {"restored_entries": restored}
+
+
 @router.patch(
     "/{carbon_report_id}/modules/{module_type_id}/budget",
     response_model=CarbonReportModuleRead,

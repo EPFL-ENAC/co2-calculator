@@ -167,6 +167,8 @@ ALLOWED_MODULE_STATS_EXTRAS: set[str] = {
     "student_fte",
     "member_fte_by_sius_code",
     "it_top_classes",
+    "equipment_reference_total_kg",
+    "equipment_applied_percentage",
 }
 
 

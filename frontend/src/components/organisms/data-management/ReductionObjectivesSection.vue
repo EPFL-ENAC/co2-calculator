@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import { fetchFile } from '@/api/files';
+import { downloadFrom } from '@/utils/download';
 import { matAdjust, matUpload } from '@quasar/extras/material-icons';
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
@@ -151,14 +153,11 @@ function fileMetaToJob(
   };
 }
 
-function downloadFile(file: FileMetadata | null | undefined): void {
+async function downloadFile(
+  file: FileMetadata | null | undefined,
+): Promise<void> {
   if (!file?.path) return;
-  const a = document.createElement('a');
-  a.href = `/api/v1/files/${file.path}`;
-  a.download = file.filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  await downloadFrom(() => fetchFile(file.path), file.filename);
 }
 
 const reductionFiles = computed(

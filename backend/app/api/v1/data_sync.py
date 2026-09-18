@@ -1210,8 +1210,16 @@ async def list_workers(
     # moved to ``DateTime(timezone=True)``) doesn't explode the
     # comparison — see ``as_utc``.  Production never serves
     # naive rows; this is purely defensive for long-lived dev DBs.
+    # #2853: API pods heartbeat too (their pod_ip feeds the cross-pod
+    # broadcast) but never claim a job; only job-running pods are workers.
     pods_all = (
-        (await db.execute(select(Pod).order_by(col(Pod.last_heartbeat_at).desc())))
+        (
+            await db.execute(
+                select(Pod)
+                .where(col(Pod.runs_jobs).is_(True))
+                .order_by(col(Pod.last_heartbeat_at).desc())
+            )
+        )
         .scalars()
         .all()
     )

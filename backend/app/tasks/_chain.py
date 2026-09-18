@@ -36,13 +36,16 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_ingestion import (
+    ACTIVE_JOB_STATES,
     EMISSION_RECALC_SCOPE_EXPR,
+    EMISSION_RECALC_SCOPED_ACTIVE_STATES,
     EMISSION_RECALC_UNSCOPED_SQL,
     DataIngestionJob,
     EntityType,
     IngestionMethod,
     IngestionState,
     TargetType,
+    active_states_sql,
 )
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._background import fire_and_forget
@@ -152,6 +155,9 @@ class DedupConfig:
     constraint_name: str
     extra_predicate: str = ""
     scoped_config_key: str | None = None
+    # Which pending states a new child collapses onto; must match the
+    # index's WHERE, which is built from the same tuple (#2847).
+    active_states: tuple[str, ...] = ACTIVE_JOB_STATES
 
 
 AGGREGATION_DEDUP = DedupConfig(
@@ -170,13 +176,17 @@ EMISSION_RECALC_DEDUP = DedupConfig(
 
 # The scoped counterpart: same three columns plus the pinned carbon
 # report module, so two units never collapse into each other but one
-# unit's back-to-back re-upload still does (#2527 Phase A/B).
+# unit's back-to-back re-upload still does (#2527 Phase A/B) — unless
+# the pending child is already RUNNING, in which case it may have read
+# the module before this upload committed and a fresh child is due
+# (#2847).
 EMISSION_RECALC_SCOPED_DEDUP = DedupConfig(
     job_type="emission_recalc",
     scope_columns=("module_type_id", "data_entry_type_id", "year"),
     constraint_name="uq_emission_recalc_active_scoped",
     extra_predicate=f"{EMISSION_RECALC_SCOPE_EXPR} = CAST(:scoped_ids AS JSONB)",
     scoped_config_key="carbon_report_module_ids",
+    active_states=EMISSION_RECALC_SCOPED_ACTIVE_STATES,
 )
 
 
@@ -500,8 +510,7 @@ async def _insert_child_with_dedup(
 
     Returns the new child id on success, or ``None`` when the partial
     unique index named by ``dedup_config.constraint_name`` already
-    covers an active (NOT_STARTED/QUEUED/RUNNING) row for the same
-    scope.
+    covers a row in ``dedup_config.active_states`` for the same scope.
 
     Why pre-check + INSERT rather than ``INSERT ... ON CONFLICT DO
     NOTHING``: PG's ON CONFLICT inference for partial indexes
@@ -558,9 +567,9 @@ async def _insert_child_with_dedup(
             (config or {}).get(dedup_config.scoped_config_key)
         )
 
-    # ``scope_predicate`` is built from ``dedup_config.scope_columns``,
-    # which are compile-time constants defined in ``DedupConfig`` instances
-    # (e.g., ``AGGREGATION_DEDUP``).  No user input crosses this boundary —
+    # ``scope_predicate`` and the state list are built from compile-time
+    # constants defined in ``DedupConfig`` instances (e.g.,
+    # ``AGGREGATION_DEDUP``).  No user input crosses this boundary —
     # ``:job_type`` and the per-column ``:{col}`` values are properly
     # bound parameters above.  Bandit B608 is a false positive here.
     pre_check = text(
@@ -569,11 +578,7 @@ async def _insert_child_with_dedup(
         FROM data_ingestion_jobs
         WHERE job_type = :job_type
           AND {scope_predicate}
-          AND state IN (
-              'NOT_STARTED'::ingestion_state_enum,
-              'QUEUED'::ingestion_state_enum,
-              'RUNNING'::ingestion_state_enum
-          )
+          AND state IN ({active_states_sql(dedup_config.active_states)})
         LIMIT 1
         """  # nosec B608
     )

@@ -277,8 +277,16 @@
             </q-btn>
           </template>
           <template v-else-if="col.name === 'percentage_of_reference_year'">
+            <!-- An equipment global-percentage aggregate row (#2783) has a
+                 real percentage but no single source, so reference_kg_co2eq
+                 is never set for it — show the (locked, via
+                 percentageLocked) slider off percentage_of_reference_year
+                 alone rather than hiding it. -->
             <div
-              v-if="slotProps.row.reference_kg_co2eq != null"
+              v-if="
+                slotProps.row.reference_kg_co2eq != null ||
+                slotProps.row.percentage_of_reference_year != null
+              "
               class="row items-center no-wrap reference-slider"
             >
               <q-slider
@@ -538,6 +546,8 @@ import {
 } from '@/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from '@/stores/backofficeDataManagement';
 import { PermissionAction } from '@/stores/auth';
+import { fetchTemplate } from '@/constant/templateAssets';
+import { downloadFrom } from '@/utils/download';
 import { getTemplateFileName } from '@/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
@@ -2103,23 +2113,22 @@ function onUploadCsv() {
   showUploadDialog.value = true;
 }
 
-function onDownloadTemplate() {
+async function onDownloadTemplate(): Promise<void> {
   const fileName = getTemplateFileName(
     props.moduleType as Module,
     props.submoduleType,
   );
-  if (!fileName) return;
+  if (!fileName) {
+    throw new Error(
+      `No template mapped for ${props.moduleType}:${props.submoduleType}`,
+    );
+  }
 
-  const a = document.createElement('a');
-  a.href = `/templates/${fileName}`;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  await downloadFrom(() => fetchTemplate(fileName), fileName);
 
   $q.notify({
     color: 'info',
-    message: $t('common_download_csv_template_mock') || 'CSV template download',
+    message: $t('common_download_csv_template_started'),
     position: 'top',
   });
 }

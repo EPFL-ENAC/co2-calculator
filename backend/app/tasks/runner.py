@@ -48,6 +48,7 @@ Concurrency model per ``run_job`` invocation:
 """
 
 import asyncio
+import time
 
 from opentelemetry import context as otel_context
 from opentelemetry import trace
@@ -59,6 +60,7 @@ from app.models.data_ingestion import (
     IngestionResult,
 )
 from app.repositories.data_ingestion import DataIngestionRepository
+from app.tasks._job_timings import record_duration, record_queue_wait
 from app.tasks._pod_id import POD_ID
 from app.tasks.registry import get_handler
 
@@ -180,6 +182,9 @@ async def run_job(job_id: int) -> None:
                     f"run_job: job {job_id} disappeared after claim — exiting"
                 )
                 return
+            # #2854 — the re-fetched row carries the authoritative started_at.
+            claimed_at = time.monotonic()
+            record_queue_wait(job)
 
             # #1236 — capture pipeline_id as a plain value now (immutable
             # for the job's life). Read post-``finish_job`` from a fresh /
@@ -409,6 +414,7 @@ async def run_job(job_id: int) -> None:
                 if not wrote:
                     logger.warning("preempted before FINISHED write: job_id=%s", job_id)
                     return
+                record_duration(job_type, result, claimed_at)
 
                 # #1236 — advance the pipeline aggregate's authoritative
                 # status. ``finish_job`` already COMMITTED job_session, so
