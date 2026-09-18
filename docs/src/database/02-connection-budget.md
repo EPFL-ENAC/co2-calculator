@@ -1,6 +1,7 @@
 # DB connection budget
 
-Every pod talks to Postgres through the DBaaS PgBouncer. Three pools sit
+On dev every pod talks to Postgres through the DBaaS PgBouncer; stage and
+prod still hit Postgres directly (status below). Up to three pools sit
 between a query and a backend, each with its own limit, timeout and error
 text. This page is the map: who opens connections, where the ceiling is
 per environment, and which knob to turn when an alert fires. Sizing
@@ -35,15 +36,15 @@ whole story on dev, not a fallback.
 
 Per pod, in the order they start (`app/main.py` lifespan):
 
-| Loop                                | Runs on                               | Cadence      | Connections at once                                                                                         |
-| ----------------------------------- | ------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
-| DB health poller (`_db_health.py`)  | all pods                              | 1 s          | 1, never held past 1 s; `/ready` reads its verdict                                                          |
-| Pod heartbeat (`_pod_heartbeat.py`) | all pods                              | 30 s         | 1, also refreshes the server-side gauge                                                                     |
-| Pipeline reconciler                 | all pods                              | 60 s         | 1                                                                                                           |
-| Safety poller (`_poller.py`)        | worker only (`RUN_BACKGROUND_POLLER`) | 2 s          | 1, plus what it dispatches                                                                                  |
-| Job runner (`runner.py`)            | worker                                | per job      | up to 3 per running job (job session, data session, chain helper); measured 1 most of the time, see below   |
-| Request handlers                    | backend                               | per request  | 1 from the route's first query to the end of the response; auth releases its own before the route body runs |
-| SSE streams (`data_sync.py`)        | backend                               | per 2 s poll | 1 for a few ms per poll, none between polls                                                                 |
+| Loop                                | Runs on                                                                            | Cadence      | Connections at once                                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
+| DB health poller (`_db_health.py`)  | all pods                                                                           | 1 s          | 1, never held past 1 s; `/ready` reads its verdict                                                          |
+| Pod heartbeat (`_pod_heartbeat.py`) | all pods                                                                           | 30 s         | 1, also refreshes the server-side gauge                                                                     |
+| Pipeline reconciler                 | worker only (API pods set `RUN_PIPELINE_RECONCILER=false` in every overlay, #2854) | 60 s         | 1                                                                                                           |
+| Safety poller (`_poller.py`)        | worker only (`RUN_BACKGROUND_POLLER`)                                              | 2 s          | 1, plus what it dispatches                                                                                  |
+| Job runner (`runner.py`)            | worker                                                                             | per job      | up to 3 per running job (job session, data session, chain helper); measured 1 most of the time, see below   |
+| Request handlers                    | backend                                                                            | per request  | 1 from the route's first query to the end of the response; auth releases its own before the route body runs |
+| SSE streams (`data_sync.py`)        | backend                                                                            | per 2 s poll | 1 for a few ms per poll, none between polls                                                                 |
 
 Measured (2026-09-18, local Postgres, `pg_stat_activity` every 50 ms via
 `backend/tests/performance/pipeline_connections.py`; one 500-row upload
@@ -92,10 +93,14 @@ clients.** Overflow past that is not capacity: it is a 120 s queue at the
 bouncer, or on an environment whose bouncer pool exceeds Postgres, a
 refusal that hits every client including the DBA.
 
-- Rollout surge: `maxSurge: 1`, `maxUnavailable: 0` (`helm/templates/
-backend-deployment.yaml`), so one extra backend and one extra worker are
-  alive at base size while the old ones drain. Budget for base, not
-  ceiling, on the surge pods.
+- Rollout surge: the chart derives the strategy from the replica floor
+  (`helm/templates/backend-deployment.yaml`, `backend-worker-deployment.yaml`):
+  a role with one replica rolls with `maxSurge: 1`, `maxUnavailable: 0`,
+  so one extra pod is alive at base size while the old one drains; a role
+  with two or more rolls with `maxSurge: 0`, `maxUnavailable: 1` and never
+  exceeds its replica count. Today only dev's single worker surges; every
+  backend (3 on dev and stage, HPA 2 to 3 on prod) and the two-replica
+  workers do not. Budget `pool_size` for each surging pod.
 - Human clients: only clients on the **app role** share the bouncer pool;
   a DBA on a superuser role has a pool of its own. That leaves the
   migration Job (runs during the rollout surge), the db-dump CronJob and
@@ -134,8 +139,10 @@ J  = MAX_CONCURRENT_JOBS per worker pod
 P  = pool_size: 1 behind a bouncer, measured steady (5) on direct Postgres
 nb, nw = backend and worker replicas
 
+S  = surge: P for each role that runs one replica (dev's worker), else 0
+
 Cw = worker ceiling per pod  = 3J + 3, floor J + 3       (measured peak J + 2)
-Cb = backend ceiling per pod = ⌊(B − nw·Cw − P) / nb⌋   (− P: the surge pod at base)
+Cb = backend ceiling per pod = ⌊(B − nw·Cw − S) / nb⌋
 DB_MAX_OVERFLOW = C − P for each role
 
 check: nb·Cb + nw·Cw ≤ B, Cb ≥ 3 (a request holds 1 for its duration;
@@ -149,9 +156,9 @@ Worked, with the reserve of 3 and the measured peaks:
 | dev, bouncer 25, one job          | 25    | 22      | 3 / 1   | 1   | 4 floor   | 5   | 1+4 / 1+3        | 19 / 20         |
 | dev, bouncer 25, two jobs         | 25    | 22      | 3 / 1   | 2   | 5 floor   | 5   | 1+4 / 1+4        | 20 / 21         |
 | dev, bouncer 40 (asked, #2854)    | 40    | 37      | 3 / 1   | 2   | 9 full    | 9   | 1+8 / 1+8        | 36 / 37         |
-| stage, prod, direct Postgres      | 97    | 92      | 3 / 2   | 4   | 15 full   | 19  | 5+14 / 5+10      | 87 / 92         |
-| stage, prod, six jobs, same pools | 97    | 92      | 3 / 2   | 6   | 15 (2J+3) | 19  | 5+14 / 5+10      | 87 / 92         |
-| stage, prod, bands 65 / 35        | 65+35 | 62 / 35 | 3 / 2   | 4   | 15 full   | 20  | 1+19 / 1+14      | 60+30 / 61+30   |
+| stage, prod, direct Postgres      | 97    | 92      | 3 / 2   | 4   | 15 full   | 20  | 5+15 / 5+10      | 90 / 90         |
+| stage, prod, six jobs, same pools | 97    | 92      | 3 / 2   | 6   | 15 (2J+3) | 20  | 5+15 / 5+10      | 90 / 90         |
+| stage, prod, bands 65 / 35        | 65+35 | 62 / 35 | 3 / 2   | 4   | 15 full   | 20  | 1+19 / 1+14      | 60+30 / 60+30   |
 
 Two jobs on dev cost nothing on the backend side: the worker floor grows
 by 1, the backend keeps 1+4, and the fleet still fits with 1 spare under
@@ -177,14 +184,15 @@ a quiet moment.
 | Env         | Wall                                                           | Budget      | backend      | worker       | `MAX_CONCURRENT_JOBS` | steady | surge |
 | ----------- | -------------------------------------------------------------- | ----------- | ------------ | ------------ | --------------------- | ------ | ----- |
 | dev         | PgBouncer `default_pool_size` 25 (configured, session pool)    | 25 − 3 = 22 | 1+5 ×3 = 18  | 1+3 = 4      | 1                     | 22     | 23    |
-| stage, prod | Postgres 100 − 3 reserved (no PgBouncer yet, see status above) | 90          | 5+13 ×3 = 54 | 5+10 ×2 = 30 | 4                     | 84     | 89    |
+| stage, prod | Postgres 100 − 3 reserved (no PgBouncer yet, see status above) | 90          | 5+13 ×3 = 54 | 5+10 ×2 = 30 | 4                     | 84     | 84    |
 
 Stage and prod (updated 2026-09-17, openshift-app-config#47): the backend
 overflow is burst insurance sized to spend the budget, not a measured
 need — stage peaked at 14 `checked_out` fleet-wide on 2026-09-15 against
-a ceiling of 75. 90 is the line, not 95: Postgres keeps 3 for superusers,
-the migration Job runs during the rollout surge, and a 53300 refusal
-locks out the DBA too. The worker's 15 per pod is exactly
+a ceiling of 75. No role surges there (two-replica workers, three
+backends; prod's HPA floor is 2, sized at its max of 3). 90 is the line,
+not 95: Postgres keeps 3 for superusers, the migration Job runs during
+the rollout, and a 53300 refusal locks out the DBA too. The worker's 15 per pod is exactly
 `MAX_CONCURRENT_JOBS` × 3 + 3 loops; more overflow there is idle.
 
 Dev (resized 2026-09-17, #2854): the previous 30-ceiling sizing was
@@ -203,8 +211,9 @@ second DB role for the worker so it gets its own bouncer pool; until
 then the worker runs one job at a time.
 
 Values live in `openshift-app-config`, `overlays/<env>/kustomization.yaml`,
-backend and worker blocks. The VPN path to stage bypasses the bouncer; the
-VPN path to dev and prod goes through it.
+backend and worker blocks. The VPN path to dev goes through the bouncer
+and counts against its pool; stage and prod have no bouncer, so a VPN
+client there is one more Postgres connection.
 
 ## Which knob, when an alert fires
 
