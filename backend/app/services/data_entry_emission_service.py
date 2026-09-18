@@ -10,7 +10,7 @@ from app.models.classification_translation import (
     DEFAULT_LANG,
     normalize_lang,
 )
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     DataEntryEmissionRow,
@@ -53,6 +53,17 @@ logger = get_logger(__name__)
 # ``upsert_by_data_entry`` (which has no ``kg_co2eq_override`` parameter)
 # still honors it via ``prepare_create``'s data-keyed fallback.
 KG_CO2EQ_OVERRIDE_KEY = "__kg_co2eq_override__"
+
+
+def _is_percentage_aggregate(data_entry: DataEntry | DataEntryResponse) -> bool:
+    """An equipment global-percentage aggregate line (#2783): a planner row
+    with a percentage of the reference year but no single source line.
+    """
+    return (
+        data_entry.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+        and data_entry.data.get("source_data_entry_id") is None
+        and data_entry.data.get("percentage_of_reference_year") is not None
+    )
 
 
 def _emission_depth(et: EmissionType) -> int:
@@ -236,37 +247,7 @@ class DataEntryEmissionService:
             )
             return prev_kg * (percentage / 100.0), factor_id
 
-        # Resolve current module_type_id so we can match the prior-year module.
-        stmt_mod = select(CarbonReportModule).where(
-            col(CarbonReportModule.id) == data_entry.carbon_report_module_id
-        )
-        cur_mod = (await self.session.exec(stmt_mod)).one_or_none()
-        if cur_mod is None:
-            return None
-
-        # Find the prior-year Calculator report for the same unit.
-        stmt_prev_report = (
-            select(CarbonReport)
-            .join(
-                CarbonProject,
-                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
-            )
-            .where(
-                col(CarbonReport.unit_id) == report.unit_id,
-                col(CarbonReport.year) == base_year,
-                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
-            )
-        )
-        prev_report = (await self.session.exec(stmt_prev_report)).one_or_none()
-        if prev_report is None:
-            return None
-
-        # Find the matching prior-year module (same module_type_id).
-        stmt_prev_mod = select(CarbonReportModule).where(
-            col(CarbonReportModule.carbon_report_id) == prev_report.id,
-            col(CarbonReportModule.module_type_id) == cur_mod.module_type_id,
-        )
-        prev_mod = (await self.session.exec(stmt_prev_mod)).one_or_none()
+        prev_mod = await self._reference_module(data_entry, report, base_year)
         if prev_mod is None:
             return None
 
@@ -294,6 +275,89 @@ class DataEntryEmissionService:
 
         prev_kg, factor_id = await self._sum_entry_emissions(prev_entry, emission_type)
         return prev_kg * (percentage / 100.0), factor_id
+
+    async def _reference_module(
+        self,
+        data_entry: DataEntry | DataEntryResponse,
+        report: CarbonReport | CarbonReportRead,
+        base_year: int,
+    ) -> CarbonReportModule | None:
+        """The ``base_year`` Calculator module of ``data_entry``'s module type."""
+        stmt_mod = select(CarbonReportModule).where(
+            col(CarbonReportModule.id) == data_entry.carbon_report_module_id
+        )
+        cur_mod = (await self.session.exec(stmt_mod)).one_or_none()
+        if cur_mod is None:
+            return None
+
+        stmt_prev_report = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                col(CarbonReport.unit_id) == report.unit_id,
+                col(CarbonReport.year) == base_year,
+                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+            )
+        )
+        prev_report = (await self.session.exec(stmt_prev_report)).one_or_none()
+        if prev_report is None:
+            return None
+
+        stmt_prev_mod = select(CarbonReportModule).where(
+            col(CarbonReportModule.carbon_report_id) == prev_report.id,
+            col(CarbonReportModule.module_type_id) == cur_mod.module_type_id,
+        )
+        return (await self.session.exec(stmt_prev_mod)).one_or_none()
+
+    async def _aggregate_emissions(
+        self,
+        data_entry: DataEntry | DataEntryResponse,
+        entry_id: int,
+        emission_types: list[EmissionType],
+        report: CarbonReport | CarbonReportRead | None,
+    ) -> list[DataEntryEmissionRow]:
+        """Price an equipment aggregate line: pct × the reference total (#2783).
+
+        It has no class to resolve a factor from, so the factor path would
+        price it at nothing and every recompute would delete its row (#2749).
+        The total is the reference module's stats, the number the
+        reference-percentage PATCH shows.
+        """
+        if report is None or report.reference_year is None:
+            raise ValueError(
+                f"Aggregate data_entry_id={entry_id!r} has no reference year "
+                f"to price from"
+            )
+        ref_module = await self._reference_module(
+            data_entry, report, report.reference_year
+        )
+        if ref_module is None:
+            raise ValueError(
+                f"No {report.reference_year} reference module for aggregate "
+                f"data_entry_id={entry_id!r}"
+            )
+        by_emission_type = (ref_module.stats or {}).get("by_emission_type") or {}
+        percentage = float(data_entry.data["percentage_of_reference_year"])
+        return [
+            DataEntryEmissionRow(
+                data_entry_id=entry_id,
+                emission_type_id=emission_type.value,
+                kg_co2eq=float(by_emission_type.get(str(emission_type.value), 0.0))
+                * percentage
+                / 100.0,
+                scope=emission_type_scope(emission_type),
+                meta={
+                    "percentage_of_reference_year": percentage,
+                    "reference_year": report.reference_year,
+                },
+                carbon_report_module_id=data_entry.carbon_report_module_id,
+                data_entry_type_id=data_entry.data_entry_type_id,
+            )
+            for emission_type in emission_types
+        ]
 
     async def _sum_entry_emissions(
         self, entry: DataEntry, emission_type: EmissionType
@@ -547,6 +611,10 @@ class DataEntryEmissionService:
         # resolved this entry's classification to no leaves.
         if not emission_types:
             return []
+        if _is_percentage_aggregate(data_entry):
+            return await self._aggregate_emissions(
+                data_entry, data_entry.id, emission_types, report
+            )
 
         # B-H1 — fallback to the persisted ``KG_CO2EQ_OVERRIDE_KEY`` carrier
         # (set by the bulk-path providers) when the caller did not pass an

@@ -509,7 +509,9 @@ class SimulatorPlanService:
         empty —  showing the previous baseline's rows under a new reference year
         would be a lie. Only validated reference modules feed the copy: a
         module still not started or in progress is treated like an absent
-        baseline and leaves the plan module empty.
+        baseline and leaves the plan module empty. Equipment is the one
+        prefilled module not copied line by line: it starts in global mode
+        at 0%, one aggregate line per type (#2749).
 
         Inserts the copied rows only; the caller computes emissions for the
         whole report in one batched pass right after (both callers do — plan
@@ -625,6 +627,12 @@ class SimulatorPlanService:
                     plan_module=plan_module,
                     ref_module=ref_modules_by_type.get(module_type_id),
                     ref_cache=ref_cache,
+                )
+            elif module_type_id == ModuleTypeEnum.equipment:
+                copied = (
+                    await self.report_service.module_service.prefill_equipment_global(
+                        plan_module, report, ref_modules_by_type[module_type_id].stats
+                    )
                 )
             else:
                 copied = await self.prefill_module_from_reference(

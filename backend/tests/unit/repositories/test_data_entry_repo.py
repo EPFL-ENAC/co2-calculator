@@ -1572,6 +1572,38 @@ async def test_get_submodule_data_power_fields_fall_back_to_entry_data(
 
 
 @pytest.mark.asyncio
+async def test_get_submodule_data_power_prefers_the_pricing_factor(
+    db_session: AsyncSession,
+):
+    """Emissions price power from the factor only, so a stored power must
+    not replace a matched factor's in the listing: a row saved with 0/0 W
+    showed 0 W next to a kg_co2eq priced at the factor's 2000/97 W.
+    """
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(
+        db_session, extra_data={"active_power_w": 0.0, "standby_power_w": 0.0}
+    )
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    item = response.items[0]
+    assert item.active_power_w == 42.0
+    assert item.standby_power_w == 3.0
+
+
+@pytest.mark.asyncio
 async def test_get_submodule_data_subkind_preference_ordering(
     db_session: AsyncSession,
 ):
