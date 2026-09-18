@@ -122,8 +122,9 @@ def unresolved_reason(
 
     Run where an entry enters the system (CSV row, API create), never in
     recompute. Covers the cases the data manager decided must fail loud:
-    a kind whose factors all carry a subkind but the entry gives none or an
-    unknown one (Refrigerants without a subcategory), and a field the entry
+    a kind whose factors all carry a subkind but the entry gives none (unless
+    the handler sets ``require_subkind_for_factor = False``) or an unknown one
+    (Refrigerants without a subcategory), and a field the entry
     must copy from its factor but does not (energy combustion unit). An
     unknown kind stays a plain miss here; that is its own issue.
     """
@@ -163,6 +164,9 @@ def _subkind_reason(
         return None
     subkind_field = handler.subkind_field
     given = data.get(subkind_field) or None if subkind_field else None
+    # Equipment imports inventory without a sub_class; the user picks it later.
+    if given is None and not handler.require_subkind_for_factor:
+        return None
     if given is None:
         return (
             f"{subkind_field} is required for {handler.kind_field}={kind!r}:"

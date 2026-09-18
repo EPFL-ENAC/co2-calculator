@@ -129,7 +129,6 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
     # room_name (with the subkind room_type) and the row goes incomplete
     # — no emission rows until a room of the new building is picked (#2501).
     kind_dependent_fields: tuple[str, ...] = ("room_name",)
-    require_subkind_for_factor = False
     require_factor_to_match = False
     # The room's heating source lives on the resolved factor, not the
     # entry; its labels are seeded reference data for both languages
@@ -338,7 +337,6 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
 
     kind_field: str = "name"
     subkind_field: str | None = None
-    require_subkind_for_factor = False
     factor_match_fields = ("unit",)
     # Fuel names are enum keys (natural_gas, …) labeled by the #2613 seed
     # in both languages — sius_code shape, English display included.
@@ -419,7 +417,6 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
 
     kind_field: str | None = None
     subkind_field: str | None = None
-    require_subkind_for_factor = False
     require_factor_to_match = False
 
     sort_map = {
