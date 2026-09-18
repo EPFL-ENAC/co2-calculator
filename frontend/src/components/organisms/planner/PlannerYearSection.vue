@@ -468,7 +468,6 @@
                   entry.config.behavior === 'prefilled' && hasReferenceYear
                 "
                 :project-years-count="grantYearsCount"
-                :percentage-locked="isGlobalEquipment(entry.config.module)"
                 :show-grant-budgets="
                   yearData.is_grant && !isGlobalEquipment(entry.config.module)
                 "
@@ -657,15 +656,14 @@ function isEquipmentModeModule(module: Module): boolean {
 }
 
 // Equipment modes: per-line keeps the row sliders; global applies one
-// percentage to every prefilled line at once (#1981). View state only, the
-// entries are the same either way.
+// percentage to the whole reference year (#1981), the prefill default (#2749).
 const equipmentMode = ref<'per_line' | 'global'>('per_line');
 const globalPercentage = ref(0);
 const appliedGlobalPercentage = ref<number | null>(null);
 const applyingGlobalPercentage = ref(false);
 const equipmentReferenceTotalKg = ref<number | null>(null);
-// Bumped after a global apply: the table remounts and refetches its
-// submodule rows, whose percentages all changed server-side.
+// Bumped after a mode switch: the tables remount and refetch their rows,
+// which the switch replaced server-side.
 const equipmentTableTick = ref(0);
 
 const equipmentSwitchDialogOpen = ref(false);
@@ -769,22 +767,23 @@ function equipmentStat(entry: ModuleEntry, key: string): number | null {
 
 // The mode is derived state, not stored client-side — an aggregate line's
 // percentage_of_reference_year, surfaced as equipment_applied_percentage, is
-// the only source of truth for whether a module is in global mode. Seeded
-// once on mount so a reload shows the right mode instead of always
-// resetting to per-line.
-onMounted(() => {
+// the only source of truth for whether a module is in global mode. Synced on
+// mount and after a reference-year change, whose prefill starts equipment
+// in global mode (#2749).
+function syncEquipmentMode() {
   const entry = equipmentEntry();
-  if (!entry) return;
-  const applied = equipmentStat(entry, 'equipment_applied_percentage');
-  if (applied === null) return;
-  equipmentMode.value = 'global';
-  globalPercentage.value = applied;
+  const applied = entry
+    ? equipmentStat(entry, 'equipment_applied_percentage')
+    : null;
+  equipmentMode.value = applied === null ? 'per_line' : 'global';
+  globalPercentage.value = applied ?? 0;
   appliedGlobalPercentage.value = applied;
-  equipmentReferenceTotalKg.value = equipmentStat(
-    entry,
-    'equipment_reference_total_kg',
-  );
-});
+  equipmentReferenceTotalKg.value = entry
+    ? equipmentStat(entry, 'equipment_reference_total_kg')
+    : null;
+}
+
+onMounted(syncEquipmentMode);
 
 // Same scale and rounding as the Calculator module banner (formatTonnesCO2).
 function formatTonnes(kg: number): string {
@@ -889,11 +888,9 @@ async function applyGlobalPercentage() {
       value,
     );
     appliedGlobalPercentage.value = value;
-    // The rows' percentages and kg changed; refresh totals and remount the
-    // table so its rows refetch.
+    // Only the totals move: the aggregate lines never show in the tables.
     await refreshExpandedModule(MODULES.Equipment);
     await plansStore.refreshAggregateIfActive();
-    equipmentTableTick.value += 1;
   } catch {
     $q.notify({
       type: 'negative',
@@ -999,20 +996,10 @@ async function onReferenceYearChange(referenceYear: number | null) {
     );
     referenceYearDialogOpen.value = false;
     emit('collapseAll');
-    if (equipmentMode.value === 'global') {
-      globalPercentage.value = 0;
-      appliedGlobalPercentage.value = 0;
-      // A new reference year changes what the aggregate lines total, so
-      // reload the module before reading its stats (#2783) rather than the
-      // client-side snapshot-row sum this used to fetch.
-      await refreshExpandedModule(MODULES.Equipment);
-      const entry = equipmentEntry();
-      equipmentReferenceTotalKg.value = entry
-        ? equipmentStat(entry, 'equipment_reference_total_kg')
-        : null;
-    } else {
-      equipmentReferenceTotalKg.value = null;
-    }
+    // The rebuild reset equipment (global at 0%, or empty without a
+    // baseline); reload it so the mode is read from fresh stats (#2749).
+    await refreshExpandedModule(MODULES.Equipment);
+    syncEquipmentMode();
   } catch {
     $q.notify({ type: 'negative', message: t('planner_reference_year_error') });
   } finally {

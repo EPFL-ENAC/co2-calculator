@@ -26,7 +26,6 @@ from app.modules.emissions.buckets import BucketNodes
 from app.modules.emissions.registry import (
     DATA_ENTRY_TO_EMISSION_TYPES,
     MODULE_STAT_BUCKETS,
-    emission_type_scope,
 )
 from app.modules.emissions.taxonomy import EmissionType
 from app.repositories.carbon_project_repo import CarbonProjectRepository
@@ -591,17 +590,40 @@ class CarbonReportModuleService:
             result[r.id] = _equipment_totals_from_stats(stats)
         return result
 
+    async def prefill_equipment_global(
+        self,
+        module: CarbonReportModuleRead,
+        report: CarbonReport | CarbonReportRead,
+        ref_stats: dict | None,
+    ) -> int:
+        """Start a plan year's equipment in global mode at 0% (#2749).
+
+        The plan prefill's equipment arm: empties the module, then writes one
+        aggregate line per type the reference year carries, priced from its
+        stats — never a copy of every reference line. Per-line rows only come
+        back through ``reset_equipment_to_per_line``. Returns the lines
+        written (0-3).
+        """
+        await DataEntryRepository(self.session).bulk_delete_by_modules([module.id])
+        return await self._write_equipment_aggregate_lines(
+            module, report, 0.0, _equipment_totals_from_stats(ref_stats)
+        )
+
     async def _write_equipment_aggregate_lines(
         self,
         module: CarbonReportModuleRead,
-        report: CarbonReport,
+        report: CarbonReport | CarbonReportRead,
         percentage: float,
         ref_totals: dict[DataEntryTypeEnum, float],
     ) -> int:
-        """Upsert one aggregate ``DataEntry`` + emission row per type present."""
+        """Upsert one aggregate ``DataEntry`` per type present, then price it.
+
+        Priced by ``prepare_create`` like any recompute of it, so the PATCH
+        and a later factor recalc agree (#2749).
+        """
         entry_repo = DataEntryRepository(self.session)
-        rows: list[tuple[DataEntry, DataEntryTypeEnum, float]] = []
-        for data_entry_type, ref_kg in ref_totals.items():
+        entries: list[DataEntry] = []
+        for data_entry_type in ref_totals:
             entry = await entry_repo.get_percentage_aggregate_entry(
                 module.id, data_entry_type.value
             )
@@ -621,36 +643,20 @@ class CarbonReportModuleService:
                 "percentage_of_reference_year": percentage,
             }
             self.session.add(entry)
-            rows.append((entry, data_entry_type, ref_kg))
+            entries.append(entry)
         await self.session.flush()
 
+        emission_svc = DataEntryEmissionService(self.session)
         entry_ids: list[int] = []
         emission_rows: list[DataEntryEmissionRow] = []
-        for entry, data_entry_type, ref_kg in rows:
+        for entry in entries:
             if entry.id is None:
                 raise ValueError("aggregate entry was not flushed")
-            emission_type = _equipment_emission_type(data_entry_type)
             entry_ids.append(entry.id)
-            emission_rows.append(
-                DataEntryEmissionRow(
-                    data_entry_id=entry.id,
-                    emission_type_id=emission_type.value,
-                    kg_co2eq=ref_kg * percentage / 100.0,
-                    scope=emission_type_scope(emission_type),
-                    meta={
-                        "is_global_aggregate": True,
-                        "reference_total_kg_co2eq": ref_kg,
-                        "percentage_of_reference_year": percentage,
-                    },
-                    carbon_report_module_id=module.id,
-                    data_entry_type_id=data_entry_type.value,
-                )
-            )
+            emission_rows.extend(await emission_svc.prepare_create(entry))
         if entry_ids:
-            await DataEntryEmissionService(self.session).bulk_replace_for_entries(
-                entry_ids, emission_rows
-            )
-        return len(rows)
+            await emission_svc.bulk_replace_for_entries(entry_ids, emission_rows)
+        return len(entries)
 
     async def reset_equipment_to_per_line(
         self, carbon_report_id: int, module_type_id: int
@@ -660,11 +666,11 @@ class CarbonReportModuleService:
         Deletes every entry in the module — aggregate lines and any
         hand-added ones alike — and rebuilds it from the reference year at
         0%, restoring individually editable per-line snapshot rows.
-        Delegates to the same idempotent rebuild the initial plan prefill
-        uses (``SimulatorPlanService.prefill_module_from_reference``)
-        rather than a bespoke aggregate-only delete, so both paths stay one
-        implementation. Returns the number of rows restored, or None when
-        the module does not exist.
+        Delegates to the per-line copy the other prefilled modules use
+        (``SimulatorPlanService.prefill_module_from_reference``) — equipment
+        itself is prefilled in global mode (#2749), so this switch is the
+        only way its lines come back. Returns the number of rows restored,
+        or None when the module does not exist.
         """
         if module_type_id != ModuleTypeEnum.equipment.value:
             raise ValueError(

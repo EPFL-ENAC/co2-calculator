@@ -1,7 +1,11 @@
 from sqlalchemy import func
 
 from app.core.config import get_settings
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry import (
+    IS_NOT_PERCENTAGE_AGGREGATE,
+    DataEntry,
+    DataEntryTypeEnum,
+)
 from app.models.data_entry_emission import DataEntryEmission, EmissionComputation
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
@@ -37,6 +41,8 @@ class EquipmentModuleHandler(BaseModuleHandler):
 
     kind_field: str = "equipment_class"
     subkind_field: str = "sub_class"
+    # The planner's global-mode block shows the aggregate lines (#2749).
+    default_where = [IS_NOT_PERCENTAGE_AGGREGATE]
 
     # Sort/filter keys MUST read from the same source `to_response` displays,
     # or the visible column won't match the ordering. equipment_class is shown
