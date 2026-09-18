@@ -46,9 +46,10 @@ class EquipmentModuleHandler(BaseModuleHandler):
 
     # Sort/filter keys MUST read from the same source `to_response` displays,
     # or the visible column won't match the ordering. equipment_class is shown
-    # from DataEntry.data (the factor `class` lookup is a dead key); sub_class,
-    # active_power_w and standby_power_w are all data-preferred-then-factor,
-    # matching `_displayed_value` in `to_response`.
+    # from DataEntry.data (the factor `class` lookup is a dead key); sub_class
+    # and usage hours are data-preferred-then-factor (`_displayed_value`);
+    # active_power_w and standby_power_w are factor-preferred-then-data
+    # (`_displayed_power`), since the formula prices power from the factor.
     sub_class_expr = func.coalesce(
         Factor.classification["sub_class"].as_string(),
         DataEntry.data["sub_class"].as_string(),
@@ -65,12 +66,12 @@ class EquipmentModuleHandler(BaseModuleHandler):
         ),
         "name": DataEntry.data["name"].as_string(),
         "active_power_w": func.coalesce(
-            DataEntry.data["active_power_w"].as_float(),
             Factor.values["active_power_w"].as_float(),
+            DataEntry.data["active_power_w"].as_float(),
         ),
         "standby_power_w": func.coalesce(
-            DataEntry.data["standby_power_w"].as_float(),
             Factor.values["standby_power_w"].as_float(),
+            DataEntry.data["standby_power_w"].as_float(),
         ),
         "equipment_class": DataEntry.data["equipment_class"].as_string(),
         "sub_class": sub_class_expr,
@@ -160,14 +161,22 @@ class EquipmentModuleHandler(BaseModuleHandler):
                 return entered
             return primary_factor.get(field)
 
+        # `_equipment_formula` prices power from the factor only, so show the
+        # factor's; a stored value only fills in when no factor matches.
+        def _displayed_power(field: str) -> float | None:
+            factor_value = primary_factor.get(field)
+            if factor_value is not None:
+                return factor_value
+            return data.get(field)
+
         new_entry = {
             "id": data_entry.id,
             "data_entry_type_id": data_entry.data_entry_type_id,
             "carbon_report_module_id": data_entry.carbon_report_module_id,
             "source": data_entry.source,
             **data,
-            "active_power_w": _displayed_value("active_power_w"),
-            "standby_power_w": _displayed_value("standby_power_w"),
+            "active_power_w": _displayed_power("active_power_w"),
+            "standby_power_w": _displayed_power("standby_power_w"),
             "active_usage_hours_per_week": _displayed_value(
                 "active_usage_hours_per_week", blank_when_new=True
             ),
