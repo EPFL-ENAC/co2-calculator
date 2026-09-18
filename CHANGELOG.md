@@ -1,11 +1,25 @@
 ## [1.4.15](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.14...v1.4.15) (2026-09-18)
 
 
-### Bug Fixes
+A small follow-up to v1.4.14's equipment **global percentage** mode in the Planner.
 
-* **equipment:** show the factor power the emissions are priced with ([#2749](https://github.com/EPFL-ENAC/co2-calculator/issues/2749)) ([90f3259](https://github.com/EPFL-ENAC/co2-calculator/commit/90f32590cc8af13c762f40d82ad4282ecc4a9c2c)), closes [#2314](https://github.com/EPFL-ENAC/co2-calculator/issues/2314) [#2314](https://github.com/EPFL-ENAC/co2-calculator/issues/2314)
-* **planner:** per-line hint says 0%, slider drag selects no text ([#2749](https://github.com/EPFL-ENAC/co2-calculator/issues/2749)) ([aa48441](https://github.com/EPFL-ENAC/co2-calculator/commit/aa484419fa8b1c86c31014dced35f62742d639b0))
-* **planner:** prefill equipment in global percentage mode ([#2749](https://github.com/EPFL-ENAC/co2-calculator/issues/2749)) ([62d66fc](https://github.com/EPFL-ENAC/co2-calculator/commit/62d66fc06cb657d9e2dc0d42dffa2d0637540f6b))
+### Highlights
+
+- **Planner equipment now starts in global percentage mode, at 0%.** New grant proposals and per-year sections get one line per equipment type, starting at 0% of the reference year. Set one percentage to scale them all. Before, they got a copy of every reference-year device. Creating a section is also much faster for large units: a unit with 950 devices now writes 3 lines instead of 950.
+
+### Planner
+
+- Global-mode equipment keeps its footprint when emission factors or the plan are recalculated. Before, a recalculation could reset it to zero.
+- Equipment tables in global mode no longer fail to load. The global-mode lines used to cause a server error there; they are now kept out of the device lists and their counts. The global-mode block already shows their percentage and result.
+- A section in per-line mode no longer reopens in global mode. Changing a section's reference year shows the right mode straight away.
+- The per-line hint now says that copied equipment starts at 0% of the reference year. It used to say 100%.
+- Dragging the "% of reference year" slider no longer selects the text in the row.
+- Sections created before this release keep their per-line equipment until you switch the mode or change their reference year.
+
+### Equipment tables
+
+- The power columns show the power the emissions are actually calculated with. Before, a device saved with 0 W showed 0 W next to a footprint calculated with the standard power for its class. Sorting by power follows what is shown.
+
 ## [1.4.14](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.10...v1.4.14) (2026-09-18)
 
 
