@@ -50,7 +50,7 @@
     "eslint-plugin-vue": "=10.11.0",
     "globals": "=17.12.0",
     "openapi-typescript": "=7.13.0",
-    "prettier": "=3.9.6",
+    "prettier": "=3.9.8",
     "sass": "=1.104.1",
     "stylelint": "^17.14.1",
     "stylelint-config-recommended-vue": "^2.0.0",
