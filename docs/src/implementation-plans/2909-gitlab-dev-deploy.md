@@ -1,5 +1,5 @@
 ---
-status: delivered
+status: in-progress
 issue: "2909"
 last_updated: 2026-09-22
 summary: GitHub Actions is billing-locked org-wide, so dev deploys from gitlab.epfl.ch through the EPFL-ENAC/build-push-deploy CI/CD component; stage, ci-test and v* tags stay on deploy.yml so each ref has one pipeline writing the overlays.
@@ -16,7 +16,7 @@ too, so a `repository_dispatch` would be accepted and deploy nothing.
 ## What shipped
 
 - **`.gitlab-ci.yml`** includes the component
-  `gitlab.epfl.ch/EPFL-ENAC/build-push-deploy/deploy@0.1.1` with the same
+  `gitlab.epfl.ch/EPFL-ENAC/build-push-deploy/deploy@0.1.2` with the same
   inputs as `deploy.yml`: three build contexts, the chart smoke renders,
   `GIT_SHA`, and the `APP_VERSION` script. The script reads `package.json`
   with `jq` and uses `CI_*` variables.
@@ -45,6 +45,12 @@ too, so a `repository_dispatch` would be accepted and deploy nothing.
 - Overlay edits dry-run against the real dev overlays of both Argo repos:
   only digests and the chart version change. `docs` is skipped on enack8s,
   which doesn't deploy it.
+- The manifest job's real script ran in Alpine against a stubbed GitHub API
+  and produced one correct commit request per Argo repo.
+
+Still to prove: the first real `dev` pipeline, which is the first time the
+GitHub API sees `MANIFEST_TOKEN`. Flip `status` to `delivered` once it is
+green and Argo has rolled out.
 
 ## Operating it
 
