@@ -70,7 +70,7 @@ erDiagram
   }
   classification_translations {
     VARCHAR field_name PK
-    VARCHAR label
+    VARCHAR label "indexed"
     VARCHAR lang PK
     VARCHAR value PK
   }

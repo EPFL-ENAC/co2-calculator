@@ -132,7 +132,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
     require_factor_to_match = False
     # The room's heating source lives on the resolved factor, not the
     # entry; its labels are seeded reference data for both languages
-    # (migration fd12a7a0946f) — search/sort match and order by the label
+    # (initial migration, #2904) — search/sort match and order by the label
     # the user sees, in either locale (#2401, same shape as sius_code).
     # room_type values are backend lookup keys (#173), labeled by the
     # #2613 seed — English included ("office" renders "Office").
