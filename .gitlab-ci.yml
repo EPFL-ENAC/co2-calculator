@@ -1,0 +1,50 @@
+# Deploy from gitlab.epfl.ch while GitHub Actions is billing-locked for the
+# org. Same refs, images, chart and overlays as .github/workflows/deploy.yml.
+# https://gitlab.epfl.ch/EPFL-ENAC/build-push-deploy
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "stage"
+    - if: $CI_COMMIT_BRANCH =~ /^ci-test\//
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+
+include:
+  - component: $CI_SERVER_FQDN/EPFL-ENAC/build-push-deploy/deploy@main
+    inputs:
+      org: epfl
+      repo: co2-calculator
+      build_contexts: [frontend, backend, docs]
+      helm_chart_path: helm
+      helm_chart_repository: ghcr.io/epfl-enac/co2-calculator/helm
+      # Smoke-test both secret paths. Default (external) needs a Secret name;
+      # chart-managed (dev) needs throwaway signing keys.
+      helm_chart_render_args: |
+        --set backend.existingSecret.name=ci-existing-secret
+        --set backend.existingSecret.enabled=false --set backend.secrets.JWT_HMAC_KEY=ci-render-check --set backend.secrets.SESSION_HMAC_KEY=ci-render-check
+      # GIT_SHA: the frontend's APP_VERSION for GlitchTip and the backend's
+      # GIT_SHA (#2436); the docs image ignores it.
+      build_args: |
+        GIT_SHA=$CI_COMMIT_SHA
+      # APP_VERSION from the root package.json (#2437): bare on a tag, dev
+      # adds the commit's UTC time so every dev image differs, other
+      # branches are marked so a ci-test image never looks like a release.
+      build_args_script: |
+        VERSION=$(jq -r '.version // ""' package.json)
+        [ -n "$VERSION" ] || { echo "root package.json has no version" >&2; exit 1; }
+        STAMP=$(TZ=UTC git show -s --format=%cd --date=format-local:%Y-%m-%d-%H%M HEAD)
+        case "${CI_COMMIT_TAG:+tag}:$CI_COMMIT_REF_NAME" in
+          tag:*)  ;;
+          :dev)   VERSION="$VERSION-dev-$STAMP" ;;
+          :stage) VERSION="$VERSION-rc" ;;
+          *)      VERSION="$VERSION-$(echo "$CI_COMMIT_REF_NAME" | tr '/' '-')" ;;
+        esac
+        echo "APP_VERSION=$VERSION"
+      registries: |
+        [
+          {"prefix": "ghcr.io/epfl-enac/epfl/co2-calculator",
+           "username_var": "GHCR_USERNAME", "password_var": "GHCR_TOKEN",
+           "argo_repositories": ["EPFL-ENAC/enack8s-app-config"]},
+          {"prefix": "quay-its.epfl.ch/svc1751",
+           "username_var": "QUAY_USERNAME", "password_var": "QUAY_PASSWORD",
+           "argo_repositories": ["EPFL-ENAC/openshift-app-config"]}
+        ]
