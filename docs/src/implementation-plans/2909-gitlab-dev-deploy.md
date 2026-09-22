@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: "2909"
 last_updated: 2026-09-22
 summary: dev deploys from gitlab.epfl.ch through the EPFL-ENAC/build-push-deploy CI/CD component, started when GitHub Actions was billing-locked and kept as a live trial of the fallback; stage, ci-test and v* tags stay on deploy.yml so each ref has one pipeline writing the overlays.
@@ -55,9 +55,11 @@ fallback keeps running for real instead of rotting until the next outage.
 - The manifest job's real script ran in Alpine against a stubbed GitHub API
   and produced one correct commit request per Argo repo.
 
-Still to prove: the first real `dev` pipeline, which is the first time the
-GitHub API sees `MANIFEST_TOKEN`. Flip `status` to `delivered` once it is
-green and Argo has rolled out.
+- First real `dev` deploy, 2026-09-22: #2911 merged → mirror run green
+  from GitHub's runners (gitlab.epfl.ch is reachable from the public
+  internet) → GitLab pipeline 426465 green → overlay commits
+  enack8s-app-config `91a66806` and openshift-app-config `19bcae08`
+  through the shared script, chart `1.0.426465-dev`.
 
 ## Operating it
 
