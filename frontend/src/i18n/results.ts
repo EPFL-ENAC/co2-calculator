@@ -402,8 +402,8 @@ export default {
     fr: 'Réinitialiser',
   },
   results_objectives_scenario_bau: {
-    en: 'Business As Usual',
-    fr: 'Fonctionnement sans changement',
+    en: 'Business As usual',
+    fr: 'Neutre',
   },
   results_objectives_scenario_low_effort: {
     en: 'Low effort',
@@ -411,7 +411,7 @@ export default {
   },
   results_objectives_scenario_middle: {
     en: 'Middle of the road',
-    fr: 'Voie intermédiaire',
+    fr: 'Intermédiaire',
   },
   results_objectives_scenario_high_effort: {
     en: 'High effort',
