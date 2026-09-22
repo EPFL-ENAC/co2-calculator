@@ -19,10 +19,14 @@ fallback keeps running for real instead of rotting until the next outage.
 ## What shipped
 
 - **`.gitlab-ci.yml`** includes the component
-  `gitlab.epfl.ch/EPFL-ENAC/build-push-deploy/deploy@0.1.2` with the same
+  `gitlab.epfl.ch/EPFL-ENAC/build-push-deploy/deploy@0.2.0` with the same
   inputs as `deploy.yml`: three build contexts, the chart smoke renders,
-  `GIT_SHA`, and the `APP_VERSION` script. The script reads `package.json`
-  with `jq` and uses `CI_*` variables.
+  `GIT_SHA` and `APP_VERSION`.
+- **`scripts/app-version.sh`** computes `APP_VERSION` for both pipelines,
+  reading `GITHUB_*` or `CI_*`. One copy, so the two cannot drift.
+- **`mirror-to-gitlab.yml`** pushes every `dev` change to GitLab (deploy key
+  `GITLAB_DEPLOY_KEY`, pinned host key). GitLab CE cannot pull from GitHub,
+  and a push nobody remembers is a silent fallback.
 - **One pipeline per ref.** GitLab runs on `dev` only. `deploy.yml` drops
   `dev` and keeps `stage`, `ci-test/**` and `v*.*.*`. Two pipelines on the
   same ref would each commit a different digest to the same overlay.
@@ -57,14 +61,20 @@ green and Argo has rolled out.
 
 ## Operating it
 
-GitHub stays where PRs merge, and gitlab.epfl.ch has no pull mirror (CE). A
-`dev` merge deploys once it's pushed there:
+GitHub stays where PRs merge. `mirror-to-gitlab.yml` pushes `dev` to
+gitlab.epfl.ch, which deploys it. If GitHub Actions is down, push by hand:
 
 ```sh
 git fetch origin && git push gitlab origin/dev:dev
 ```
 
+Chart versions on GitLab are `1.0.<pipeline id>-dev` (~426k), far above
+GitHub's run numbers. Harmless while `dev` stays on GitLab; if it ever
+moves back, GitHub's chart-reuse check would see the GitLab version as
+"latest" and republish once per run.
+
 ## Not ported
 
 `reuse_unchanged_images`: every dev push rebuilds all three images, about
-1–2 min each on a warm cache.
+1–2 min each on a warm cache. The action's `private_key`, `lfs` and
+`submodules` inputs are not ported either; co2 uses none of them.
