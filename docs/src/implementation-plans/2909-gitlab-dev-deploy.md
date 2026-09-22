@@ -2,7 +2,7 @@
 status: in-progress
 issue: "2909"
 last_updated: 2026-09-22
-summary: GitHub Actions is billing-locked org-wide, so dev deploys from gitlab.epfl.ch through the EPFL-ENAC/build-push-deploy CI/CD component; stage, ci-test and v* tags stay on deploy.yml so each ref has one pipeline writing the overlays.
+summary: dev deploys from gitlab.epfl.ch through the EPFL-ENAC/build-push-deploy CI/CD component, started when GitHub Actions was billing-locked and kept as a live trial of the fallback; stage, ci-test and v* tags stay on deploy.yml so each ref has one pipeline writing the overlays.
 ---
 
 # 2909 — Deploy dev from gitlab.epfl.ch
@@ -12,6 +12,9 @@ summary: GitHub Actions is billing-locked org-wide, so dev deploys from gitlab.e
 On 2026-09-22 GitHub stopped running Actions for the whole EPFL-ENAC org,
 public repos included. The Argo repos' `update_manifest` workflow stopped
 too, so a `repository_dispatch` would be accepted and deploy nothing.
+
+Billing was fixed the same day. `dev` stays on GitLab anyway, so the
+fallback keeps running for real instead of rotting until the next outage.
 
 ## What shipped
 
