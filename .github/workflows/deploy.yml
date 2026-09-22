@@ -3,8 +3,9 @@ name: deploy
 
 "on":
   push:
+    # dev deploys from gitlab.epfl.ch (.gitlab-ci.yml): one pipeline per
+    # ref, so the Argo overlays never get two competing commits
     branches:
-      - dev
       - stage
       - "ci-test/**"
     tags: ["v*.*.*"]
