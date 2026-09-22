@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2904
 last_updated: 2026-09-22
 summary: Collapse the 20 Alembic migrations into one before go-live; dev, stage and prod are dropped and rebuilt from it. Label seeds stay as reference data in the new migration.
