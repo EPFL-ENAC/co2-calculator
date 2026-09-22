@@ -1,15 +1,14 @@
-# Deploy from gitlab.epfl.ch while GitHub Actions is billing-locked for the
-# org. Same refs, images, chart and overlays as .github/workflows/deploy.yml.
+# dev deploys from gitlab.epfl.ch; stage, ci-test/** and v* tags stay on
+# .github/workflows/deploy.yml. One pipeline per ref, so the Argo overlays
+# never get two competing commits. Same images, chart and overlays.
 # https://gitlab.epfl.ch/EPFL-ENAC/build-push-deploy
 
 workflow:
   rules:
-    - if: $CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "stage"
-    - if: $CI_COMMIT_BRANCH =~ /^ci-test\//
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_COMMIT_BRANCH == "dev"
 
 include:
-  - component: $CI_SERVER_FQDN/EPFL-ENAC/build-push-deploy/deploy@0.1.0
+  - component: $CI_SERVER_FQDN/EPFL-ENAC/build-push-deploy/deploy@0.1.1
     inputs:
       org: epfl
       repo: co2-calculator
