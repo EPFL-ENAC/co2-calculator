@@ -1,3 +1,7 @@
+## [1.4.16](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.15...v1.4.16) (2026-09-22)
+
+DROP PROD DB and rewrite all alembic history to avoid data migration
+
 ## [1.4.15](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.14...v1.4.15) (2026-09-18)
 
 
