@@ -24,20 +24,8 @@ include:
       # GIT_SHA (#2436); the docs image ignores it.
       build_args: |
         GIT_SHA=$CI_COMMIT_SHA
-      # APP_VERSION from the root package.json (#2437): bare on a tag, dev
-      # adds the commit's UTC time so every dev image differs, other
-      # branches are marked so a ci-test image never looks like a release.
-      build_args_script: |
-        VERSION=$(jq -r '.version // ""' package.json)
-        [ -n "$VERSION" ] || { echo "root package.json has no version" >&2; exit 1; }
-        STAMP=$(TZ=UTC git show -s --format=%cd --date=format-local:%Y-%m-%d-%H%M HEAD)
-        case "${CI_COMMIT_TAG:+tag}:$CI_COMMIT_REF_NAME" in
-          tag:*)  ;;
-          :dev)   VERSION="$VERSION-dev-$STAMP" ;;
-          :stage) VERSION="$VERSION-rc" ;;
-          *)      VERSION="$VERSION-$(echo "$CI_COMMIT_REF_NAME" | tr '/' '-')" ;;
-        esac
-        echo "APP_VERSION=$VERSION"
+      # APP_VERSION (#2437): shared with deploy.yml, see the script
+      build_args_script: sh scripts/app-version.sh
       registries: |
         [
           {"prefix": "ghcr.io/epfl-enac/epfl/co2-calculator",

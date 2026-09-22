@@ -1,0 +1,29 @@
+# dev deploys from gitlab.epfl.ch (.gitlab-ci.yml) and GitLab CE cannot pull
+# from GitHub, so every dev change is pushed there from here. If Actions is
+# down, push by hand: git fetch origin && git push gitlab origin/dev:dev
+name: mirror-to-gitlab
+
+"on":
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # a shallow clone cannot be pushed
+          fetch-depth: 0
+      - name: Push dev to gitlab.epfl.ch
+        env:
+          DEPLOY_KEY: ${{ secrets.GITLAB_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          # pinned host key, no trust-on-first-use
+          echo 'gitlab-ssh.epfl.ch ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGAJUOtRCrsoMnO0yoU/qN0fQvR8m2XmaDUXNBqRTqbh' >> ~/.ssh/known_hosts
+          git push git@gitlab-ssh.epfl.ch:EPFL-ENAC/co2-calculator.git HEAD:refs/heads/dev
