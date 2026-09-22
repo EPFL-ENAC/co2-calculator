@@ -292,15 +292,6 @@ class DataIngestionJobBase(SQLModel):
 
 class DataIngestionJob(DataIngestionJobBase, table=True):
     __tablename__ = "data_ingestion_jobs"
-    __table_args__ = (
-        # A unit-pinned job with no unit is unscopable: every /sync read
-        # gate silently no-ops on it (#2654, four months unnoticed).
-        CheckConstraint(
-            "entity_type <> 'MODULE_UNIT_SPECIFIC' OR entity_id IS NOT NULL",
-            name="ck_data_ingestion_jobs_unit_specific_has_entity_id",
-        ),
-    )
-
     id: int | None = Field(default=None, primary_key=True)
     is_current: bool = Field(
         default=False,
@@ -427,6 +418,14 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     # outside this index) and does not affect the partial unique
     # index's correctness.
     __table_args__ = (
+        # A unit-pinned job with no unit is unscopable: every /sync read
+        # gate silently no-ops on it (#2654, four months unnoticed).
+        # Postgres-only: it sat in a second, overridden __table_args__ until
+        # #2904, so the SQLite unit schema has never enforced it.
+        CheckConstraint(
+            "entity_type <> 'MODULE_UNIT_SPECIFIC' OR entity_id IS NOT NULL",
+            name="ck_data_ingestion_jobs_unit_specific_has_entity_id",
+        ).ddl_if(dialect="postgresql"),
         # ddl_if gates to Postgres: SQLite drops the partial WHERE, turning
         # this into an unconditional unique that rejects a unit-specific job
         # coexisting with its current per-year sibling on the same combo.

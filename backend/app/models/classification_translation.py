@@ -9,6 +9,7 @@ Year-independent on purpose: labels don't vary by year, unlike the
 ``factors`` rows they annotate (#2401 issue, proposition 2 vs. wide columns).
 """
 
+from sqlalchemy import Index
 from sqlmodel import Field, SQLModel
 
 # The only languages the ingestion/lookup path understands today. A new
@@ -61,6 +62,17 @@ class ClassificationTranslation(SQLModel, table=True):
     """
 
     __tablename__ = "classification_translations"
+    __table_args__ = (
+        # GIN trigram index for the leading-wildcard ILIKE the submodule
+        # filter and the typeahead run over labels (#2401). Declared here so
+        # autogenerate emits it instead of a migration carrying it by hand.
+        Index(
+            "ix_classification_translations_label_trgm",
+            "label",
+            postgresql_using="gin",
+            postgresql_ops={"label": "gin_trgm_ops"},
+        ).ddl_if(dialect="postgresql"),
+    )
 
     field_name: str = Field(primary_key=True, max_length=255)
     value: str = Field(primary_key=True, max_length=255)

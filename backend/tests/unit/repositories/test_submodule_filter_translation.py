@@ -312,7 +312,7 @@ async def test_english_locale_does_not_match_french_description_label(
 
 async def _seed_headcount_module(db_session: AsyncSession) -> int:
     """Sius labels are seeded reference data (en AND fr — the stored value
-    is a code in any locale); rows mirror migration 3b5609f893f4.
+    is a code in any locale); rows mirror the initial migration's seed (#2904).
     """
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
     db_session.add(report)
@@ -381,7 +381,7 @@ async def _member_codes(
 async def _seed_rooms_module(db_session: AsyncSession) -> int:
     """Rooms' heating source (`energy_type`) lives on the resolved det-30
     factor, never on the entry; labels are seeded reference data for both
-    languages (rows mirror migration fd12a7a0946f).
+    languages (rows mirror the initial migration's seed, #2904).
     """
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
     db_session.add(report)
@@ -676,7 +676,7 @@ async def test_self_labeling_rows_labeled_only_when_translated(
 
 async def _seed_energy_module(db_session: AsyncSession) -> int:
     """Fuel names are enum keys labeled by the #2613 seed in BOTH languages
-    (rows mirror migration 7bff78de3264): 'Natural gas' never matched the
+    (rows mirror the initial migration's seed, #2904): 'Natural gas' never matched the
     stored `natural_gas` before, in any locale.
     """
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
