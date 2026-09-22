@@ -140,8 +140,14 @@ docs (`/docs` path) ship with `deploy.yml`.
 ### `changelog.yml` — Changelog on dev → stage
 
 **Trigger:** PR closed against `stage`. **Job:** `changelog` runs
-only when the merged PR came from `dev`, regenerating
-`CHANGELOG.md` ahead of the next release.
+only when the merged PR came from `dev`. Trims any untagged entry
+left by a previous dev → stage run (`trim-unreleased-changelog.sh`,
+#2466), regenerates `CHANGELOG.md` with `conventional-changelog`,
+then rewrites that raw entry under three human-readable headings via
+Claude (`curate-changelog.sh`, needs the `ANTHROPIC_API_KEY` repo
+secret). The curation step fails soft: no key, an API error, or a
+malformed reply all leave the raw commit-message list in place
+instead of blocking the commit.
 
 ### `release-please.yml` — Tag and Release
 
