@@ -19,7 +19,7 @@ fallback keeps running for real instead of rotting until the next outage.
 ## What shipped
 
 - **`.gitlab-ci.yml`** includes the component
-  `gitlab.epfl.ch/EPFL-ENAC/build-push-deploy/deploy@0.1.2` with the same
+  `gitlab.epfl.ch/EPFL-ENAC/build-push-deploy/deploy@0.2.0` with the same
   inputs as `deploy.yml`: three build contexts, the chart smoke renders,
   `GIT_SHA` and `APP_VERSION`.
 - **`scripts/app-version.sh`** computes `APP_VERSION` for both pipelines,

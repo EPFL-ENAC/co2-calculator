@@ -8,7 +8,7 @@ workflow:
     - if: $CI_COMMIT_BRANCH == "dev"
 
 include:
-  - component: $CI_SERVER_FQDN/EPFL-ENAC/build-push-deploy/deploy@0.1.2
+  - component: $CI_SERVER_FQDN/EPFL-ENAC/build-push-deploy/deploy@0.2.0
     inputs:
       org: epfl
       repo: co2-calculator
