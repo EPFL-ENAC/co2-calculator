@@ -95,7 +95,10 @@ local compose — real backend/worker pods are already on it. Run in order:
 
 Every virtual user is a **distinct seeded DEFAULT-provider user**:
 `make perf-load` derives `reports/perf_users.txt` from the DB and each VU
-mints its own `auth_token` (same `JWT_HMAC_KEY` as the target). Principal
+mints its own `auth_token` (same `JWT_HMAC_KEY` as the target). Without
+that file (dev), `login-test` runs **once per role per locust process** and
+VUs share the cookie: N concurrent logins upsert one test-user row and
+serialise on its lock while holding bouncer slots (200 logins = 43 s max). Principal
 users drive module reads/uploads/plans; standard users only own
 travel/cloud entries. Against a remote host, export
 `PERF_AUTH_COOKIE=<auth_token JWT>` instead (login-test only exists on
