@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2689
-last_updated: 2026-09-23
+last_updated: 2026-09-24
 title: "DB queries queue at the DBaaS PgBouncer: query_wait_timeout waves"
 summary: "Dev lost two hours on 2026-09-08 to psycopg ProtocolViolation query_wait_timeout waves, each 120 s long. The error is PgBouncer's client-wait timeout: DBaaS bounces dev, stage and prod, and the server-side connection count plateaus at ~40 in dev. Our SQLAlchemy pool was never the wall (no QueuePool limit error), it was 17 coroutines each holding a slot while queued at the bouncer. Shipped: get_current_user hands its connection back before any route body runs (the general form of #2654), the DB health poller no longer freezes /ready for two minutes per wave, the orphan-poller log stops spamming, and both pods move to 5+50 in openshift-app-config."
 ---
@@ -243,3 +243,110 @@ shows a changing `pg_backend_pid()`.
 Code audit for transaction-mode hazards, all clean: advisory locks are
 `pg_advisory_xact_lock` only, both temp staging tables are `ON COMMIT
 DROP`, no `LISTEN`, no session-level `SET`, no `WITH HOLD` cursors.
+
+## Update 2026-09-24 — named prepares back on
+
+Dev's bouncer confirmed in transaction mode (probe: changing
+`pg_backend_pid()`) with `max_prepared_statements` > 0 (`SHOW CONFIG`).
+The #2921 stopgap `prepare_threshold: None` is removed: psycopg 3.3.6 with
+libpq 18 replays prepared statements through PgBouncer ≥ 1.22 natively,
+so hot queries get their cached plan back. A unit test pins libpq ≥ 17 so
+a psycopg-binary downgrade cannot silently reintroduce `prepared statement
+did not exist`. Bump psycopg 3.3.5 → 3.3.6 in the same PR.
+
+## Checklist 2026-09-24 — DBaaS session
+
+Dev bouncer runs transaction pooling since 2026-09-23: 1000 clients,
+pool 60, min 5. Two draft PRs wait on this session:
+
+- co2-calculator#2922 — prepared statements back on
+- openshift-app-config#60 — pods sized by CPU/memory, real HPA
+
+### 1. Read the current config
+
+- [ ] `SHOW CONFIG` — write down these seven values
+
+  `pool_mode`, `max_prepared_statements`, `query_wait_timeout`,
+  `server_idle_timeout`, `max_db_connections`, `default_pool_size`,
+  `reserve_pool_size`
+
+- [ ] `SHOW POOLS` — read `cl_waiting`, `sv_active`, `sv_idle`, `maxwait`
+
+  `cl_waiting` above 0 at rest means a stray client is holding slots.
+
+- [ ] `pool_mode` says `transaction` — that is the definitive check
+
+  The single-connection probe higher up is only suggestive: a quiet
+  client often gets the same server connection back.
+
+- [ ] Run `scripts/probe_pgbouncer_prepared.py` through the bouncer
+
+  Two connections interleaved; it prepares a statement on one and
+  re-executes it while the other forces the bouncer to rotate server
+  connections. A clean run across several pids means
+  `max_prepared_statements` > 0 in practice, and #2922 is safe.
+
+### 2. Decide on prepared statements
+
+- [ ] `max_prepared_statements` above 0 → **#2922 goes ahead**
+
+- [ ] `max_prepared_statements` is 0 → ask for **200**
+
+  Refused? Close #2922. The #2921 stopgap stays.
+
+### 3. Ask for these settings
+
+- [ ] `query_wait_timeout` → **10 s** (default 120)
+
+  Gate for #60. Past 60 in-flight transactions the bouncer queues, and
+  a queued request holds its pod slot for the whole wait. At 120 s
+  that is the 2026-09-17 lockup (#48).
+
+- [ ] `reserve_pool_size` → **10**, `reserve_pool_timeout` → **3 s**
+
+  A burst gets ten extra server slots after three seconds of queueing.
+
+- [ ] `max_db_connections` → **80**
+
+  Postgres `max_connections` is 100. A second user/db pair would
+  otherwise get its own pool of 60.
+
+- [ ] `server_idle_timeout` shorter than the role's `idle_session_timeout`
+
+  Otherwise Postgres kills the bouncer's idle server connections.
+  Bring the `pg_settings` and `pg_db_role_setting` output (the role
+  GUC was set 2026-08-31, #2566).
+
+### 4. Ask about the other environments
+
+- [ ] Stage and prod: same bouncer setup? When?
+
+  Until then both PRs stay dev-only.
+
+### 5. Back at the desk
+
+- [ ] Fix the worker replica count
+
+  Dev ran 4 worker pods on 2026-09-23. Chart default is 1, the overlay
+  sets none. Scale back or pin `worker.replicaCount` before #60.
+
+- [ ] Merge #2922
+
+  Watch the worker log for ten minutes: no
+  `prepared statement did not exist`.
+
+- [ ] Merge #60
+
+  Watch `oc get hpa` and the pool saturation panel for an hour.
+
+### Before the stage/prod version of #60
+
+Collect from prod:
+
+- [ ] p95 and peak requests per second over 30 days
+- [ ] p95 CPU and peak memory per backend pod
+- [ ] peak worker memory on the largest CSV job
+- [ ] peak concurrent active backends in `pg_stat_activity`
+
+Prod has no bouncer yet. Its pool math stays the direct-connection kind
+until DBaaS extends the bouncer there.
