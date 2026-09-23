@@ -178,7 +178,7 @@ perf-seed: ## Seed the #2295 load-test backdrop (SEED_NUM_UNITS/SEED_YEARS/SEED_
 .PHONY: perf-load
 perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES="ExplorerReadUser"
 	@mkdir -p $(PERF_REPORT_DIR)
-	@test -s $(PERF_USERS_FILE) || psql "$(PERF_DB_URL)" -tAc \
+	@test -s $(PERF_USERS_FILE) || test -z "$(PERF_DB_URL)" || psql "$(PERF_DB_URL)" -tAc \
 		"select institutional_id || ' ' || case when roles_raw::text like '%principal%' then 'principal' else 'standard' end from users where institutional_id like 'USR%'" \
 		> $(PERF_USERS_FILE) 2>/dev/null || true
 	@p="$(PERF_HOST)"; p="$${p%%/}"; p="$${p##*:}"; \
@@ -188,8 +188,9 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 	*) exec $(UV) run python -m tests.performance.resource_sampler --port $$p \
 		$(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid;; \
 	esac
-	PERF_USERS_FILE="$(PERF_USERS_FILE)" \
-	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(psql "$(PERF_DB_URL)" -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
+	@echo "perf-load: $(PERF_CLASSES) x $(PERF_USERS) users for $(PERF_TIME) against $(PERF_HOST) (headless, no web UI)"
+	@PERF_USERS_FILE="$(PERF_USERS_FILE)" \
+	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(test -n "$(PERF_DB_URL)" && psql "$(PERF_DB_URL)" -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
 	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \
 	$(UV) run locust -f tests/performance/locustfile.py $(PERF_CLASSES) \
 		--host $(PERF_HOST) --headless \
@@ -202,7 +203,8 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 		kill -- -$$pid 2>/dev/null || kill $$pid 2>/dev/null; \
 		pkill -f "resource_sampler --port" 2>/dev/null; \
 		rm -f $(PERF_REPORT_DIR)/.sampler.pid; \
-	fi; exit $$status
+	fi; \
+	echo "report: file://$$(pwd)/$(PERF_REPORT_DIR)/$(PERF_TAG).html"; exit $$status
 
 # Dev serves /v1/auth/login-test (DEBUG build), so no cookie copying: each
 # VU logs in as the TEST-provider PERF_ROLE. Seeded-user minting is local-only
@@ -214,7 +216,7 @@ perf-dev: ## Read-only load against dev, clef en main: make perf-dev [PERF_USERS
 	@case "$(PERF_CLASSES)" in ""|*Create*|*Plan*|*Upload*) \
 		test -n "$$PERF_ALLOW_WRITES" || { echo "PERF_CLASSES='$(PERF_CLASSES)' would write real data on dev (empty = every scenario); set PERF_ALLOW_WRITES=1 to confirm"; exit 1; };; \
 	esac
-	$(MAKE) perf-load PERF_HOST=$(PERF_DEV_HOST) PERF_USERS_FILE=/dev/null PERF_TAG=dev_$(PERF_TAG)
+	@$(MAKE) --no-print-directory perf-load PERF_HOST=$(PERF_DEV_HOST) PERF_DB_URL= PERF_USERS_FILE=/dev/null PERF_TAG=dev_$(PERF_TAG)
 
 .PHONY: perf-sweep
 perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/plans/explore, standard uploads
