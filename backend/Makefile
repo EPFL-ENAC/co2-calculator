@@ -211,8 +211,8 @@ PERF_DEV_HOST ?= https://co2-calculator-dev.epfl.ch/api
 
 .PHONY: perf-dev
 perf-dev: ## Read-only load against dev, clef en main: make perf-dev [PERF_USERS=50] [PERF_CLASSES=ModuleReadUser]
-	@case "$(PERF_CLASSES)" in *Create*|*Plan*|*Upload*) \
-		test -n "$$PERF_ALLOW_WRITES" || { echo "$(PERF_CLASSES) writes real data on dev; set PERF_ALLOW_WRITES=1 to confirm"; exit 1; };; \
+	@case "$(PERF_CLASSES)" in ""|*Create*|*Plan*|*Upload*) \
+		test -n "$$PERF_ALLOW_WRITES" || { echo "PERF_CLASSES='$(PERF_CLASSES)' would write real data on dev (empty = every scenario); set PERF_ALLOW_WRITES=1 to confirm"; exit 1; };; \
 	esac
 	$(MAKE) perf-load PERF_HOST=$(PERF_DEV_HOST) PERF_USERS_FILE=/dev/null PERF_TAG=dev_$(PERF_TAG)
 
