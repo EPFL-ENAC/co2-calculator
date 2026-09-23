@@ -129,6 +129,11 @@ Merge is blocked automatically if requirements are not met.
 
 ## Deployment Pipeline
 
+`stage` and release tags deploy through `deploy.yml` on GitHub Actions;
+`dev` deploys through `.gitlab-ci.yml` on gitlab.epfl.ch, which GitHub
+feeds via `mirror-to-gitlab.yml`. Both run the same steps and commit the
+same overlays; see [plan 2909](../implementation-plans/2909-gitlab-dev-deploy.md).
+
 ### Build Process per Subsystem
 
 Each component builds independently:
