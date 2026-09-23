@@ -302,6 +302,13 @@ pool 60, min 5. Two draft PRs wait on this session:
   a queued request holds its pod slot for the whole wait. At 120 s
   that is the 2026-09-17 lockup (#48).
 
+- [ ] Verify it: `scripts/probe_pgbouncer_wait_timeout.py` through the bouncer
+
+  Fills the pool with open transactions until one client is queued,
+  then times how long the bouncer lets it wait. Prints the measured
+  `query_wait_timeout` and the #60 verdict. Blocks dev for fill time +
+  20 s at most; run it when nobody is testing.
+
 - [ ] `reserve_pool_size` → **10**, `reserve_pool_timeout` → **3 s**
 
   A burst gets ten extra server slots after three seconds of queueing.
