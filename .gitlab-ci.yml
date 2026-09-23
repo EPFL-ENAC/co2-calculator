@@ -8,11 +8,19 @@ workflow:
     - if: $CI_COMMIT_BRANCH == "dev"
 
 include:
-  - component: $CI_SERVER_FQDN/EPFL-ENAC/build-push-deploy/deploy@0.2.0
+  - component: $CI_SERVER_FQDN/EPFL-ENAC/build-push-deploy/deploy@0.3.0
     inputs:
       org: epfl
       repo: co2-calculator
       build_contexts: [frontend, backend, docs]
+      # Re-tag instead of rebuilding images whose context did not change,
+      # same key formula and label as deploy.yml. APP_VERSION is read from
+      # the root package.json, outside every context: a version bump must
+      # rebuild all three images. Reused images are not rescanned per
+      # deploy: image-vulnerability-scan.yml scans the tags on a schedule.
+      reuse_unchanged_images: true
+      rescan_reused_images: false
+      build_key_paths: package.json
       helm_chart_path: helm
       helm_chart_repository: ghcr.io/epfl-enac/co2-calculator/helm
       # Smoke-test both secret paths. Default (external) needs a Secret name;
