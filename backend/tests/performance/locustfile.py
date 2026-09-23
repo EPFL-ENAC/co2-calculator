@@ -38,6 +38,7 @@ import time
 import uuid
 from pathlib import Path
 
+from gevent.lock import BoundedSemaphore
 from locust import HttpUser, between, task
 
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
@@ -70,6 +71,11 @@ USERS_FILE = os.environ.get("PERF_USERS_FILE", "")
 # in (make perf-load derives them from the DB). A role WITH memberships
 # (principal/standard) uses its session units instead.
 UNIT_IDS = os.environ.get("PERF_UNIT_IDS", "")
+# One login-test per role per process. Every VU is the same test user, so N
+# concurrent logins upsert one row, serialise on its lock and hold bouncer
+# slots for seconds (dev, 2026-09-23: 200 logins -> 11 s median, 43 s max).
+_LOGIN_LOCK = BoundedSemaphore()
+_ROLE_COOKIE: dict[str, str] = {}
 
 
 def load_seeded_users() -> dict[str, list[str]]:
@@ -147,14 +153,7 @@ class CO2User(HttpUser):
         elif seeded_user:
             self.client.cookies.set("auth_token", mint_auth_cookie(seeded_user))
         else:
-            with self.client.get(
-                f"/v1/auth/login-test?role={ROLE}",
-                allow_redirects=False,
-                name="/v1/auth/login-test",
-                catch_response=True,
-            ) as resp:
-                if resp.status_code != 302:
-                    resp.failure(f"login-test returned {resp.status_code}")
+            self.client.cookies.set("auth_token", self._login_test_cookie())
 
         session = self.client.get("/v1/session", name="/v1/session").json()
         # configured_years entries are YearConfiguration objects, not ints.
@@ -172,6 +171,23 @@ class CO2User(HttpUser):
                 f"role {ROLE} — is the backdrop seeded (make perf-seed)?"
             )
         self._report_ids: dict[tuple[int, int], int] = {}
+
+    def _login_test_cookie(self) -> str:
+        with _LOGIN_LOCK:
+            if ROLE not in _ROLE_COOKIE:
+                with self.client.get(
+                    f"/v1/auth/login-test?role={ROLE}",
+                    allow_redirects=False,
+                    name="/v1/auth/login-test",
+                    catch_response=True,
+                ) as resp:
+                    if resp.status_code != 302:
+                        resp.failure(f"login-test returned {resp.status_code}")
+                cookie = self.client.cookies.get("auth_token", "")
+                if not cookie:
+                    raise RuntimeError(f"login-test set no auth_token for role {ROLE}")
+                _ROLE_COOKIE[ROLE] = cookie
+        return _ROLE_COOKIE[ROLE]
 
     def _list_all_units(self) -> list[dict]:
         # #2379 removed skip/limit from this endpoint: the list is bounded by
