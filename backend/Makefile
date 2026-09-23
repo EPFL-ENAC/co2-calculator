@@ -204,6 +204,18 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 		rm -f $(PERF_REPORT_DIR)/.sampler.pid; \
 	fi; exit $$status
 
+# Dev serves /v1/auth/login-test (DEBUG build), so no cookie copying: each
+# VU logs in as the TEST-provider PERF_ROLE. Seeded-user minting is local-only
+# (PERF_USERS_FILE off), and write scenarios enqueue real jobs on dev's workers.
+PERF_DEV_HOST ?= https://co2-calculator-dev.epfl.ch/api
+
+.PHONY: perf-dev
+perf-dev: ## Read-only load against dev, clef en main: make perf-dev [PERF_USERS=50] [PERF_CLASSES=ModuleReadUser]
+	@case "$(PERF_CLASSES)" in ""|*Create*|*Plan*|*Upload*) \
+		test -n "$$PERF_ALLOW_WRITES" || { echo "PERF_CLASSES='$(PERF_CLASSES)' would write real data on dev (empty = every scenario); set PERF_ALLOW_WRITES=1 to confirm"; exit 1; };; \
+	esac
+	$(MAKE) perf-load PERF_HOST=$(PERF_DEV_HOST) PERF_USERS_FILE=/dev/null PERF_TAG=dev_$(PERF_TAG)
+
 .PHONY: perf-sweep
 perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/plans/explore, standard uploads
 	for u in 50 100 200 500 1000; do \
