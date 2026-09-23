@@ -8,7 +8,7 @@ dependencies = [
     "aiosqlite>=0.21.0",                # fall back for when no external db is provided
     "fastapi[standard]==0.141.1",
     "starlette==1.6.0",
-    "uvicorn[standard]==0.52.4",
+    "uvicorn[standard]==0.53.0",
     "python-multipart==0.0.32",
     "sqlalchemy[asyncio]==2.0.53",
     "psycopg[binary,pool]==3.3.6",
