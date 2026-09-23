@@ -1,7 +1,7 @@
 # dev deploys from gitlab.epfl.ch (.gitlab-ci.yml) and GitLab CE cannot pull
 # from GitHub, so every dev change is pushed there. Outage fallback:
 #   git fetch origin && git push gitlab origin/dev:dev
-# https://github.com/EPFL-ENAC/epfl-enac-build-push-deploy-action#mirroring-a-branch-to-gitlab
+# https://github.com/EPFL-ENAC/epfl-enac-build-push-deploy-action/blob/main/docs/mirror-to-gitlab.md
 name: mirror-to-gitlab
 
 "on":
