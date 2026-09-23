@@ -32,7 +32,11 @@ spec:
       maxUnavailable: 1
       {{- end }}
 
+  # #2696: same as the backend - with the HPA on, Argo CD must not see a
+  # replicas field to reset, or the two fight and the worker pods churn.
+  {{- if not .Values.worker.autoscaling.enabled }}
   replicas: {{ .Values.worker.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "co2-calculator.selectorLabels" . | nindent 6 }}

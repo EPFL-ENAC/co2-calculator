@@ -118,3 +118,15 @@ in-flight transactions at the bouncer (#2854). Dev turns it on in
 openshift-app-config with `MAX_CONCURRENT_JOBS` 4. The honest signal,
 queue depth, needs a `jobs.queued` gauge and a metrics adapter on the
 cluster; CPU until then (#2689 follow-ups).
+
+## Update 2026-09-23 evening — HPA vs Argo CD replicas fight
+
+Turning the worker HPA on in dev produced four idle workers and a pod
+churn every sync: the chart rendered `replicas: 1`, Argo CD re-applied
+it (35 scale-downs in 3 h), the HPA scaled back to 4 because the new
+pods' startup CPU sat above the 60 % target, and so on (deployment
+generation 182). Fix in the chart: neither deployment renders
+`replicas` when its `autoscaling.enabled` is true, so the autoscaler
+owns the count and Argo has nothing to reset. The backend had the same
+latent bug and would have fought under real load once its HPA went
+above `replicaCount` 2.
