@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2689
-last_updated: 2026-09-09
+last_updated: 2026-09-23
 title: "DB queries queue at the DBaaS PgBouncer: query_wait_timeout waves"
 summary: "Dev lost two hours on 2026-09-08 to psycopg ProtocolViolation query_wait_timeout waves, each 120 s long. The error is PgBouncer's client-wait timeout: DBaaS bounces dev, stage and prod, and the server-side connection count plateaus at ~40 in dev. Our SQLAlchemy pool was never the wall (no QueuePool limit error), it was 17 coroutines each holding a slot while queued at the bouncer. Shipped: get_current_user hands its connection back before any route body runs (the general form of #2654), the DB health poller no longer freezes /ready for two minutes per wave, the orphan-poller log stops spamming, and both pods move to 5+50 in openshift-app-config."
 ---
@@ -228,3 +228,18 @@ never deployed (#40 merged before that commit) and is now 2 there.
   per pod on every env.
 - Next upload burst in dev: Loki `query_wait_timeout` count stays at 0, and
   `/ready` never leaves 200 for more than one probe.
+
+## Update 2026-09-23 — named prepares off ahead of transaction pooling
+
+Dev's bouncer moves from `pool_mode: session` to `transaction`, and its
+`max_prepared_statements` is unconfirmed (1.25.1 defaults to 200; the
+DBaaS chart may pin 0). Shipped: `prepare_threshold: None` in the Postgres
+`connect_args` of `backend/app/db.py`, safe under both modes. psycopg
+3.3.5 with libpq 18 supports prepared statements through PgBouncer ≥ 1.22
+natively, so the line is deleted — not tuned — once `SHOW CONFIG` on the
+dev bouncer reports `max_prepared_statements` > 0 and the probe above
+shows a changing `pg_backend_pid()`.
+
+Code audit for transaction-mode hazards, all clean: advisory locks are
+`pg_advisory_xact_lock` only, both temp staging tables are `ON COMMIT
+DROP`, no `LISTEN`, no session-level `SET`, no `WITH HOLD` cursors.

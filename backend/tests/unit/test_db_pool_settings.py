@@ -146,6 +146,15 @@ def test_postgres_connect_args_name_the_pod():
     assert _connect_args(is_sqlite=False)["application_name"] == f"co2-{POD_ID}"
 
 
+def test_postgres_connect_args_disable_named_prepares():
+    """#2689: under PgBouncer transaction pooling a statement prepared on
+    one server connection is missing on the next, and psycopg's default
+    (prepare after 5 runs) turns every hot query into ``prepared statement
+    does not exist`` mid-request.
+    """
+    assert _connect_args(is_sqlite=False)["prepare_threshold"] is None
+
+
 def test_sqlite_connect_args_carry_no_libpq_options():
     """Aiosqlite raises ``TypeError: Connection() got an unexpected keyword
     argument 'keepalives'`` on anything from the Postgres set.
