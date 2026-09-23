@@ -272,9 +272,11 @@ const switchDialogMessageKey = computed(() =>
 function emptyRow(key: string): PurchaseRow {
   return {
     key,
+    // The mode toggle already says "global budget"; the field reads "Amount"
+    // like the category fields (#2907).
     labelKey:
       key === 'global'
-        ? 'planner_purchase_global_budget_label'
+        ? 'planner_purchase_amount_label'
         : `planner_purchase_category.${key}`,
     category: key === 'global' ? null : key,
     unit: KG_CATEGORIES.has(key) ? 'kg' : 'eur',

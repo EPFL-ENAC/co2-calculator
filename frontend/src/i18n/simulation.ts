@@ -495,12 +495,8 @@ export default {
     fr: 'Par catégorie',
   },
   planner_purchase_mode_hint: {
-    en: 'Fill in one global budget or an amount per category — the two cannot be used together.',
-    fr: 'Renseignez un budget global ou un montant par catégorie — les deux ne peuvent pas coexister.',
-  },
-  planner_purchase_global_budget_label: {
-    en: 'Global budget',
-    fr: 'Budget global',
+    en: 'Fill in one global budget or an amount per category to calculate the carbon footprint.',
+    fr: "Renseignez un budget global ou un montant par catégorie pour calculer l'empreinte carbone.",
   },
   planner_purchase_switch_dialog_title: {
     en: 'Switch entry mode',
