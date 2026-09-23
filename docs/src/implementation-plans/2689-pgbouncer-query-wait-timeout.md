@@ -274,10 +274,17 @@ pool 60, min 5. Two draft PRs wait on this session:
 
   `cl_waiting` above 0 at rest means a stray client is holding slots.
 
-- [ ] Run the probe (top of this page) through the bouncer
+- [ ] `pool_mode` says `transaction` — that is the definitive check
 
-  A changing `pg_backend_pid()` across the five queries proves
-  transaction mode is live.
+  The single-connection probe higher up is only suggestive: a quiet
+  client often gets the same server connection back.
+
+- [ ] Run `scripts/probe_pgbouncer_prepared.py` through the bouncer
+
+  Two connections interleaved; it prepares a statement on one and
+  re-executes it while the other forces the bouncer to rotate server
+  connections. A clean run across several pids means
+  `max_prepared_statements` > 0 in practice, and #2922 is safe.
 
 ### 2. Decide on prepared statements
 
