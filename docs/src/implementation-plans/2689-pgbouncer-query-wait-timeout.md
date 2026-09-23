@@ -254,42 +254,92 @@ so hot queries get their cached plan back. A unit test pins libpq ≥ 17 so
 a psycopg-binary downgrade cannot silently reintroduce `prepared statement
 did not exist`. Bump psycopg 3.3.5 → 3.3.6 in the same PR.
 
-## Checklist 2026-09-24 — DBaaS session before merging #2922 and openshift-app-config#60
+## Checklist 2026-09-24 — DBaaS session
 
-Dev bouncer is on transaction pooling since 2026-09-23 (1000 clients /
-pool 60 / min 5). Both PRs are drafts gated on this session.
+Dev bouncer runs transaction pooling since 2026-09-23: 1000 clients,
+pool 60, min 5. Two draft PRs wait on this session:
 
-1. `SHOW CONFIG`: note `pool_mode`, `max_prepared_statements`,
-   `query_wait_timeout`, `server_idle_timeout`, `max_db_connections`,
-   `default_pool_size`, `reserve_pool_size`.
-2. Run the probe above through the bouncer. A changing `pg_backend_pid()`
-   confirms transaction mode.
-3. `max_prepared_statements` > 0 → #2922 goes ahead. 0 → ask for 200; if
-   refused, close #2922 and the #2921 stopgap stays.
-4. `query_wait_timeout` ≈ 10 s. Gate for openshift-app-config#60: past 60
-   in-flight transactions the bouncer queues, and a queued request holds
-   its pod slot for the whole wait (#48 at 120 s).
-5. `reserve_pool_size` 10, `reserve_pool_timeout` 3 s: a burst gets ten
-   extra server slots after three seconds of queueing.
-6. `max_db_connections` 80: Postgres `max_connections` is 100, and a
-   second user/db pair would otherwise get its own pool of 60.
-7. Idle pair: the role's `idle_session_timeout` (set 2026-08-31, #2566)
-   must exceed the bouncer's `server_idle_timeout`, or Postgres kills the
-   bouncer's idle server connections. Bring `pg_settings` and
-   `pg_db_role_setting` output.
-8. `SHOW POOLS` during the meeting: `cl_waiting` at rest means a stray
-   client; read `sv_active`, `sv_idle`, `maxwait`.
-9. Stage and prod: same bouncer setup, and when? Both PRs are dev-only
-   until then.
-10. Back at the desk: dev ran 4 worker pods on 2026-09-23 while the chart
-    default is 1 and the overlay sets none. Scale back or pin
-    `worker.replicaCount` before #60.
-11. Merge order: #2922, watch the worker log ten minutes for `prepared
-statement did not exist`. Then #60, watch `oc get hpa` and the pool
-    saturation panel for an hour.
+- co2-calculator#2922 — prepared statements back on
+- openshift-app-config#60 — pods sized by CPU/memory, real HPA
 
-Before the stage/prod version of #60, collect from prod: p95 and peak
-rps over 30 days, p95 CPU and peak memory per backend pod, peak worker
-memory on the largest CSV job, peak concurrent active backends in
-`pg_stat_activity`. Prod has no bouncer yet; its pool math stays the
-direct-connection kind until DBaaS extends the bouncer there.
+### 1. Read the current config
+
+- [ ] `SHOW CONFIG` — write down these seven values
+
+  `pool_mode`, `max_prepared_statements`, `query_wait_timeout`,
+  `server_idle_timeout`, `max_db_connections`, `default_pool_size`,
+  `reserve_pool_size`
+
+- [ ] `SHOW POOLS` — read `cl_waiting`, `sv_active`, `sv_idle`, `maxwait`
+
+  `cl_waiting` above 0 at rest means a stray client is holding slots.
+
+- [ ] Run the probe (top of this page) through the bouncer
+
+  A changing `pg_backend_pid()` across the five queries proves
+  transaction mode is live.
+
+### 2. Decide on prepared statements
+
+- [ ] `max_prepared_statements` above 0 → **#2922 goes ahead**
+
+- [ ] `max_prepared_statements` is 0 → ask for **200**
+
+  Refused? Close #2922. The #2921 stopgap stays.
+
+### 3. Ask for these settings
+
+- [ ] `query_wait_timeout` → **10 s** (default 120)
+
+  Gate for #60. Past 60 in-flight transactions the bouncer queues, and
+  a queued request holds its pod slot for the whole wait. At 120 s
+  that is the 2026-09-17 lockup (#48).
+
+- [ ] `reserve_pool_size` → **10**, `reserve_pool_timeout` → **3 s**
+
+  A burst gets ten extra server slots after three seconds of queueing.
+
+- [ ] `max_db_connections` → **80**
+
+  Postgres `max_connections` is 100. A second user/db pair would
+  otherwise get its own pool of 60.
+
+- [ ] `server_idle_timeout` shorter than the role's `idle_session_timeout`
+
+  Otherwise Postgres kills the bouncer's idle server connections.
+  Bring the `pg_settings` and `pg_db_role_setting` output (the role
+  GUC was set 2026-08-31, #2566).
+
+### 4. Ask about the other environments
+
+- [ ] Stage and prod: same bouncer setup? When?
+
+  Until then both PRs stay dev-only.
+
+### 5. Back at the desk
+
+- [ ] Fix the worker replica count
+
+  Dev ran 4 worker pods on 2026-09-23. Chart default is 1, the overlay
+  sets none. Scale back or pin `worker.replicaCount` before #60.
+
+- [ ] Merge #2922
+
+  Watch the worker log for ten minutes: no
+  `prepared statement did not exist`.
+
+- [ ] Merge #60
+
+  Watch `oc get hpa` and the pool saturation panel for an hour.
+
+### Before the stage/prod version of #60
+
+Collect from prod:
+
+- [ ] p95 and peak requests per second over 30 days
+- [ ] p95 CPU and peak memory per backend pod
+- [ ] peak worker memory on the largest CSV job
+- [ ] peak concurrent active backends in `pg_stat_activity`
+
+Prod has no bouncer yet. Its pool math stays the direct-connection kind
+until DBaaS extends the bouncer there.
