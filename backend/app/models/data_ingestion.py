@@ -530,6 +530,18 @@ class PipelineStatus(str, Enum):
     FAILED = "FAILED"  # chain broken (a job FINISHED+ERROR)
 
 
+#: Statuses a pipeline never leaves. A re-run is a new pipeline, so once a
+#: row is here neither its status nor its job set changes: readers treat
+#: it as done, and the reconciler sweep skips it.
+TERMINAL_PIPELINE_STATUSES: frozenset[str] = frozenset(
+    {
+        PipelineStatus.SUCCESS.value,
+        PipelineStatus.PARTIAL.value,
+        PipelineStatus.FAILED.value,
+    }
+)
+
+
 class Pipeline(SQLModel, table=True):
     """First-class pipeline (#1236) — the aggregate root for a
     multi-step run that today is only an emergent ``pipeline_id`` tag

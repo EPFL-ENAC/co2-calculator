@@ -130,3 +130,18 @@ generation 182). Fix in the chart: neither deployment renders
 owns the count and Argo has nothing to reset. The backend had the same
 latent bug and would have fought under real load once its HPA went
 above `replicaCount` 2.
+
+## Update 2026-09-23 night — the worker's idle CPU was the reconciler
+
+With the replicas fight fixed the worker HPA still held 4 idle pods: each
+pod pulsed to ~180m every minute. Tempo showed why: `pipeline reconcile
+sweep` took 4-5 s per run because `reconcile_pipeline_statuses` recomputed
+every pipeline that ever had jobs, 240 on dev, five statements each, and
+rewrote the finished ones too. Fix: the sweep joins `pipelines` and skips
+`TERMINAL_PIPELINE_STATUSES` (now a constant on the model, shared with
+`pipeline_progress`). A terminal pipeline never changes again, so the
+sweep is O(in-flight pipelines), a few ms at rest. Regression test:
+`test_reconcile_skips_terminal_pipelines` (fails on the old query with
+`checked: 2`). openshift-app-config#65 had already raised the worker CPU
+request to 250m so the HPA could scale in; with this fix idle sits far
+below either request.
