@@ -53,9 +53,11 @@ get access: [Tools and access](05-tools-and-access.md).
 
 ## How a change gets deployed
 
-1. GitHub Actions builds the images into Quay (`quay-its.epfl.ch/svc1751`)
-   and publishes the Helm chart from `helm/` to `ghcr.io`
-   ([CI/CD Workflows](../architecture/cicd-workflows.md)).
+1. CI builds the images into Quay (`quay-its.epfl.ch/svc1751`) and
+   publishes the Helm chart from `helm/` to `ghcr.io`: GitHub Actions for
+   `stage` and release tags, gitlab.epfl.ch for `dev`
+   ([CI/CD Workflows](../architecture/cicd-workflows.md),
+   [plan 2909](../implementation-plans/2909-gitlab-dev-deploy.md)).
 2. A bot commit bumps the image tag in the GitOps overlay
    (`chore(manifest): update epfl/co2-calculator (<env>)`).
 3. ArgoCD on that cluster auto-syncs and self-heals the
