@@ -225,6 +225,6 @@ client there is one more Postgres connection.
 | `db.connect.failures{sqlstate="53300"}` > 0   | Postgres itself is full; the bouncer passed logins through   | cap the bouncer (`max_db_connections`) below `max_connections`, or raise `max_connections`                              | DBaaS      |
 
 The seesaw ends only when the bouncer either multiplexes (transaction
-pooling, which our code tolerates since #2689 once `prepare_threshold` is
+pooling, which our code tolerates since #2689: `prepare_threshold` is
 off) or has a pool sized for the fleet. Until then the ceiling rule is the
 whole strategy, and every alert above says which side of it moved.

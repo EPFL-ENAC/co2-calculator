@@ -286,7 +286,17 @@ def _connect_args(is_sqlite: bool) -> dict:
     # address, so ``pg_stat_activity.client_addr`` can no longer tell pods
     # apart (#2689). ``application_name`` is what the bouncer forwards and
     # what a laptop running the app against dev shows up as.
-    return {**_PG_KEEPALIVES, "application_name": f"co2-{POD_ID}"}
+    # Transaction pooling hands each transaction to whichever server
+    # connection is free, so a statement psycopg prepared on one backend
+    # does not exist on the next unless the bouncer replays it
+    # (``max_prepared_statements`` > 0). Dev's value is unconfirmed, so
+    # named prepares stay off; delete this line once ``SHOW CONFIG`` on
+    # the bouncer reports 200 and #2689's probe shows transaction mode.
+    return {
+        **_PG_KEEPALIVES,
+        "application_name": f"co2-{POD_ID}",
+        "prepare_threshold": None,
+    }
 
 
 engine = create_async_engine(
