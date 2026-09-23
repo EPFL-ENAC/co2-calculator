@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2696
-last_updated: 2026-09-09
+last_updated: 2026-09-23
 title: "Worker hands running jobs back on SIGTERM; how it scales"
 summary: "A worker rollout killed the running job at the default 30 s grace and left its row RUNNING under a dead pod until the stale sweep 5 min later. The lifespan now cancels in-flight jobs first; each stops its handler, rolls back and releases its row (NOT_STARTED, unlocked, attempts kept) so the next poller tick re-dispatches it. The worker Deployment gets a 60 s grace period. Replica count per environment stays gated on the DB budget; automatic scaling would key on the NOT_STARTED backlog, not CPU, and is capped by DB slots per worker."
 ---
@@ -104,3 +104,17 @@ whole scaling story until then.
 - Next dev rollout: the old worker logs "handed back to the queue" and
   the new one logs "Poller: dispatching job N" within
   `POLLER_INTERVAL_SECONDS`, no 5 min gap in `data_ingestion_jobs`.
+
+## Update 2026-09-23 — worker HPA in the chart
+
+The hand-back made scale-in safe; the chart now has the matching
+scale-out. `helm/templates/worker-hpa.yaml` mirrors the backend HPA
+(`worker.autoscaling`: off by default, 1..4 replicas, 60 % CPU target).
+CPU is the proxy for "job slots busy": a running job burns ~0.8 cores
+against a 150m request, so any active job pushes the pod far past the
+target and an idle pod drops back after the stabilization window. Each
+pod adds `MAX_CONCURRENT_JOBS` slots and at most `MAX_CONCURRENT_JOBS + 2`
+in-flight transactions at the bouncer (#2854). Dev turns it on in
+openshift-app-config with `MAX_CONCURRENT_JOBS` 4. The honest signal,
+queue depth, needs a `jobs.queued` gauge and a metrics adapter on the
+cluster; CPU until then (#2689 follow-ups).
