@@ -26,6 +26,37 @@ make perf-report                                         # p95 > 1s table
 Reports land here in `reports/` (gitignored): one `*_stats.csv` + `*.html`
 per stage, `table_matrix.csv` for the matrix.
 
+## Against dev, clef en main
+
+```bash
+make perf-dev                                         # 50 × ExplorerReadUser, 3 min
+make perf-dev PERF_USERS=200 PERF_CLASSES=ModuleReadUser
+make perf-report
+```
+
+That is the whole recipe. `perf-dev` targets `PERF_DEV_HOST`
+(`https://co2-calculator-dev.epfl.ch/api` — the `/api` prefix matters:
+the bare host is the SPA and answers every path with `index.html`),
+logs each VU in through `/v1/auth/login-test` (dev is a DEBUG build, so
+the endpoint exists), and refuses `PlanUser` / `ExploreCreateUser` /
+`CsvUploadUser` unless `PERF_ALLOW_WRITES=1` — those enqueue real jobs
+on dev's worker pods. Reports land in `reports/dev_*`.
+
+`PERF_ROLE` still applies (`PERF_ROLE=calco2.user.standard make perf-dev`).
+Seeded-user JWT minting is local-only: it needs the target's
+`JWT_HMAC_KEY`, so `perf-dev` switches it off.
+
+If a target has **no** `login-test` (stage, prod, or dev with
+`DEBUG=false`), copy the `auth_token` cookie from a logged-in browser
+tab (DevTools → Application → Cookies) and pass it explicitly — it takes
+precedence over every other auth path:
+
+```bash
+PERF_AUTH_COOKIE='eyJ...' make perf-load PERF_HOST=https://<host>/api PERF_CLASSES=ExplorerReadUser
+```
+
+All VUs then share that one identity, so unit scoping is that user's.
+
 ## `backend/.env`'s `DB_URL` may not be localhost
 
 `DB_URL` may point at a shared platform DB (e.g. `co2-dev.xxxx.epfl.ch`), not
