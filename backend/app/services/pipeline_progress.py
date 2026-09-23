@@ -31,6 +31,7 @@ from collections.abc import Iterable
 from typing import Literal, TypedDict
 
 from app.models.data_ingestion import (
+    TERMINAL_PIPELINE_STATUSES,
     DataIngestionJob,
     IngestionResult,
     IngestionState,
@@ -40,17 +41,11 @@ from app.models.data_ingestion import (
 
 PhaseLabel = Literal["data", "emissions", "aggregation"]
 
-#: Terminal ``pipelines.status`` values — Phase-3 read-flip uses these for
-#: ``done``/``has_error`` instead of inferring from a possibly-incomplete
-#: job snapshot.  PARTIAL = chain completed with some children erroring;
-#: FAILED = chain broken (a job FINISHED+ERROR aborted the fan-out).
-_TERMINAL_PIPELINE_STATUSES = frozenset(
-    {
-        PipelineStatus.SUCCESS.value,
-        PipelineStatus.PARTIAL.value,
-        PipelineStatus.FAILED.value,
-    }
-)
+#: Error subset of ``TERMINAL_PIPELINE_STATUSES`` (on the model) — the
+#: Phase-3 read-flip uses both for ``done``/``has_error`` instead of
+#: inferring from a possibly-incomplete job snapshot.  PARTIAL = chain
+#: completed with some children erroring; FAILED = chain broken (a job
+#: FINISHED+ERROR aborted the fan-out).
 _ERROR_PIPELINE_STATUSES = frozenset(
     {PipelineStatus.PARTIAL.value, PipelineStatus.FAILED.value}
 )
@@ -172,7 +167,7 @@ def compute_pipeline_progress(
     # boolean can't tell them apart.
     if pipeline is not None:
         has_error = pipeline.status in _ERROR_PIPELINE_STATUSES
-        is_done = pipeline.status in _TERMINAL_PIPELINE_STATUSES
+        is_done = pipeline.status in TERMINAL_PIPELINE_STATUSES
         status_str: str | None = pipeline.status
         # ``pipeline.kind`` is the parent job_type (set at
         # ``ensure_pipeline_exists`` time).  Prefer it over the root
