@@ -1,8 +1,8 @@
 # DB connection budget
 
-On dev every pod reaches Postgres through the DBaaS PgBouncer, in
-**transaction pooling** since 2026-09-23; stage and prod still hit Postgres
-directly. Up to three pools sit between a query and a backend, each with
+On dev (2026-09-23) and stage (2026-09-24) every pod reaches Postgres
+through the DBaaS PgBouncer in **transaction pooling**; prod still hits
+Postgres directly. Up to three pools sit between a query and a backend, each with
 its own limit, timeout and error text. This page is the map: where the
 wall is per environment, who opens connections, and which knob to turn
 when an alert fires. History and the DBaaS checklist live in the
@@ -11,16 +11,18 @@ sizing decisions are made here, not during an incident.
 
 ## Where the wall is
 
-| Env         | Path                                  | Wall                                         | Reserve | Budget | What sizes a pod                                                 |
-| ----------- | ------------------------------------- | -------------------------------------------- | ------- | ------ | ---------------------------------------------------------------- |
-| dev         | DBaaS PgBouncer 1.25.1, `transaction` | 60 **in-flight transactions** fleet-wide     | 5       | 55     | CPU and memory; the HPA adds DB concurrency                      |
-| stage, prod | direct Postgres                       | `max_connections` 100 **client connections** | 10      | 90     | the [fleet-ceiling rule](#stage-and-prod-the-fleet-ceiling-rule) |
+| Env   | Path                                  | Wall                                         | Reserve | Budget | What sizes a pod                                                 |
+| ----- | ------------------------------------- | -------------------------------------------- | ------- | ------ | ---------------------------------------------------------------- |
+| dev   | DBaaS PgBouncer 1.25.1, `transaction` | 60 **in-flight transactions** fleet-wide     | 5       | 55     | CPU and memory; the HPA adds DB concurrency                      |
+| stage | DBaaS PgBouncer 1.25.1, `transaction` | 70 **in-flight transactions** fleet-wide     | 5       | 65     | same as dev (openshift-app-config #67)                           |
+| prod  | direct Postgres                       | `max_connections` 100 **client connections** | 10      | 90     | the [fleet-ceiling rule](#stage-and-prod-the-fleet-ceiling-rule) |
 
 The reserve is the migration Job, the db-dump CronJob and one psql (plus
-the superuser slots and pgAdmin on direct Postgres). **Stage and prod are
-unchanged**: no bouncer in the path that matters, so their sizing and the
-fleet-ceiling rule still bind there. They follow dev once DBaaS extends
-the bouncer; do not assume their numbers will match dev's.
+the superuser slots and pgAdmin on direct Postgres). Stage differs from
+dev only in the pool (70) and `max_prepared_statements` (500). **Prod is
+unchanged**: no bouncer in the path that matters, so its sizing and the
+fleet-ceiling rule still bind there. It follows once DBaaS extends the
+bouncer; do not assume its numbers will match dev's.
 
 ## Dev: transaction pooling
 
@@ -185,41 +187,51 @@ check: nb·Cb + nw·Cw ≤ B, Cb ≥ 3 (a request holds 1 for its duration;
        95 rps × 80 ms ≈ 8 in flight fleet-wide at the dev load-test peak)
 ```
 
-| Environment                       | W   | B   | nb / nw  | J   | Cw        | Cb  | backend / worker | ceiling / surge                                   |
-| --------------------------------- | --- | --- | -------- | --- | --------- | --- | ---------------- | ------------------------------------------------- |
-| dev, bouncer 60, transaction mode | –   | 55  | 2..6 / 1 | 2   | –         | –   | 5+45 / 5+15      | formula does not bind; 55 concurrent transactions |
-| stage, prod, direct Postgres      | 97  | 92  | 3 / 2    | 4   | 15 full   | 20  | 5+15 / 5+10      | 90 / 90                                           |
-| stage, prod, six jobs, same pools | 97  | 92  | 3 / 2    | 6   | 15 (2J+3) | 20  | 5+15 / 5+10      | 90 / 90                                           |
+| Environment                         | W   | B   | nb / nw     | J   | Cw        | Cb  | backend / worker | ceiling / surge                                   |
+| ----------------------------------- | --- | --- | ----------- | --- | --------- | --- | ---------------- | ------------------------------------------------- |
+| dev, bouncer 60, transaction mode   | –   | 55  | 2..6 / 1..3 | 4   | –         | –   | 5+45 / 5+15      | formula does not bind; 55 concurrent transactions |
+| stage, bouncer 70, transaction mode | –   | 65  | 2..6 / 1..3 | 4   | –         | –   | 5+45 / 5+15      | formula does not bind; 65 concurrent transactions |
+| prod, direct Postgres               | 97  | 92  | 3 / 2       | 4   | 15 full   | 20  | 5+15 / 5+10      | 90 / 90                                           |
+| prod, six jobs, same pools          | 97  | 92  | 3 / 2       | 6   | 15 (2J+3) | 20  | 5+15 / 5+10      | 90 / 90                                           |
 
-Stage and prod can run six jobs per worker without touching a pool: the
-worker's 15 is 2J + 3 at J = 6, a 1.9× margin over the measured peak of 8. A worker pod requests 250m CPU there, so raise `MAX_CONCURRENT_JOBS`
-together with the CPU request, on stage first, and watch
-`db_pool_timeouts_total` stay at zero.
+Prod can run six jobs per worker without touching a pool: the worker's
+15 is 2J + 3 at J = 6, a 1.9× margin over the measured peak of 8. A
+worker pod requests 250m CPU there, so raise `MAX_CONCURRENT_JOBS`
+together with the CPU request and watch `db_pool_timeouts_total` stay at
+zero.
 
 ## Budgets per environment
 
-| Env         | Wall                                                  | Budget | backend       | worker        | `MAX_CONCURRENT_JOBS` | Fleet client connections at ceiling  |
-| ----------- | ----------------------------------------------------- | ------ | ------------- | ------------- | --------------------- | ------------------------------------ |
-| dev         | 60 in-flight transactions (bouncer, transaction mode) | 55     | 5+45 × 2..6   | 5+15          | 2                     | 120 to 320 of 1000 `max_client_conn` |
-| stage, prod | Postgres 100 − 3 reserved (no PgBouncer yet)          | 90     | 5+13 × 3 = 54 | 5+10 × 2 = 30 | 4                     | 84 (steady = surge)                  |
+| Env   | Wall                                                  | Budget | backend       | worker        | `MAX_CONCURRENT_JOBS` | Fleet client connections at ceiling  |
+| ----- | ----------------------------------------------------- | ------ | ------------- | ------------- | --------------------- | ------------------------------------ |
+| dev   | 60 in-flight transactions (bouncer, transaction mode) | 55     | 5+45 × 2..6   | 5+15 × 1..3   | 4                     | 120 to 360 of 1000 `max_client_conn` |
+| stage | 70 in-flight transactions (bouncer, transaction mode) | 65     | 5+45 × 2..6   | 5+15 × 1..3   | 4                     | 120 to 360 of 1000 `max_client_conn` |
+| prod  | Postgres 100 − 3 reserved (no PgBouncer yet)          | 90     | 5+13 × 3 = 54 | 5+10 × 2 = 30 | 4                     | 84 (steady = surge)                  |
 
-Stage and prod (openshift-app-config #47): the backend overflow is burst
-insurance sized to spend the budget, not a measured need; stage peaked at
-14 `checked_out` fleet-wide on 2026-09-15. 90 is the line, not 95:
-Postgres keeps 3 for superusers, the migration Job runs during the
-rollout, and a 53300 refusal locks out the DBA too.
+Prod (openshift-app-config #47): the backend overflow is burst insurance
+sized to spend the budget, not a measured need; stage peaked at 14
+`checked_out` fleet-wide on 2026-09-15 while still on direct Postgres.
+90 is the line, not 95: Postgres keeps 3 for superusers, the migration
+Job runs during the rollout, and a 53300 refusal locks out the DBA too.
+
+Behind the bouncer the pools stop being the wall, so the two HPAs are
+bounded by the namespace quota instead, and **both maxima must fit it at
+once**: on dev at 4 workers the backend was Forbidden past 3 pods (quota
+6Gi used 6.03Gi, 2026-09-24). Worker max is 3 on dev and stage for that
+reason; the arithmetic is in the worker block of each overlay.
 
 Values live in `openshift-app-config`, `overlays/<env>/kustomization.yaml`,
-backend and worker blocks. The VPN path to dev goes through the bouncer:
-a VPN client's idle connection is free, its open transactions count
-against the 60. On stage and prod a VPN client is one more Postgres
-connection.
+backend and worker blocks. The VPN path to dev and stage goes through
+the bouncer: a VPN client's idle connection is free, its open
+transactions count against the 60 or 70. On prod a VPN client is one
+more Postgres connection.
 
 ## Dashboard
 
 The Grafana "Specific graphs" dashboard (openshift-app-config #61, #62)
 has rows Traffic / Database / Worker / Scaling. On dev the wall panel
-reads "wall (60) and budget (55)" and the layer-2 counters are
+reads "wall (60) and budget (55)", on stage "wall (70) and budget (65)",
+and the layer-2 counters are
 `db.pgbouncer.queued` and `db.pgbouncer.queue_timeouts`. A `DbBouncerQueued`
 bar means "more than 60 in-flight transactions at once", which is allowed
 by design; `DbBouncerQueueTimeout` is the one that failed requests.
@@ -228,16 +240,16 @@ by design; `DbBouncerQueueTimeout` is the one that failed requests.
 
 | Signal                                      | Meaning                                                                                                                      | Knob                                                                                                                                                                                      | Owner      |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `db.pool.timeouts` > 0                      | a pod ran more than `DB_POOL_SIZE + DB_MAX_OVERFLOW` concurrent requests (50 on dev, so rare there)                          | dev: look at the HPA, the pod should have scaled out. Stage/prod: raise that pod's `DB_MAX_OVERFLOW` only if the fleet ceiling still fits the budget; otherwise the budget is the problem | us         |
-| `db.pgbouncer.queued` > 0                   | the fleet exceeded 60 concurrent transactions; 10 s until errors                                                             | a stray client (`application_name` in `pg_stat_activity`), a long transaction holding slots (COPY-based factor upsert, long routes), or ask DBaaS for a bigger `default_pool_size`        | us + DBaaS |
+| `db.pool.timeouts` > 0                      | a pod ran more than `DB_POOL_SIZE + DB_MAX_OVERFLOW` concurrent requests (50 on dev and stage, so rare there)                | dev/stage: look at the HPA, the pod should have scaled out. Prod: raise that pod's `DB_MAX_OVERFLOW` only if the fleet ceiling still fits the budget; otherwise the budget is the problem | us         |
+| `db.pgbouncer.queued` > 0                   | the fleet exceeded 60 (dev) or 70 (stage) concurrent transactions; 10 s until errors                                         | a stray client (`application_name` in `pg_stat_activity`), a long transaction holding slots (COPY-based factor upsert, long routes), or ask DBaaS for a bigger `default_pool_size`        | us + DBaaS |
 | `db.pgbouncer.queue_timeouts` > 0           | same, and the requests behind them failed after 10 s                                                                         | same                                                                                                                                                                                      | us + DBaaS |
-| `db.connect.failures{sqlstate="53300"}` > 0 | Postgres itself is full: on stage/prod the fleet ceiling overran `max_connections`; on dev the bouncer passed logins through | stage/prod: orphans and stray clients first, then the ceiling rule; dev: cap the bouncer (`max_db_connections`) below `max_connections`, or raise `max_connections`                       | DBaaS      |
+| `db.connect.failures{sqlstate="53300"}` > 0 | Postgres itself is full: on prod the fleet ceiling overran `max_connections`; on dev/stage the bouncer passed logins through | prod: orphans and stray clients first, then the ceiling rule; dev/stage: cap the bouncer (`max_db_connections`) below `max_connections`, or raise `max_connections`                       | DBaaS      |
 
-On dev the bouncer multiplexes, so the old seesaw between pod ceilings
-and the bouncer pool is over: a pod that needs more concurrency scales
-out, and the only shared limit is 60 transactions at once. On stage and
-prod the fleet-ceiling rule is still the whole strategy until the bouncer
-gets there.
+On dev and stage the bouncer multiplexes, so the old seesaw between pod
+ceilings and the bouncer pool is over: a pod that needs more concurrency
+scales out, and the only shared limit is 60 or 70 transactions at once.
+On prod the fleet-ceiling rule is still the whole strategy until the
+bouncer gets there.
 
 ## Open follow-ups
 
@@ -245,4 +257,4 @@ gets there.
   wait on our side and let `query_wait_timeout` rise to about 30 s for the
   worker's benefit.
 - A `jobs.running` gauge on the worker's `MAX_CONCURRENT_JOBS` semaphore.
-- Stage and prod behind the bouncer, once DBaaS extends it.
+- Prod behind the bouncer, once DBaaS extends it.
