@@ -1,46 +1,26 @@
-## [1.4.18](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.17...v1.4.18) (2026-09-24)
+## [1.4.18](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.16...v1.4.18) (2026-09-24)
 
 
-A bug-fix and documentation release. No data migration, no change to how footprints are calculated.
+### Bug Fixes
 
-### Module pages
+* change planner texts ([68a487f](https://github.com/EPFL-ENAC/co2-calculator/commit/68a487f25f009f87f3427a92a7bad2721e52f8a9))
+* change planner texts ([0dbfc0b](https://github.com/EPFL-ENAC/co2-calculator/commit/0dbfc0b427ccea22168b6ca403dfa86194fab57f))
+* correct objective scenario dropdown translations ([d2f90eb](https://github.com/EPFL-ENAC/co2-calculator/commit/d2f90eb0058c28c51e19b01f52926900a1dabe5b))
+* **csv:** surface skipped rows in the module-page upload toast ([#2464](https://github.com/EPFL-ENAC/co2-calculator/issues/2464)) ([02d16d3](https://github.com/EPFL-ENAC/co2-calculator/commit/02d16d314aebca26b044c661010aa528b2135758))
+* **db:** disable named prepared statements for pgbouncer transaction pooling ([#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)) ([c238fbd](https://github.com/EPFL-ENAC/co2-calculator/commit/c238fbddc42edd19563fecd8dfd24b569d5c24eb))
+* **helm:** do not render replicas when the HPA owns the deployment ([#2696](https://github.com/EPFL-ENAC/co2-calculator/issues/2696)) ([#2927](https://github.com/EPFL-ENAC/co2-calculator/issues/2927)) ([217b457](https://github.com/EPFL-ENAC/co2-calculator/commit/217b457e268e3249786d1e871ab67b3e41bdb7a6)), closes [#2926](https://github.com/EPFL-ENAC/co2-calculator/issues/2926) [openshift-app-config#63](https://github.com/openshift-app-config/issues/63) [#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)
+* **perf:** login-test once per role per locust process ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([10ed27e](https://github.com/EPFL-ENAC/co2-calculator/commit/10ed27ed24fe5d40d074f99b8fc2c1b846b7c80b))
+* **perf:** perf-dev refuses an empty PERF_CLASSES ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([6dedaec](https://github.com/EPFL-ENAC/co2-calculator/commit/6dedaec2193cd28595678b393f3ed1720256fdd3))
+* **perf:** perf-load prints target and report path, perf-dev skips local psql ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([#2929](https://github.com/EPFL-ENAC/co2-calculator/issues/2929)) ([42c0cec](https://github.com/EPFL-ENAC/co2-calculator/commit/42c0cec317d92947800bf9148baab9b1c0a41d39)), closes [#2924](https://github.com/EPFL-ENAC/co2-calculator/issues/2924)
+* **worker:** reconciler sweep skips terminal pipelines ([#2696](https://github.com/EPFL-ENAC/co2-calculator/issues/2696)) ([#2928](https://github.com/EPFL-ENAC/co2-calculator/issues/2928)) ([489bcf2](https://github.com/EPFL-ENAC/co2-calculator/commit/489bcf29dbf138aa89fe29138e1ec020d774c05d)), closes [openshift-app-config#65](https://github.com/openshift-app-config/issues/65) [#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)
 
-- **A partial CSV import now says so.** Uploading a CSV from a module page with a rejected row (for example an FTE with more than one decimal) used to end in a green "CSV sync completed" toast. The toast is now red, counts the skipped rows and lists each row with its reason, as the back-office upload card already did. The other rows are stored as before.
 
-### Operations (docs only)
+### Features
 
-- Stage runs behind the DBaaS PgBouncer in transaction mode since 2026-09-24, like dev; prod stays on direct Postgres until this release is promoted. The connection-budget, observability and operations pages are updated accordingly.
-- The backend autoscaler floor moves from 2 to 3 pods on dev, stage and prod for the school-wide opening on 2026-09-28, and both autoscaler maxima must fit the namespace quota at once (worker max 4 → 3 on dev and stage).
-
-## [1.4.17](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.16...v1.4.17) (2026-09-24)
-
-
-A text and operations release. No data migration, no change to how footprints are calculated.
-
-### Planner
-
-- The purchase section's global-mode field is now labelled "Amount", like the per-category fields. The mode toggle already says "global budget".
-- The purchase mode hint now says the amount is used to calculate the carbon footprint. It used to say the two modes cannot be combined.
-- The grant budget hints now say the budget share is optional and is not taken into account in the carbon footprint (English and French).
-- The project-year tooltip now says "principal user" instead of "primary user".
-
-### Results
-
-- Objective scenario names in the dropdown are corrected in French: "Neutre", "Intermédiaire". English "Business As usual".
-
-### Operations
-
-- **Worker autoscaling.** The Helm chart gains a HorizontalPodAutoscaler for the worker, off by default. When autoscaling is on for the backend or the worker, the chart no longer renders `replicas`, so Argo CD and the autoscaler stop fighting over the pod count (dev saw 35 scale-downs in 3 hours).
-- **Reconciler sweep skips finished pipelines.** The per-minute status sweep now only visits pipelines that can still change. It used to recompute every pipeline ever run, about 5 s of CPU per sweep per worker pod on dev.
-- **PgBouncer transaction pooling.** psycopg is bumped to 3.3.6, which replays named prepared statements across pooled server connections, so the backend keeps its default prepare behaviour behind the DBaaS bouncer.
-- New scripts under `backend/scripts/` probe PgBouncer's prepared-statement support and time its `query_wait_timeout`.
-- `make perf-dev` runs a one-command read-only load test against dev. It logs in once per role per locust process, refuses an empty `PERF_CLASSES`, prints the target and report path, and `PERF_UI=1` keeps the locust web UI.
-- Dev deploys from gitlab.epfl.ch through the `build-push-deploy` component (0.3.0, reusing unchanged images); stage and tags still deploy from GitHub.
-
-### Dependencies
-
-- uvicorn 0.53.0, SQLAlchemy 2.0.54, Alembic 1.20.0, psycopg 3.3.6, plus frontend dependency updates.
-
+* **helm:** worker HorizontalPodAutoscaler, off by default ([#2696](https://github.com/EPFL-ENAC/co2-calculator/issues/2696)) ([#2926](https://github.com/EPFL-ENAC/co2-calculator/issues/2926)) ([c1608d9](https://github.com/EPFL-ENAC/co2-calculator/commit/c1608d958618ebd2fcf5242ebecba0bb235be8b7)), closes [#2854](https://github.com/EPFL-ENAC/co2-calculator/issues/2854) [#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689) [#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)
+* **perf:** make perf-dev, one-command read-only load against dev ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([fe13826](https://github.com/EPFL-ENAC/co2-calculator/commit/fe138263b00ede4cae3444d9a3feb6cea5c42b4b))
+* **perf:** PERF_UI=1 keeps the locust web UI ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([#2931](https://github.com/EPFL-ENAC/co2-calculator/issues/2931)) ([37b3a24](https://github.com/EPFL-ENAC/co2-calculator/commit/37b3a2435eee0619569d07ff39905dd325145ad9))
+* **scripts:** probe that times pgbouncer query_wait_timeout ([#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)) ([7e8d6d9](https://github.com/EPFL-ENAC/co2-calculator/commit/7e8d6d937d4c8c6181d2e855569d97da5c599c6b))
 ## [1.4.16](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.15...v1.4.16) (2026-09-22)
 
 DROP PROD DB and rewrite all alembic history to avoid data migration
