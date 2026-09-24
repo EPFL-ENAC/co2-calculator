@@ -32,12 +32,13 @@ understand why certain choices were made.
 
 ### Security & Authorization
 
-| ADR                                             | Decision                 | Status        | Key Rationale                                   |
-| ----------------------------------------------- | ------------------------ | ------------- | ----------------------------------------------- |
-| [ADR-005](./005-authorization-strategy.md)      | In-code RBAC, reject OPA | ✅ Accepted   | Simpler, sufficient for needs                   |
-| [ADR-012](./012-jwt-authentication-strategy.md) | JWT-based authentication | ✅ Accepted   | Stateless, microservices-ready                  |
-| [ADR-014](./014-security-checklist.md)          | Security checklist       | ✅ Accepted   | Security maintenance plan                       |
-| [ADR-019](./019-bff-cookie-exchange.md)         | BFF cookie exchange      | ⛔ Superseded | Removed in PR #1687; direct cookies on callback |
+| ADR                                               | Decision                      | Status        | Key Rationale                                               |
+| ------------------------------------------------- | ----------------------------- | ------------- | ----------------------------------------------------------- |
+| [ADR-005](./005-authorization-strategy.md)        | In-code RBAC, reject OPA      | ✅ Accepted   | Simpler, sufficient for needs                               |
+| [ADR-012](./012-jwt-authentication-strategy.md)   | JWT-based authentication      | ✅ Accepted   | Stateless, microservices-ready                              |
+| [ADR-014](./014-security-checklist.md)            | Security checklist            | ✅ Accepted   | Security maintenance plan                                   |
+| [ADR-019](./019-bff-cookie-exchange.md)           | BFF cookie exchange           | ⛔ Superseded | Removed in PR #1687; direct cookies on callback             |
+| [ADR-020](./020-single-sliding-session-cookie.md) | Single sliding session cookie | 🟡 Proposed   | One cookie renewed server-side; no refresh endpoint (#2943) |
 
 ### Infrastructure & Operations
 
