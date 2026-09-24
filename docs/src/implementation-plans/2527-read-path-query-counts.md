@@ -16,7 +16,7 @@ slow write paths. This one covers **only** the read endpoints: items 4, 5, 6,
 
 ## The measurement that drives everything
 
-> **Correction, 2026-09-24.** The 14 ms below is the *laptop → DBaaS over VPN*
+> **Correction, 2026-09-24.** The 14 ms below is the _laptop → DBaaS over VPN_
 > path, where the harness first ran. From a backend pod through the bouncer,
 > `SELECT 1` × 50 measures **1.0 ms median, 1.6 ms p95**. On dev the read path
 > is bound by **CPU per request (~30 ms)** on single-worker pods: at 600 users
