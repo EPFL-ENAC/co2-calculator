@@ -148,6 +148,9 @@ backend:
     timeoutSeconds: 5
     failureThreshold: 5
 
+  # /ready fails only for per-pod faults: no DB check has succeeded since
+  # boot, or the pod's health poller died. A shared DB outage after that
+  # stays 200 ("degraded"), so the pods don't all leave the Service together.
   readinessProbe:
     httpGet:
       path: /ready
@@ -308,8 +311,9 @@ worker:
   # #2049: no Service, so this never gates traffic — but it does gate
   # RollingUpdate progress. Without it a new worker counts as "ready" the
   # instant the container starts, so maxSurge:1/maxUnavailable:0 would
-  # swap in a worker that can't reach the DB. /ready reads the same
-  # background-poller cache as the API deployment. No startupProbe: the
+  # swap in a worker that has never reached the DB. /ready reads the same
+  # background-poller cache as the API deployment, with the same
+  # boot-gate-only rule for DB outages. No startupProbe: the
   # wait-for-postgres init container below already blocks the main
   # container from starting until Postgres is reachable.
   readinessProbe:

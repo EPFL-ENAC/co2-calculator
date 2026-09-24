@@ -51,6 +51,10 @@ class DBHealthState:
 
 _state: DBHealthState | None = None
 
+# Set by the first ok/slow check, never cleared: /ready's boot gate must not
+# re-arm when the shared DB later goes down, or every pod leaves together.
+_ever_healthy = False
+
 # The in-flight SELECT 1, kept as a module global so a hung probe is neither
 # garbage-collected nor duplicated: the next tick re-awaits it instead of
 # stacking a second connection behind the same stall (#2689).
@@ -66,6 +70,13 @@ def get_db_health_state() -> DBHealthState | None:
     reassignments — callers must go through this function to see updates.
     """
     return _state
+
+
+def db_ever_healthy() -> bool:
+    """Whether any check since process start came back ok or slow. A getter
+    for the same reason as ``get_db_health_state``.
+    """
+    return _ever_healthy
 
 
 def is_fresh(state: DBHealthState, *, interval_seconds: int) -> bool:
@@ -115,7 +126,7 @@ async def _check_once(settings: Settings) -> None:
     Never raises (except CancelledError) — a failed or timed-out check is a
     valid, expected outcome (status "down"), not a bug.
     """
-    global _state
+    global _state, _ever_healthy
     probe = _current_probe()
     try:
         latency_ms, error = await asyncio.wait_for(
@@ -130,6 +141,8 @@ async def _check_once(settings: Settings) -> None:
         status = "down"
     if error is None and latency_ms >= settings.DB_HEALTH_SLOW_THRESHOLD_MS:
         status = "slow"
+    if error is None:
+        _ever_healthy = True
 
     _state = DBHealthState(
         status=status,

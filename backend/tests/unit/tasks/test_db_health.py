@@ -58,6 +58,7 @@ async def _drop_leftover_probe():
     probe = getattr(_db_health, "_probe", None)
     _db_health._probe = None
     _db_health._state = None
+    _db_health._ever_healthy = False
     if probe is not None and not probe.done():
         probe.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -161,20 +162,51 @@ async def test_stuck_probe_teardown_does_not_freeze_the_loop(monkeypatch):
     start = time.monotonic()
     await asyncio.wait_for(_db_health._check_once(settings), timeout=budget)
     assert time.monotonic() - start < budget
-    assert _db_health.get_db_health_state().status == "down"
-    assert _db_health.get_db_health_state().error == "TimeoutError"
+    first = _db_health.get_db_health_state()
+    assert first.status == "down"
+    assert first.error == "TimeoutError"
 
     # Second tick while the first probe is still hanging: still bounded,
     # still "down", and no second session was opened.
     await asyncio.wait_for(_db_health._check_once(settings), timeout=budget)
-    assert _db_health.get_db_health_state().status == "down"
+    second = _db_health.get_db_health_state()
+    assert second.status == "down"
     assert _StuckTeardownSession.created == 1
+    # A fresh verdict every tick: /ready reads a stale one as "this pod's
+    # poller died" and fails, which must not happen on a merely hung DB.
+    assert second.checked_at_monotonic > first.checked_at_monotonic
 
     # Once the stuck probe drains, the next tick starts a fresh one.
     await asyncio.wait_for(_db_health._probe, timeout=hang + 1)
     monkeypatch.setattr(_db_health, "SessionLocal", _Session)
     await _db_health._check_once(settings)
     assert _db_health.get_db_health_state().status == "ok"
+
+
+@pytest.mark.asyncio
+async def test_first_success_arms_ever_healthy_and_down_never_clears_it(
+    monkeypatch,
+):
+    """/ready's boot gate: "down" before any success keeps the pod out;
+    once armed, a later outage must not disarm it.
+    """
+    settings = get_settings()
+
+    def down():
+        return _Session(error=RuntimeError("connection refused"))
+
+    monkeypatch.setattr(_db_health, "SessionLocal", down)
+    await _db_health._check_once(settings)
+    assert not _db_health.db_ever_healthy()
+
+    monkeypatch.setattr(_db_health, "SessionLocal", _Session)
+    await _db_health._check_once(settings)
+    assert _db_health.db_ever_healthy()
+
+    monkeypatch.setattr(_db_health, "SessionLocal", down)
+    await _db_health._check_once(settings)
+    assert _db_health.get_db_health_state().status == "down"
+    assert _db_health.db_ever_healthy()
 
 
 def test_is_fresh_true_within_window():

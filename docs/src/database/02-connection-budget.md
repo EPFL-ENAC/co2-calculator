@@ -62,12 +62,14 @@ is off.
 
 **Why `query_wait_timeout` is 10 s.** A request queued at the bouncer
 already holds its pod pool slot, so `DB_POOL_TIMEOUT` (5 s) cannot cut the
-wait. At 120 s the pod's pool fills with waiting requests, its `/ready`
-`SELECT 1` waits too, the pod goes NotReady after two failed probes
-(about 60 s), traffic shifts to the other pods and they saturate in turn:
-the 2026-09-08 and 2026-09-17 incidents. At 10 s the request is cut before
-the second probe, the slot is handed back and the error stays on that one
-request. 10 s is also the app's request-latency alert threshold.
+wait. At 120 s the pod's pool fills with waiting requests. Until
+2026-09-24 its `/ready` check then failed too, the pod went NotReady,
+traffic shifted to the other pods and they saturated in turn: the
+2026-09-08 and 2026-09-17 incidents. `/ready` now stays 200 through a DB
+wait once the pod has reached the DB (plan 2049), but a full pool still
+fails every request on that pod. At 10 s the request is cut, the slot is
+handed back and the error stays on that one request, answered as a 503.
+10 s is also the app's request-latency alert threshold.
 
 **Prepared statements.** psycopg 3.3.6 with libpq 18 replays named
 prepares through the bouncer natively, so the app keeps psycopg's default
