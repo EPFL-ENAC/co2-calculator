@@ -64,7 +64,6 @@ export interface JobUpdatePayload {
   result?: number;
   status_message: string;
   meta?: {
-    row_errors?: JobRowError[];
     row_errors_count?: number;
     rows_processed?: number;
     rows_skipped?: number;
@@ -76,6 +75,8 @@ export interface JobUpdatePayload {
     // Console, not this generic per-job stream payload.
     stats?: {
       errors?: number;
+      row_errors?: JobRowError[];
+      row_errors_count?: number;
     };
   };
 }

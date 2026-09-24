@@ -1,4 +1,7 @@
-import type { JobRowError } from '@/stores/backofficeDataManagement';
+import type {
+  JobRowError,
+  JobUpdatePayload,
+} from '@/stores/backofficeDataManagement';
 import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
 
 /**
@@ -110,4 +113,26 @@ export function formatRowErrorLines(
   }
 
   return lines;
+}
+
+/**
+ * Row errors off a live SSE job payload. Every ingestion provider persists
+ * them under ``meta.stats`` and strips them from the meta root (#2464), so
+ * reading ``meta.row_errors`` silently yields "no errors" for a partial
+ * import.
+ */
+export function formatJobRowErrors(
+  meta: JobUpdatePayload['meta'],
+  t: Translate,
+): { caption: string | undefined; count: number } {
+  const stats = meta?.stats;
+  const lines = formatRowErrorLines(
+    stats?.row_errors,
+    stats?.row_errors_count,
+    t,
+  );
+  return {
+    caption: lines.length === 0 ? undefined : lines.join('\n'),
+    count: stats?.row_errors_count ?? stats?.row_errors?.length ?? 0,
+  };
 }
