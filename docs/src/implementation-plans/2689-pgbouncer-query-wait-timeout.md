@@ -365,7 +365,7 @@ until DBaaS extends the bouncer there.
 
 DBaaS put stage behind the same bouncer (transaction mode, pool 70,
 `max_prepared_statements` 500). openshift-app-config #67 gives stage dev's
-shape: backend 100m / 512Mi with HPA 2..6 on 70 % CPU and pool 5+45,
+shape: backend 100m / 512Mi with HPA 3..6 on 70 % CPU and pool 5+45,
 worker 250m / 768Mi with HPA 1..3 on 60 % and pool 5+15, dashboard and
 the two `DbBouncer*` alerts with stage's numbers.
 
@@ -384,3 +384,15 @@ fit. Worker max is 3 on dev and stage since #67: 5839Mi + the 128Mi
 migration Job of 6144Mi. Same day, the otel collector sat at 99 % of its
 256Mi limit; that is the platform dashboard's "memory from limits"
 panel, and a separate follow-up.
+
+**Floor of 3 for the opening week.** The school-wide opening is Monday
+2026-09-28, and prod has never seen users (peak 1.46 rps over 30 days,
+probes included). Backend `minReplicas` is 3 on dev, stage and prod
+(openshift-app-config #68, #69) so the 9:00 login burst lands on three
+pods before the HPA has reacted; back to 2 the week after. Capacity
+math from the dev ladder: ~33 ms CPU per request, one locust user ≈
+0.3 rps, six pods burst to ~180 rps on paper, and the bouncer's server
+pool is the wall first, ~60 rps on 70 slots. The lever that moves
+Monday's ceiling is `default_pool_size` (100 asked for prod), not more
+pods. Prod's version of #60 is openshift-app-config #68, gated on the
+1.4.17 release to `main` (chart 1.0.1781 has no worker HPA template).

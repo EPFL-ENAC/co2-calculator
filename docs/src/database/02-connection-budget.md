@@ -51,7 +51,7 @@ concurrency (openshift-app-config #59, #60):
 
 | Role    | `DB_POOL_SIZE` + `DB_MAX_OVERFLOW` | `DB_POOL_TIMEOUT` | Memory (request = limit) | CPU request / limit | Replicas                 | `MAX_CONCURRENT_JOBS` |
 | ------- | ---------------------------------- | ----------------- | ------------------------ | ------------------- | ------------------------ | --------------------- |
-| backend | 5 + 45                             | 5 s               | 512 Mi                   | 100m / 500m         | HPA 2..6, 70% CPU target | –                     |
+| backend | 5 + 45                             | 5 s               | 512 Mi                   | 100m / 500m         | HPA 3..6, 70% CPU target | –                     |
 | worker  | 5 + 15                             | 5 s               | 768 Mi                   | 150m / 1000m        | 1                        | 2                     |
 
 Memory request must equal limit on this cluster; the HPA's memory target
@@ -189,8 +189,8 @@ check: nb·Cb + nw·Cw ≤ B, Cb ≥ 3 (a request holds 1 for its duration;
 
 | Environment                         | W   | B   | nb / nw     | J   | Cw        | Cb  | backend / worker | ceiling / surge                                   |
 | ----------------------------------- | --- | --- | ----------- | --- | --------- | --- | ---------------- | ------------------------------------------------- |
-| dev, bouncer 60, transaction mode   | –   | 55  | 2..6 / 1..3 | 4   | –         | –   | 5+45 / 5+15      | formula does not bind; 55 concurrent transactions |
-| stage, bouncer 70, transaction mode | –   | 65  | 2..6 / 1..3 | 4   | –         | –   | 5+45 / 5+15      | formula does not bind; 65 concurrent transactions |
+| dev, bouncer 60, transaction mode   | –   | 55  | 3..6 / 1..3 | 4   | –         | –   | 5+45 / 5+15      | formula does not bind; 55 concurrent transactions |
+| stage, bouncer 70, transaction mode | –   | 65  | 3..6 / 1..3 | 4   | –         | –   | 5+45 / 5+15      | formula does not bind; 65 concurrent transactions |
 | prod, direct Postgres               | 97  | 92  | 3 / 2       | 4   | 15 full   | 20  | 5+15 / 5+10      | 90 / 90                                           |
 | prod, six jobs, same pools          | 97  | 92  | 3 / 2       | 6   | 15 (2J+3) | 20  | 5+15 / 5+10      | 90 / 90                                           |
 
@@ -204,8 +204,8 @@ zero.
 
 | Env   | Wall                                                  | Budget | backend       | worker        | `MAX_CONCURRENT_JOBS` | Fleet client connections at ceiling  |
 | ----- | ----------------------------------------------------- | ------ | ------------- | ------------- | --------------------- | ------------------------------------ |
-| dev   | 60 in-flight transactions (bouncer, transaction mode) | 55     | 5+45 × 2..6   | 5+15 × 1..3   | 4                     | 120 to 360 of 1000 `max_client_conn` |
-| stage | 70 in-flight transactions (bouncer, transaction mode) | 65     | 5+45 × 2..6   | 5+15 × 1..3   | 4                     | 120 to 360 of 1000 `max_client_conn` |
+| dev   | 60 in-flight transactions (bouncer, transaction mode) | 55     | 5+45 × 3..6   | 5+15 × 1..3   | 4                     | 120 to 360 of 1000 `max_client_conn` |
+| stage | 70 in-flight transactions (bouncer, transaction mode) | 65     | 5+45 × 3..6   | 5+15 × 1..3   | 4                     | 120 to 360 of 1000 `max_client_conn` |
 | prod  | Postgres 100 − 3 reserved (no PgBouncer yet)          | 90     | 5+13 × 3 = 54 | 5+10 × 2 = 30 | 4                     | 84 (steady = surge)                  |
 
 Prod (openshift-app-config #47): the backend overflow is burst insurance
