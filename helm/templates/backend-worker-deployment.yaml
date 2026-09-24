@@ -22,8 +22,8 @@ spec:
     rollingUpdate:
       # Same rationale as backend (#2050 A2): a 1-replica floor can't
       # survive maxUnavailable without a full outage window. Derived
-      # from replicaCount (worker has no HPA) so dev's single worker
-      # keeps the safe surge strategy automatically.
+      # from replicaCount, the HPA floor when autoscaling is on (#2696),
+      # so a single-worker environment keeps the safe surge strategy.
       {{- if le (int .Values.worker.replicaCount) 1 }}
       maxSurge: 1
       maxUnavailable: 0
@@ -32,7 +32,11 @@ spec:
       maxUnavailable: 1
       {{- end }}
 
+  # #2696: same as the backend - with the HPA on, Argo CD must not see a
+  # replicas field to reset, or the two fight and the worker pods churn.
+  {{- if not .Values.worker.autoscaling.enabled }}
   replicas: {{ .Values.worker.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "co2-calculator.selectorLabels" . | nindent 6 }}

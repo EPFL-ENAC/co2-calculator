@@ -146,6 +146,24 @@ def test_postgres_connect_args_name_the_pod():
     assert _connect_args(is_sqlite=False)["application_name"] == f"co2-{POD_ID}"
 
 
+def test_postgres_connect_args_keep_named_prepares_on():
+    """#2689: the dev bouncer replays prepared statements across server
+    connections (max_prepared_statements > 0, PgBouncer >= 1.22) and our
+    psycopg ships libpq >= 17, so the ``prepare_threshold: None`` stopgap
+    from #2921 must not come back by accident: it costs a plan per query.
+    """
+    assert "prepare_threshold" not in _connect_args(is_sqlite=False)
+
+
+def test_psycopg_bundles_libpq_17_or_newer():
+    """Prepared statements through PgBouncer need libpq >= 17 on the
+    client (psycopg docs, "Prepared statements"). A downgrade of
+    psycopg-binary would silently bring back ``prepared statement does
+    not exist`` under transaction pooling.
+    """
+    assert psycopg.pq.version() >= 170000
+
+
 def test_sqlite_connect_args_carry_no_libpq_options():
     """Aiosqlite raises ``TypeError: Connection() got an unexpected keyword
     argument 'keepalives'`` on anything from the Postgres set.

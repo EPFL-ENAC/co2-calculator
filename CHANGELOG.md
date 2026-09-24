@@ -1,3 +1,26 @@
+## [1.4.18](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.16...v1.4.18) (2026-09-24)
+
+
+### Bug Fixes
+
+* change planner texts ([68a487f](https://github.com/EPFL-ENAC/co2-calculator/commit/68a487f25f009f87f3427a92a7bad2721e52f8a9))
+* change planner texts ([0dbfc0b](https://github.com/EPFL-ENAC/co2-calculator/commit/0dbfc0b427ccea22168b6ca403dfa86194fab57f))
+* correct objective scenario dropdown translations ([d2f90eb](https://github.com/EPFL-ENAC/co2-calculator/commit/d2f90eb0058c28c51e19b01f52926900a1dabe5b))
+* **csv:** surface skipped rows in the module-page upload toast ([#2464](https://github.com/EPFL-ENAC/co2-calculator/issues/2464)) ([02d16d3](https://github.com/EPFL-ENAC/co2-calculator/commit/02d16d314aebca26b044c661010aa528b2135758))
+* **db:** disable named prepared statements for pgbouncer transaction pooling ([#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)) ([c238fbd](https://github.com/EPFL-ENAC/co2-calculator/commit/c238fbddc42edd19563fecd8dfd24b569d5c24eb))
+* **helm:** do not render replicas when the HPA owns the deployment ([#2696](https://github.com/EPFL-ENAC/co2-calculator/issues/2696)) ([#2927](https://github.com/EPFL-ENAC/co2-calculator/issues/2927)) ([217b457](https://github.com/EPFL-ENAC/co2-calculator/commit/217b457e268e3249786d1e871ab67b3e41bdb7a6)), closes [#2926](https://github.com/EPFL-ENAC/co2-calculator/issues/2926) [openshift-app-config#63](https://github.com/openshift-app-config/issues/63) [#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)
+* **perf:** login-test once per role per locust process ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([10ed27e](https://github.com/EPFL-ENAC/co2-calculator/commit/10ed27ed24fe5d40d074f99b8fc2c1b846b7c80b))
+* **perf:** perf-dev refuses an empty PERF_CLASSES ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([6dedaec](https://github.com/EPFL-ENAC/co2-calculator/commit/6dedaec2193cd28595678b393f3ed1720256fdd3))
+* **perf:** perf-load prints target and report path, perf-dev skips local psql ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([#2929](https://github.com/EPFL-ENAC/co2-calculator/issues/2929)) ([42c0cec](https://github.com/EPFL-ENAC/co2-calculator/commit/42c0cec317d92947800bf9148baab9b1c0a41d39)), closes [#2924](https://github.com/EPFL-ENAC/co2-calculator/issues/2924)
+* **worker:** reconciler sweep skips terminal pipelines ([#2696](https://github.com/EPFL-ENAC/co2-calculator/issues/2696)) ([#2928](https://github.com/EPFL-ENAC/co2-calculator/issues/2928)) ([489bcf2](https://github.com/EPFL-ENAC/co2-calculator/commit/489bcf29dbf138aa89fe29138e1ec020d774c05d)), closes [openshift-app-config#65](https://github.com/openshift-app-config/issues/65) [#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)
+
+
+### Features
+
+* **helm:** worker HorizontalPodAutoscaler, off by default ([#2696](https://github.com/EPFL-ENAC/co2-calculator/issues/2696)) ([#2926](https://github.com/EPFL-ENAC/co2-calculator/issues/2926)) ([c1608d9](https://github.com/EPFL-ENAC/co2-calculator/commit/c1608d958618ebd2fcf5242ebecba0bb235be8b7)), closes [#2854](https://github.com/EPFL-ENAC/co2-calculator/issues/2854) [#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689) [#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)
+* **perf:** make perf-dev, one-command read-only load against dev ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([fe13826](https://github.com/EPFL-ENAC/co2-calculator/commit/fe138263b00ede4cae3444d9a3feb6cea5c42b4b))
+* **perf:** PERF_UI=1 keeps the locust web UI ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([#2931](https://github.com/EPFL-ENAC/co2-calculator/issues/2931)) ([37b3a24](https://github.com/EPFL-ENAC/co2-calculator/commit/37b3a2435eee0619569d07ff39905dd325145ad9))
+* **scripts:** probe that times pgbouncer query_wait_timeout ([#2689](https://github.com/EPFL-ENAC/co2-calculator/issues/2689)) ([7e8d6d9](https://github.com/EPFL-ENAC/co2-calculator/commit/7e8d6d937d4c8c6181d2e855569d97da5c599c6b))
 ## [1.4.16](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.15...v1.4.16) (2026-09-22)
 
 DROP PROD DB and rewrite all alembic history to avoid data migration

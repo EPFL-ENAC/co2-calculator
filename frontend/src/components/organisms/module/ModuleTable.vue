@@ -564,7 +564,7 @@ import {
 import { getModuleTypeId, MODULE_STATES } from '@/constant/moduleStates';
 import { nOrDash } from '@/utils/number';
 import { getModuleIconColors } from '@/composables/useModuleIconColors';
-import { formatRowErrorLines } from '@/utils/rowErrors';
+import { formatJobRowErrors } from '@/utils/rowErrors';
 import { getNumericRules } from '@/utils/numeric-rules';
 import { isFieldEditable, isRowDeletable } from '@/utils/dataEntryPolicy';
 import {
@@ -686,14 +686,8 @@ const tablePageSize = computed(() => resolveTablePageSize(props.moduleConfig));
 
 const showUploadDialog = ref<boolean>(false);
 
-const formatRowErrors = (payload?: JobUpdatePayload): string | undefined => {
-  const lines = formatRowErrorLines(
-    payload?.meta?.row_errors,
-    payload?.meta?.row_errors_count,
-    $t,
-  );
-  return lines.length === 0 ? undefined : lines.join('\n');
-};
+const formatRowErrors = (payload?: JobUpdatePayload): string | undefined =>
+  formatJobRowErrors(payload?.meta, $t).caption;
 
 const onFilesUploaded = async (filePaths: string[]) => {
   showUploadDialog.value = false;
@@ -756,12 +750,9 @@ const onFilesUploaded = async (filePaths: string[]) => {
           props.carbonReportId,
         );
 
-        const errorCaption = formatRowErrors(payload);
+        const { caption: errorCaption, count: totalErrorCount } =
+          formatJobRowErrors(payload?.meta, $t);
         if (errorCaption) {
-          const totalErrorCount =
-            payload?.meta?.row_errors_count ??
-            payload?.meta?.row_errors?.length ??
-            0;
           $q.notify({
             color: 'negative',
             message: $t('csv_sync_completed_with_errors', {
@@ -782,7 +773,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
                   // For simplicity, we'll just log them here
                   console.error(
                     'Detailed row errors:',
-                    payload?.meta?.row_errors,
+                    payload?.meta?.stats?.row_errors,
                   );
                 },
                 'aria-label': $t('close_error_details'),

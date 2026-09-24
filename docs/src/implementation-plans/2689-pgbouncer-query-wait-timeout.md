@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2689
-last_updated: 2026-09-09
+last_updated: 2026-09-24
 title: "DB queries queue at the DBaaS PgBouncer: query_wait_timeout waves"
 summary: "Dev lost two hours on 2026-09-08 to psycopg ProtocolViolation query_wait_timeout waves, each 120 s long. The error is PgBouncer's client-wait timeout: DBaaS bounces dev, stage and prod, and the server-side connection count plateaus at ~40 in dev. Our SQLAlchemy pool was never the wall (no QueuePool limit error), it was 17 coroutines each holding a slot while queued at the bouncer. Shipped: get_current_user hands its connection back before any route body runs (the general form of #2654), the DB health poller no longer freezes /ready for two minutes per wave, the orphan-poller log stops spamming, and both pods move to 5+50 in openshift-app-config."
 ---
@@ -228,3 +228,171 @@ never deployed (#40 merged before that commit) and is now 2 there.
   per pod on every env.
 - Next upload burst in dev: Loki `query_wait_timeout` count stays at 0, and
   `/ready` never leaves 200 for more than one probe.
+
+## Update 2026-09-23 — named prepares off ahead of transaction pooling
+
+Dev's bouncer moves from `pool_mode: session` to `transaction`, and its
+`max_prepared_statements` is unconfirmed (1.25.1 defaults to 200; the
+DBaaS chart may pin 0). Shipped: `prepare_threshold: None` in the Postgres
+`connect_args` of `backend/app/db.py`, safe under both modes. psycopg
+3.3.5 with libpq 18 supports prepared statements through PgBouncer ≥ 1.22
+natively, so the line is deleted — not tuned — once `SHOW CONFIG` on the
+dev bouncer reports `max_prepared_statements` > 0 and the probe above
+shows a changing `pg_backend_pid()`.
+
+Code audit for transaction-mode hazards, all clean: advisory locks are
+`pg_advisory_xact_lock` only, both temp staging tables are `ON COMMIT
+DROP`, no `LISTEN`, no session-level `SET`, no `WITH HOLD` cursors.
+
+## Update 2026-09-23 evening — named prepares back on
+
+DBaaS raised `max_prepared_statements` 0 → 200 the same day; the
+`probe_pgbouncer_prepared.py` run on dev succeeded across three server
+pids (transaction mode and replay confirmed). Merged as #2922.
+The #2921 stopgap `prepare_threshold: None` is removed: psycopg 3.3.6 with
+libpq 18 replays prepared statements through PgBouncer ≥ 1.22 natively,
+so hot queries get their cached plan back. A unit test pins libpq ≥ 17 so
+a psycopg-binary downgrade cannot silently reintroduce `prepared statement
+did not exist`. Bump psycopg 3.3.5 → 3.3.6 in the same PR.
+
+## Checklist 2026-09-24 — DBaaS session
+
+Dev bouncer runs transaction pooling since 2026-09-23: 1000 clients,
+pool 60, min 5. Two draft PRs wait on this session:
+
+- co2-calculator#2922 — prepared statements back on
+- openshift-app-config#60 — pods sized by CPU/memory, real HPA
+
+### 1. Read the current config
+
+- [ ] `SHOW CONFIG` — write down these seven values
+
+  `pool_mode`, `max_prepared_statements`, `query_wait_timeout`,
+  `server_idle_timeout`, `max_db_connections`, `default_pool_size`,
+  `reserve_pool_size`
+
+- [ ] `SHOW POOLS` — read `cl_waiting`, `sv_active`, `sv_idle`, `maxwait`
+
+  `cl_waiting` above 0 at rest means a stray client is holding slots.
+
+- [ ] `pool_mode` says `transaction` — that is the definitive check
+
+  The single-connection probe higher up is only suggestive: a quiet
+  client often gets the same server connection back.
+
+- [ ] Run `scripts/probe_pgbouncer_prepared.py` through the bouncer
+
+  Two connections interleaved; it prepares a statement on one and
+  re-executes it while the other forces the bouncer to rotate server
+  connections. A clean run across several pids means
+  `max_prepared_statements` > 0 in practice, and #2922 is safe.
+
+### 2. Decide on prepared statements
+
+- [ ] `max_prepared_statements` above 0 → **#2922 goes ahead**
+
+- [ ] `max_prepared_statements` is 0 → ask for **200**
+
+  Refused? Close #2922. The #2921 stopgap stays.
+
+### 3. Ask for these settings
+
+- [ ] `query_wait_timeout` → **10 s** (default 120)
+
+  Gate for #60. Past 60 in-flight transactions the bouncer queues, and
+  a queued request holds its pod slot for the whole wait. At 120 s
+  that is the 2026-09-17 lockup (#48).
+
+- [ ] Verify it: `scripts/probe_pgbouncer_wait_timeout.py` through the bouncer
+
+  Fills the pool with open transactions until one client is queued,
+  then times how long the bouncer lets it wait. Prints the measured
+  `query_wait_timeout` and the #60 verdict. Blocks dev for fill time +
+  20 s at most; run it when nobody is testing.
+
+- [ ] `reserve_pool_size` → **10**, `reserve_pool_timeout` → **3 s**
+
+  A burst gets ten extra server slots after three seconds of queueing.
+
+- [ ] `max_db_connections` → **80**
+
+  Postgres `max_connections` is 100. A second user/db pair would
+  otherwise get its own pool of 60.
+
+- [ ] `server_idle_timeout` shorter than the role's `idle_session_timeout`
+
+  Otherwise Postgres kills the bouncer's idle server connections.
+  Bring the `pg_settings` and `pg_db_role_setting` output (the role
+  GUC was set 2026-08-31, #2566).
+
+### 4. Ask about the other environments
+
+- [x] Stage: same bouncer setup, 2026-09-24 (pool 70, max_prepared_statements
+      500, max_client_conn 1000). openshift-app-config #67 is stage's #60.
+- [ ] Prod: when?
+
+  Until then prod keeps its direct-Postgres numbers.
+
+### 5. Back at the desk
+
+- [ ] Fix the worker replica count
+
+  Dev ran 4 worker pods on 2026-09-23. Chart default is 1, the overlay
+  sets none. Scale back or pin `worker.replicaCount` before #60.
+
+- [ ] Merge #2922
+
+  Watch the worker log for ten minutes: no
+  `prepared statement did not exist`.
+
+- [ ] Merge #60
+
+  Watch `oc get hpa` and the pool saturation panel for an hour.
+
+### Before the stage/prod version of #60
+
+Collect from prod:
+
+- [ ] p95 and peak requests per second over 30 days
+- [ ] p95 CPU and peak memory per backend pod
+- [ ] peak worker memory on the largest CSV job
+- [ ] peak concurrent active backends in `pg_stat_activity`
+
+Prod has no bouncer yet. Its pool math stays the direct-connection kind
+until DBaaS extends the bouncer there.
+
+## Update 2026-09-24 afternoon — stage joins, and the quota trap
+
+DBaaS put stage behind the same bouncer (transaction mode, pool 70,
+`max_prepared_statements` 500). openshift-app-config #67 gives stage dev's
+shape: backend 100m / 512Mi with HPA 3..6 on 70 % CPU and pool 5+45,
+worker 250m / 768Mi with HPA 1..3 on 60 % and pool 5+15, dashboard and
+the two `DbBouncer*` alerts with stage's numbers.
+
+Two things to confirm on stage, from `backend/` with the stage `DB_URL`:
+
+- [ ] pool 70: `uv run python -m scripts.probe_pgbouncer_pool --wait 2`
+- [ ] `query_wait_timeout` 10 s: `uv run python -m scripts.probe_pgbouncer_wait_timeout`
+      (gate met at 15 s; if it is still 120 s, ask DBaaS for 10 s as on dev)
+
+**Quota trap.** #60 let the two HPAs reach 6 × 512Mi + 4 × 768Mi = 6144Mi,
+the whole 6Gi quota, with frontend, docs and the otel collector (256Mi)
+on top. On 2026-09-24 the workers were at 4 and the backend was Forbidden
+past 3 pods. A ResourceQuota is checked at admission, so nothing
+prioritises one deployment over another; the sum of both maxima has to
+fit. Worker max is 3 on dev and stage since #67: 5839Mi + the 128Mi
+migration Job of 6144Mi. Same day, the otel collector sat at 99 % of its
+256Mi limit; that is the platform dashboard's "memory from limits"
+panel, and a separate follow-up.
+
+**Floor of 3 for the opening week.** The school-wide opening is Monday
+2026-09-28, and prod has never seen users (peak 1.46 rps over 30 days,
+probes included). Backend `minReplicas` is 3 on dev, stage and prod
+(openshift-app-config #68, #69) so the 9:00 login burst lands on three
+pods before the HPA has reacted; back to 2 the week after. Capacity
+math from the dev ladder: ~33 ms CPU per request, one locust user ≈
+0.3 rps, six pods burst to ~180 rps on paper, and the bouncer's server
+pool is the wall first, ~60 rps on 70 slots. The lever that moves
+Monday's ceiling is `default_pool_size` (100 asked for prod), not more
+pods. Prod's version of #60 is openshift-app-config #68, gated on the
+1.4.17 release to `main` (chart 1.0.1781 has no worker HPA template).

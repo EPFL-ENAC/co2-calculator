@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2295
-last_updated: 2026-08-29
+last_updated: 2026-09-23
 summary: "Locust load-test suite: staged concurrency (50→1000 readers,
   10→40 plan/explore creators, 5→20 parallel CSV uploads) against a
   COPY-seeded backdrop of N units × N years at #2161 ceiling density,
@@ -65,8 +65,11 @@ Reports land in `backend/tests/performance/reports/` (gitignored), one
 CSV+HTML pair per stage. Restore the backdrop anytime with
 `make perf-db-restore` instead of re-seeding.
 
-Against dev: `make perf-load PERF_HOST=https://<dev-url>`; if `login-test`
-is disabled there, export `PERF_AUTH_COOKIE=<auth_token JWT>`.
+Against dev: `make perf-dev` (2026-09-23) — targets
+`https://co2-calculator-dev.epfl.ch/api` (the `/api` prefix is required, the
+bare host is the SPA), logs VUs in via `login-test` (dev is a DEBUG build) and
+refuses write scenarios without `PERF_ALLOW_WRITES=1`. For a host without
+`login-test`, export `PERF_AUTH_COOKIE=<auth_token JWT>` and use `perf-load`.
 
 ## What the first local run taught us (2026-08-29)
 

@@ -1471,6 +1471,49 @@ async def test_reconcile_heals_drift(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_reconcile_skips_terminal_pipelines(db_session: AsyncSession):
+    """Regression, #2696: the sweep used to recompute every pipeline that
+    ever had jobs, so on dev it rewrote 240 finished pipelines a minute
+    per worker pod (5 s of CPU per sweep). A terminal pipeline is final by
+    construction and must not even be checked; a drifted one still is.
+    """
+    repo = DataIngestionRepository(db_session)
+    done_pid, drifted_pid = uuid4(), uuid4()
+    await repo.ensure_pipeline_exists(done_pid, kind="csv_ingest")
+    await repo.ensure_pipeline_exists(drifted_pid, kind="csv_ingest")
+    for pid in (done_pid, drifted_pid):
+        db_session.add(
+            _pipeline_job(
+                pipeline_id=pid,
+                job_type="csv_ingest",
+                state=IngestionState.FINISHED,
+                result=IngestionResult.SUCCESS,
+                meta={"recalc_jobs_chained": 0},
+            )
+        )
+    await db_session.flush()
+    done = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == done_pid))
+    ).scalar_one()
+    done.status = PipelineStatus.SUCCESS.value
+    await db_session.flush()
+    before = done.updated_at
+
+    summary = await repo.reconcile_pipeline_statuses()
+
+    assert summary == {"checked": 1, "corrected": 1}
+    db_session.expire_all()
+    done_after = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == done_pid))
+    ).scalar_one()
+    assert done_after.updated_at == before
+    drifted = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == drifted_pid))
+    ).scalar_one()
+    assert drifted.status == PipelineStatus.SUCCESS.value
+
+
+@pytest.mark.asyncio
 async def test_recompute_writes_expected_recalc_unconditionally(
     db_session: AsyncSession,
 ):

@@ -3,8 +3,9 @@ name: deploy
 
 "on":
   push:
+    # dev deploys from gitlab.epfl.ch (.gitlab-ci.yml): one pipeline per
+    # ref, so the Argo overlays never get two competing commits
     branches:
-      - dev
       - stage
       - "ci-test/**"
     tags: ["v*.*.*"]
@@ -49,25 +50,8 @@ jobs:
       # ignores both; Docker just warns.
       build_args: |
         GIT_SHA=${{ github.sha }}
-      # APP_VERSION: the version the images report at runtime, from the same
-      # root package.json the release tag comes from (#2437). It used to be
-      # typed by hand into each gitops overlay, where nothing checked it.
-      # Only a tag build gets the bare version; dev adds the commit's UTC
-      # timestamp so every dev image between two bumps reports a different
-      # string, and any other branch is marked so a ci-test image can never
-      # look like a release. The commit date, not the clock: this runs once
-      # per image in parallel and the three images must agree.
-      build_args_script: |
-        VERSION=$(node -p "require('./package.json').version || ''")
-        [ -n "$VERSION" ] || { echo "root package.json has no version" >&2; exit 1; }
-        STAMP=$(TZ=UTC git show -s --format=%cd --date=format-local:%Y-%m-%d-%H%M HEAD)
-        case "$GITHUB_REF_TYPE:$GITHUB_REF_NAME" in
-          tag:*)        ;;
-          branch:dev)   VERSION="$VERSION-dev-$STAMP" ;;
-          branch:stage) VERSION="$VERSION-rc" ;;
-          *)            VERSION="$VERSION-$(echo "$GITHUB_REF_NAME" | tr '/' '-')" ;;
-        esac
-        echo "APP_VERSION=$VERSION"
+      # APP_VERSION (#2437): shared with .gitlab-ci.yml, see the script
+      build_args_script: sh scripts/app-version.sh
       registries: |
         [
           {

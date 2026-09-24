@@ -360,7 +360,7 @@ export default {
   },
   planner_grant_budget_hint: {
     en: 'You can enter the total funding budget here and then allocate it across the sections below. Optional: this allows you to track how the total budget is distributed across the different modules. Please note that this value is not taken into account when calculating the carbon footprint.',
-    fr: 'Il vous est possible de saisir ici le budget total du financement, puis de la répartir dans les sections ci-dessous. Optionnel, cela peut vous permet de suivre la répartition dans les modules de tout le budget. Attention cette donnée n’est pas considéré dans le calcul d’empreinte carbone.',
+    fr: 'Il vous est possible de saisir ici le budget total du financement, puis de la répartir dans les sections ci-dessous. Optionnel, cela vous permet de suivre la répartition dans les modules de tout le budget. Attention cette donnée n’est pas considérée dans le calcul d’empreinte carbone.',
   },
   planner_grant_budget_distribution: {
     en: '{distributed} {currency} of {total} {currency} allocated. {remaining} {currency} remaining to allocate in the categories below.',
@@ -387,8 +387,8 @@ export default {
     fr: 'Budget {submodule}',
   },
   planner_submodule_budget_hint: {
-    en: 'The part of the grant budget planned here.',
-    fr: 'La part du budget du financement prévue ici.',
+    en: 'The share of the grant budget is optional information, not taken into account when calculating the carbon footprint.',
+    fr: "La part du budget de financement est une information optionnelle non considérée dans le calcul d'empreinte carbone.",
   },
   planner_equipment_mode_title: {
     en: 'Planning mode',
@@ -495,12 +495,8 @@ export default {
     fr: 'Par catégorie',
   },
   planner_purchase_mode_hint: {
-    en: 'Fill in one global budget or an amount per category — the two cannot be used together.',
-    fr: 'Renseignez un budget global ou un montant par catégorie — les deux ne peuvent pas coexister.',
-  },
-  planner_purchase_global_budget_label: {
-    en: 'Global budget',
-    fr: 'Budget global',
+    en: 'Fill in one global budget or an amount per category to calculate the carbon footprint.',
+    fr: "Renseignez un budget global ou un montant par catégorie pour calculer l'empreinte carbone.",
   },
   planner_purchase_switch_dialog_title: {
     en: 'Switch entry mode',

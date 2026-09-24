@@ -1,0 +1,20 @@
+# dev deploys from gitlab.epfl.ch (.gitlab-ci.yml) and GitLab CE cannot pull
+# from GitHub, so every dev change is pushed there. Outage fallback:
+#   git fetch origin && git push gitlab origin/dev:dev
+# https://github.com/EPFL-ENAC/epfl-enac-build-push-deploy-action/blob/main/docs/mirror-to-gitlab.md
+name: mirror-to-gitlab
+
+"on":
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/mirror-to-gitlab.yml@v3.10.0
+    with:
+      gitlab_repo: EPFL-ENAC/co2-calculator
+    secrets:
+      deploy_key: ${{ secrets.GITLAB_DEPLOY_KEY }}

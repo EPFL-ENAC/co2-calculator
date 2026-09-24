@@ -105,13 +105,25 @@ without memberships), `PERF_MERGED_UNITS`, `PERF_JOB_TIMEOUT`,
 ## Against dev
 
 ```bash
-make perf-load PERF_HOST=https://<dev-host> PERF_USERS=50
+cd backend
+make perf-dev                                          # 50 × ExplorerReadUser
+make perf-dev PERF_USERS=200 PERF_CLASSES=ModuleReadUser
+make perf-report
 ```
 
-`login-test` only exists on DEBUG builds. If dev runs without it, copy an
-`auth_token` cookie from a browser session and export
-`PERF_AUTH_COOKIE=<jwt>`. Uploads and plan prefills create real data —
-coordinate before pointing write scenarios at a shared environment.
+`perf-dev` points locust at `https://co2-calculator-dev.epfl.ch/api`
+(the `/api` prefix is required — the bare host is the SPA), logs every
+VU in via `login-test` (dev is a DEBUG build), and refuses the write
+scenarios (`PlanUser`, `ExploreCreateUser`, `CsvUploadUser`) unless
+`PERF_ALLOW_WRITES=1` — they create real data and jobs on the shared
+environment, so coordinate first.
+
+For a target without `login-test` (stage, prod), copy the `auth_token`
+cookie from a logged-in browser tab and export `PERF_AUTH_COOKIE=<jwt>`
+before `make perf-load PERF_HOST=https://<host>/api ...`; the cookie
+takes precedence over seeded-user minting and `login-test`. See the
+[suite README](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/tests/performance/README.md)
+for the remote-DB checklist.
 
 ## Interpreting results
 

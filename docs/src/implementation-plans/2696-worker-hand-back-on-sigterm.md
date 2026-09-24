@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2696
-last_updated: 2026-09-09
+last_updated: 2026-09-23
 title: "Worker hands running jobs back on SIGTERM; how it scales"
 summary: "A worker rollout killed the running job at the default 30 s grace and left its row RUNNING under a dead pod until the stale sweep 5 min later. The lifespan now cancels in-flight jobs first; each stops its handler, rolls back and releases its row (NOT_STARTED, unlocked, attempts kept) so the next poller tick re-dispatches it. The worker Deployment gets a 60 s grace period. Replica count per environment stays gated on the DB budget; automatic scaling would key on the NOT_STARTED backlog, not CPU, and is capped by DB slots per worker."
 ---
@@ -104,3 +104,44 @@ whole scaling story until then.
 - Next dev rollout: the old worker logs "handed back to the queue" and
   the new one logs "Poller: dispatching job N" within
   `POLLER_INTERVAL_SECONDS`, no 5 min gap in `data_ingestion_jobs`.
+
+## Update 2026-09-23 — worker HPA in the chart
+
+The hand-back made scale-in safe; the chart now has the matching
+scale-out. `helm/templates/worker-hpa.yaml` mirrors the backend HPA
+(`worker.autoscaling`: off by default, 1..4 replicas, 60 % CPU target).
+CPU is the proxy for "job slots busy": a running job burns ~0.8 cores
+against a 150m request, so any active job pushes the pod far past the
+target and an idle pod drops back after the stabilization window. Each
+pod adds `MAX_CONCURRENT_JOBS` slots and at most `MAX_CONCURRENT_JOBS + 2`
+in-flight transactions at the bouncer (#2854). Dev turns it on in
+openshift-app-config with `MAX_CONCURRENT_JOBS` 4. The honest signal,
+queue depth, needs a `jobs.queued` gauge and a metrics adapter on the
+cluster; CPU until then (#2689 follow-ups).
+
+## Update 2026-09-23 evening — HPA vs Argo CD replicas fight
+
+Turning the worker HPA on in dev produced four idle workers and a pod
+churn every sync: the chart rendered `replicas: 1`, Argo CD re-applied
+it (35 scale-downs in 3 h), the HPA scaled back to 4 because the new
+pods' startup CPU sat above the 60 % target, and so on (deployment
+generation 182). Fix in the chart: neither deployment renders
+`replicas` when its `autoscaling.enabled` is true, so the autoscaler
+owns the count and Argo has nothing to reset. The backend had the same
+latent bug and would have fought under real load once its HPA went
+above `replicaCount` 2.
+
+## Update 2026-09-23 night — the worker's idle CPU was the reconciler
+
+With the replicas fight fixed the worker HPA still held 4 idle pods: each
+pod pulsed to ~180m every minute. Tempo showed why: `pipeline reconcile
+sweep` took 4-5 s per run because `reconcile_pipeline_statuses` recomputed
+every pipeline that ever had jobs, 240 on dev, five statements each, and
+rewrote the finished ones too. Fix: the sweep joins `pipelines` and skips
+`TERMINAL_PIPELINE_STATUSES` (now a constant on the model, shared with
+`pipeline_progress`). A terminal pipeline never changes again, so the
+sweep is O(in-flight pipelines), a few ms at rest. Regression test:
+`test_reconcile_skips_terminal_pipelines` (fails on the old query with
+`checked: 2`). openshift-app-config#65 had already raised the worker CPU
+request to 250m so the HPA could scale in; with this fix idle sits far
+below either request.
