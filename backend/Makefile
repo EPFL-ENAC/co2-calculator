@@ -162,6 +162,12 @@ PERF_REPORT_DIR ?= tests/performance/reports
 PERF_DB_URL ?= postgresql://co2_user:co2_password@localhost:5432/co2_calculator
 PERF_DUMP ?= tests/performance/dumps/perf_backdrop.dump
 PERF_USERS_FILE ?= $(PERF_REPORT_DIR)/perf_users.txt
+# PERF_UI=1 keeps locust's web UI (http://127.0.0.1:8089) with live charts: the
+# run still autostarts with -u/-r/-t, but locust stays up until Ctrl-C, and the
+# CSV/HTML report is written when it quits.
+PERF_UI ?=
+PERF_MODE = $(if $(PERF_UI),--autostart --web-host 127.0.0.1,--headless --only-summary)
+PERF_MODE_NOTE = $(if $(PERF_UI),web UI http://127.0.0.1:8089 - Ctrl-C when done,headless - PERF_UI=1 for the web UI)
 
 .PHONY: perf-csvs
 perf-csvs: ## Generate per-module ceiling-scale upload CSVs into INPUT_DATA/perf/
@@ -188,16 +194,17 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 	*) exec $(UV) run python -m tests.performance.resource_sampler --port $$p \
 		$(PERF_REPORT_DIR)/$(PERF_TAG)_resources.csv & echo $$! > $(PERF_REPORT_DIR)/.sampler.pid;; \
 	esac
-	@echo "perf-load: $(PERF_CLASSES) x $(PERF_USERS) users for $(PERF_TIME) against $(PERF_HOST) (headless, no web UI)"
+	@echo "perf-load: $(PERF_CLASSES) x $(PERF_USERS) users for $(PERF_TIME) against $(PERF_HOST) ($(PERF_MODE_NOTE))"
 	@PERF_USERS_FILE="$(PERF_USERS_FILE)" \
 	PERF_UNIT_IDS="$${PERF_UNIT_IDS:-$$(test -n "$(PERF_DB_URL)" && psql "$(PERF_DB_URL)" -tAc "select min(id)||'-'||max(id) from units where institutional_code like 'U0%'" 2>/dev/null | tr -d '[:space:]' || true)}" \
 	PERF_ROLE="$${PERF_ROLE:-calco2.user.principal}" \
 	$(UV) run locust -f tests/performance/locustfile.py $(PERF_CLASSES) \
-		--host $(PERF_HOST) --headless \
+		--host $(PERF_HOST) $(PERF_MODE) \
 		-u $(PERF_USERS) -r $$(( $(PERF_USERS) / 10 + 1 )) -t $(PERF_TIME) \
 		--csv $(PERF_REPORT_DIR)/$(PERF_TAG) --html $(PERF_REPORT_DIR)/$(PERF_TAG).html \
-		--only-summary --exit-code-on-error 0; \
+		--exit-code-on-error 0; \
 	status=$$?; \
+	if [ -n "$(PERF_UI)" ] && [ $$status -eq 130 ]; then status=0; fi; \
 	if [ -f $(PERF_REPORT_DIR)/.sampler.pid ]; then \
 		pid=$$(cat $(PERF_REPORT_DIR)/.sampler.pid); \
 		kill -- -$$pid 2>/dev/null || kill $$pid 2>/dev/null; \

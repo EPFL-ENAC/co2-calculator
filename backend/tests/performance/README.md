@@ -23,7 +23,10 @@ make perf-table-matrix PERF_HOST=http://127.0.0.1:8010   # every submodule × li
 make perf-report                                         # p95 > 1s table
 ```
 
-Runs are headless — locust's web UI never starts. Each run prints its
+Runs are headless by default; `PERF_UI=1 make perf-load …` (or `perf-dev`)
+keeps locust's web UI at http://127.0.0.1:8089 with live charts - the run
+still autostarts with the same users/rate/duration, locust stays up until
+Ctrl-C, and the report is written when it quits. Each run prints its
 target up front and a `report: file://…html` line at the end; open that.
 Reports land here in `reports/` (gitignored): one `*_stats.csv` + `*.html`
 per stage, `table_matrix.csv` for the matrix.
