@@ -1,3 +1,32 @@
+## [1.4.17](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.16...v1.4.17) (2026-09-24)
+
+
+A text and operations release. No data migration, no change to how footprints are calculated.
+
+### Planner
+
+- The purchase section's global-mode field is now labelled "Amount", like the per-category fields. The mode toggle already says "global budget".
+- The purchase mode hint now says the amount is used to calculate the carbon footprint. It used to say the two modes cannot be combined.
+- The grant budget hints now say the budget share is optional and is not taken into account in the carbon footprint (English and French).
+- The project-year tooltip now says "principal user" instead of "primary user".
+
+### Results
+
+- Objective scenario names in the dropdown are corrected in French: "Neutre", "Intermédiaire". English "Business As usual".
+
+### Operations
+
+- **Worker autoscaling.** The Helm chart gains a HorizontalPodAutoscaler for the worker, off by default. When autoscaling is on for the backend or the worker, the chart no longer renders `replicas`, so Argo CD and the autoscaler stop fighting over the pod count (dev saw 35 scale-downs in 3 hours).
+- **Reconciler sweep skips finished pipelines.** The per-minute status sweep now only visits pipelines that can still change. It used to recompute every pipeline ever run, about 5 s of CPU per sweep per worker pod on dev.
+- **PgBouncer transaction pooling.** psycopg is bumped to 3.3.6, which replays named prepared statements across pooled server connections, so the backend keeps its default prepare behaviour behind the DBaaS bouncer.
+- New scripts under `backend/scripts/` probe PgBouncer's prepared-statement support and time its `query_wait_timeout`.
+- `make perf-dev` runs a one-command read-only load test against dev. It logs in once per role per locust process, refuses an empty `PERF_CLASSES`, prints the target and report path, and `PERF_UI=1` keeps the locust web UI.
+- Dev deploys from gitlab.epfl.ch through the `build-push-deploy` component (0.3.0, reusing unchanged images); stage and tags still deploy from GitHub.
+
+### Dependencies
+
+- uvicorn 0.53.0, SQLAlchemy 2.0.54, Alembic 1.20.0, psycopg 3.3.6, plus frontend dependency updates.
+
 ## [1.4.16](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.15...v1.4.16) (2026-09-22)
 
 DROP PROD DB and rewrite all alembic history to avoid data migration
