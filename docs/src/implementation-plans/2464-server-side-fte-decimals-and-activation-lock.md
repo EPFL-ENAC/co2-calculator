@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2464
-last_updated: 2026-09-08
+last_updated: 2026-09-24
 summary: "Two frontend-only guardrails (#2318 FTE one-decimal cap, #2146 activation lock on an open year) had no backend twin, so a direct PATCH, an HR import or a stale tab bypassed them. Both now enforced server-side, with regression tests."
 ---
 
@@ -41,3 +41,22 @@ summary: "Two frontend-only guardrails (#2318 FTE one-decimal cap, #2146 activat
 - `tests/integration/backoffice/test_module_activation.py`: module and
   submodule `enabled` PATCH on a started year → 409 and config unchanged;
   `uncertainty_tag` PATCH still 200.
+
+## Follow-up (2026-09-24): the rejected row was invisible on the module page
+
+Validation testing uploaded a member CSV with `fte=0.888` from the module
+page: the row was skipped as designed, but the toast read "CSV sync
+completed" with no reason. The job stream, the pipeline console and the
+back-office upload card all showed the warning; only the module-page
+notifier missed it.
+
+Every ingestion provider persists row errors under `meta.stats.row_errors`
+and strips `row_errors` from the meta root, while `ModuleTable.vue` read
+`payload.meta.row_errors` off the SSE payload — always `undefined`, so
+`formatRowErrorLines` returned no lines and the success branch fired.
+
+- `frontend/src/utils/rowErrors.ts`: `formatJobRowErrors(meta, t)` reads the
+  `stats` block and returns the caption and count; the module page uses it.
+- `JobUpdatePayload.meta` no longer declares `row_errors` at the root.
+- `frontend/tests/unit/csv-row-errors-sse.spec.ts`: a backend-shaped partial
+  import yields a caption with the row and reason, a clean one yields none.

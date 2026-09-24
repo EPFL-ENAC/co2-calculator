@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2689
-last_updated: 2026-09-23
+last_updated: 2026-09-24
 title: "DB queries queue at the DBaaS PgBouncer: query_wait_timeout waves"
 summary: "Dev lost two hours on 2026-09-08 to psycopg ProtocolViolation query_wait_timeout waves, each 120 s long. The error is PgBouncer's client-wait timeout: DBaaS bounces dev, stage and prod, and the server-side connection count plateaus at ~40 in dev. Our SQLAlchemy pool was never the wall (no QueuePool limit error), it was 17 coroutines each holding a slot while queued at the bouncer. Shipped: get_current_user hands its connection back before any route body runs (the general form of #2654), the DB health poller no longer freezes /ready for two minutes per wave, the orphan-poller log stops spamming, and both pods move to 5+50 in openshift-app-config."
 ---
@@ -327,9 +327,11 @@ pool 60, min 5. Two draft PRs wait on this session:
 
 ### 4. Ask about the other environments
 
-- [ ] Stage and prod: same bouncer setup? When?
+- [x] Stage: same bouncer setup, 2026-09-24 (pool 70, max_prepared_statements
+      500, max_client_conn 1000). openshift-app-config #67 is stage's #60.
+- [ ] Prod: when?
 
-  Until then both PRs stay dev-only.
+  Until then prod keeps its direct-Postgres numbers.
 
 ### 5. Back at the desk
 
@@ -358,3 +360,39 @@ Collect from prod:
 
 Prod has no bouncer yet. Its pool math stays the direct-connection kind
 until DBaaS extends the bouncer there.
+
+## Update 2026-09-24 afternoon — stage joins, and the quota trap
+
+DBaaS put stage behind the same bouncer (transaction mode, pool 70,
+`max_prepared_statements` 500). openshift-app-config #67 gives stage dev's
+shape: backend 100m / 512Mi with HPA 3..6 on 70 % CPU and pool 5+45,
+worker 250m / 768Mi with HPA 1..3 on 60 % and pool 5+15, dashboard and
+the two `DbBouncer*` alerts with stage's numbers.
+
+Two things to confirm on stage, from `backend/` with the stage `DB_URL`:
+
+- [ ] pool 70: `uv run python -m scripts.probe_pgbouncer_pool --wait 2`
+- [ ] `query_wait_timeout` 10 s: `uv run python -m scripts.probe_pgbouncer_wait_timeout`
+      (gate met at 15 s; if it is still 120 s, ask DBaaS for 10 s as on dev)
+
+**Quota trap.** #60 let the two HPAs reach 6 × 512Mi + 4 × 768Mi = 6144Mi,
+the whole 6Gi quota, with frontend, docs and the otel collector (256Mi)
+on top. On 2026-09-24 the workers were at 4 and the backend was Forbidden
+past 3 pods. A ResourceQuota is checked at admission, so nothing
+prioritises one deployment over another; the sum of both maxima has to
+fit. Worker max is 3 on dev and stage since #67: 5839Mi + the 128Mi
+migration Job of 6144Mi. Same day, the otel collector sat at 99 % of its
+256Mi limit; that is the platform dashboard's "memory from limits"
+panel, and a separate follow-up.
+
+**Floor of 3 for the opening week.** The school-wide opening is Monday
+2026-09-28, and prod has never seen users (peak 1.46 rps over 30 days,
+probes included). Backend `minReplicas` is 3 on dev, stage and prod
+(openshift-app-config #68, #69) so the 9:00 login burst lands on three
+pods before the HPA has reacted; back to 2 the week after. Capacity
+math from the dev ladder: ~33 ms CPU per request, one locust user ≈
+0.3 rps, six pods burst to ~180 rps on paper, and the bouncer's server
+pool is the wall first, ~60 rps on 70 slots. The lever that moves
+Monday's ceiling is `default_pool_size` (100 asked for prod), not more
+pods. Prod's version of #60 is openshift-app-config #68, gated on the
+1.4.17 release to `main` (chart 1.0.1781 has no worker HPA template).

@@ -1,3 +1,17 @@
+## [1.4.18](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.17...v1.4.18) (2026-09-24)
+
+
+A bug-fix and documentation release. No data migration, no change to how footprints are calculated.
+
+### Module pages
+
+- **A partial CSV import now says so.** Uploading a CSV from a module page with a rejected row (for example an FTE with more than one decimal) used to end in a green "CSV sync completed" toast. The toast is now red, counts the skipped rows and lists each row with its reason, as the back-office upload card already did. The other rows are stored as before.
+
+### Operations (docs only)
+
+- Stage runs behind the DBaaS PgBouncer in transaction mode since 2026-09-24, like dev; prod stays on direct Postgres until this release is promoted. The connection-budget, observability and operations pages are updated accordingly.
+- The backend autoscaler floor moves from 2 to 3 pods on dev, stage and prod for the school-wide opening on 2026-09-28, and both autoscaler maxima must fit the namespace quota at once (worker max 4 → 3 on dev and stage).
+
 ## [1.4.17](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.16...v1.4.17) (2026-09-24)
 
 
