@@ -1261,11 +1261,36 @@ export interface paths {
          * Update Carbon Report Module Reference Percentage
          * @description Apply one reference percentage to every snapshot entry of a module.
          *
-         *     Backs the grant equipment "global percentage" mode (#1981): the
-         *     calculator's prefilled lines are kept and one percentage prices them
-         *     all. Only Project Grant reports carry this mode.
+         *     Backs the equipment "global percentage" mode (#1981): the calculator's
+         *     prefilled lines are kept and one percentage prices them all. Both the
+         *     Project Grant and the Detailed per Year sections carry this mode
+         *     (#2749).
          */
         patch: operations["update_carbon_report_module_reference_percentage_v1_carbon_reports__carbon_report_id__modules__module_type_id__reference_percentage_patch"];
+        trace?: never;
+    };
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_type_id}/reference-percentage/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Carbon Report Module Reference Percentage
+         * @description Undo the equipment module's global percentage (#2783).
+         *
+         *     Deletes the aggregate lines the global mode created (and any hand-added
+         *     entries) and rebuilds the module from the reference year at 0%,
+         *     restoring individually editable per-line snapshot rows.
+         */
+        post: operations["reset_carbon_report_module_reference_percentage_v1_carbon_reports__carbon_report_id__modules__module_type_id__reference_percentage_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/carbon-reports/{carbon_report_id}/modules/{module_type_id}/budget": {
@@ -1857,10 +1882,10 @@ export interface paths {
          *     Polls the database for status changes and sends updates to the client.
          *     Stream ends when the job is completed, failed, or the client disconnects.
          *
-         *     Session lifetime: no request-scoped session anywhere on this path. The
-         *     user is resolved by ``get_current_user_detached`` (its session closes
-         *     before the stream opens -- a ``get_db`` session would be held until the
-         *     stream ends, #2654), and a fresh ``SessionLocal()`` is opened per poll
+         *     Session lifetime: no pooled connection is held anywhere on this path.
+         *     ``get_current_user`` hands its connection back before the stream opens
+         *     (it used to be pinned until the stream ended, #2654, #2689), and a fresh
+         *     ``SessionLocal()`` is opened per poll
          *     iteration and closed before the sleep, so no pool slot is pinned for the
          *     full stream duration (minutes).  ``request.is_disconnected()`` is checked
          *     at the top of each iteration so client aborts surface immediately rather
@@ -2081,9 +2106,9 @@ export interface paths {
          * Pipeline Stream By Id
          * @description Server-Sent Events stream for every job sharing a ``pipeline_id``.
          *
-         *     Gated like ``require_module_or_config_view`` but on the detached user
-         *     dependency: see ``job_stream_by_id`` for why a stream must not hold a
-         *     ``get_db`` session (#2654).
+         *     Gated like ``require_module_or_config_view`` but inline: see
+         *     ``job_stream_by_id`` for why a stream must not hold a pooled
+         *     connection (#2654).
          *
          *     Plan 310D — the frontend stale-stats UX subscribes here when a module's
          *     carbon-report response surfaces a ``current_pipeline_id``.  Each tick
@@ -6993,6 +7018,42 @@ export interface operations {
                 "application/json": components["schemas"]["CarbonReportReferencePercentageUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_carbon_report_module_reference_percentage_v1_carbon_reports__carbon_report_id__modules__module_type_id__reference_percentage_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                carbon_report_id: number;
+                module_type_id: number;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
