@@ -90,31 +90,14 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
         institutional_id=institutional_id,
         any_scope=any_scope,
     ):
-        logger.info(
-            "Permission granted",
-            extra={
-                "path": path,
-                "action": action,
-                "user_id": user_data.id
-                if isinstance(user_data, User)
-                else user_data.get("id"),
-            },
-        )
         return {
             "allow": True,
             "reason": f"Permission granted: {path}.{action}",
         }
 
-    logger.warning(
-        "Permission denied",
-        extra={
-            "path": path,
-            "action": action,
-            "user_id": user_data.id
-            if isinstance(user_data, User)
-            else user_data.get("id"),
-        },
-    )
+    # No log here: callers probe several scopes per request and a "denied"
+    # on one of them is a normal outcome, not a warning. The request-level
+    # 403 below is the one line worth having (#2934).
     return {
         "allow": False,
         "reason": f"Permission denied: {path}.{action} required",
@@ -471,17 +454,6 @@ async def check_module_permission(
         action,
         institutional_id=institutional_id,
         any_scope=any_scope,
-    )
-
-    logger.info(
-        "Module permission check",
-        extra={
-            "user_id": sanitize(user.id),
-            "module_id": sanitize(module_id),
-            "permission_path": sanitize(permission_path),
-            "action": action,
-            "decision": decision,
-        },
     )
 
     if not decision.get("allow", False):

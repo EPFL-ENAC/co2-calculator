@@ -74,7 +74,14 @@ backend:
     # HTTP-level spans (FastAPI/Starlette) stay on. Unset this (empty
     # string) in an environment-specific override if SQL-level traces are
     # needed for active debugging — the cost is worth it there, not always-on.
-    OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"
+    # urllib/urllib3/requests register http.client.duration with a
+    # different description than httpx/aiohttp do, and the collector's
+    # Prometheus exporter logged "Instrument description conflict" on every
+    # scrape (46k lines/day in prod, #2934). Nothing consumes that metric
+    # for those libraries: outbound calls the app makes go through httpx,
+    # S3 keeps its botocore spans. Every environment overlay in
+    # openshift-app-config overrides this value; keep the two in sync.
+    OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg,urllib,urllib3,requests"
     # co2-calculator#2260: FastAPI puts each endpoint's *un-prefixed* leaf
     # route into scope["route"], so opentelemetry-instrumentation-asgi's
     # http.target (root_path + route.path_format) loses every

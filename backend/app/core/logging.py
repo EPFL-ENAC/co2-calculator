@@ -70,6 +70,27 @@ class _RedactSensitiveQueryStringFilter(logging.Filter):
         return True
 
 
+# Kubernetes probes hit these every few seconds on every backend and worker
+# pod. A 200 probe line carries no information (a failing probe shows up as a
+# pod event and on the /ready gauge), and they were 97% of the backend access
+# log in prod (#2934). Non-200 probe responses still log.
+_PROBE_PATHS = frozenset({"/healthz", "/ready"})
+
+
+class _DropHealthyProbeAccessLogFilter(logging.Filter):
+    """Drop ``uvicorn.access`` records for 200 responses to liveness/readiness probes.
+
+    uvicorn logs access lines as ``'%s - "%s %s HTTP/%s" %d'`` with args
+    ``(client, method, path, http_version, status)``.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if not isinstance(args, tuple) or len(args) != 5:
+            return True
+        return not (args[2] in _PROBE_PATHS and args[4] == 200)
+
+
 class JsonFormatter(logging.Formatter):
     """Minimal JSON formatter that preserves extra fields."""
 
@@ -222,6 +243,7 @@ def setup_logging() -> None:
 
     # Scrub OAuth/token query params from access logs (see filter docstring).
     logging.getLogger("uvicorn.access").addFilter(_RedactSensitiveQueryStringFilter())
+    logging.getLogger("uvicorn.access").addFilter(_DropHealthyProbeAccessLogFilter())
 
     # Optional: add Loki handler if enabled. LokiHandler.emit() does a
     # blocking httpx POST — attached directly to the root logger that would
