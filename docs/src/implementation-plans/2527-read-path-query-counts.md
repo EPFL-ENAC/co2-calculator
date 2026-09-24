@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 2527
-last_updated: 2026-08-30
+last_updated: 2026-09-24
 summary: "Read-path items 4, 5, 6, 8 and 10 of #2527: collapse the per-report
   loops in the merged modules-stats trio and the workspace-home bundle into
   grouped queries, cache the year-configuration, and make the SQL-statement
@@ -15,6 +15,20 @@ slow write paths. This one covers **only** the read endpoints: items 4, 5, 6,
 8 and 10.
 
 ## The measurement that drives everything
+
+> **Correction, 2026-09-24.** The 14 ms below is the *laptop → DBaaS over VPN*
+> path, where the harness first ran. From a backend pod through the bouncer,
+> `SELECT 1` × 50 measures **1.0 ms median, 1.6 ms p95**. On dev the read path
+> is bound by **CPU per request (~30 ms)** on single-worker pods: at 600 users
+> the busiest pod sits at 0.93 core, 109 requests in flight each hold their
+> transaction, and the bouncer pool (70) overflows as a symptom. Part of that
+> CPU is dev-only instrumentation (always_on sampling, SQLAlchemy + psycopg SQL
+> spans, DEBUG logging). Tasks 4, 5, 6, 8 keep their order — each statement
+> costs ORM, driver and (on dev) two spans of CPU — but the millisecond gains
+> quoted below assume 14 ms/statement and are wrong; the ladder measures them
+> instead. Baseline, tag `pool70_before` (60 s, pool 70): 100 users 32 req/s,
+> p95 630 ms; 600 users 142 req/s, p50 1.1 s, p95 2.4 s, 0 failures. Evidence
+> and ranked fruit: the goal document linked from #2527 (24 Sep comment).
 
 From #2529: the dev DB costs **~14 ms of network round-trip per query** (local
 is ~0.1 ms). So for these endpoints
