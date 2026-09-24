@@ -11,6 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_ingestion import (
+    TERMINAL_PIPELINE_STATUSES,
     DataIngestionJob,
     EntityType,
     IngestionMethod,
@@ -857,16 +858,20 @@ class DataIngestionRepository:
 
         The durable backstop for the runner's isolated post-finish
         write: that write log-and-skips on any DB error, so status can
-        lag. This recomputes-and-stores every pipeline that has jobs
-        (idempotent; commits per pipeline so a mid-sweep failure keeps
-        prior fixes). Phase 3 schedules this on a cron before flipping
-        reads; Phase 1 just ships it callable.
+        lag. This recomputes-and-stores every NON-TERMINAL pipeline that
+        has jobs (idempotent; commits per pipeline so a mid-sweep failure
+        keeps prior fixes). Terminal pipelines are skipped: a re-run is a
+        new pipeline, so their status and job set never change again, and
+        sweeping them made the sweep O(all pipelines ever) -- 240 rows x 5
+        statements every minute on every worker pod, 5 s of CPU per sweep
+        on dev (2026-09-23, #2696).
 
         Returns ``{"checked": n, "corrected": m}``.
         """
         pid_rows = await self.session.execute(
             select(col(DataIngestionJob.pipeline_id))
-            .where(col(DataIngestionJob.pipeline_id).isnot(None))
+            .join(Pipeline, col(Pipeline.id) == col(DataIngestionJob.pipeline_id))
+            .where(col(Pipeline.status).notin_(TERMINAL_PIPELINE_STATUSES))
             .distinct()
         )
         pids = [r[0] for r in pid_rows.all()]

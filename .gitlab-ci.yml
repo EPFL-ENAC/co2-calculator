@@ -1,0 +1,45 @@
+# dev deploys from gitlab.epfl.ch; stage, ci-test/** and v* tags stay on
+# .github/workflows/deploy.yml. One pipeline per ref, so the Argo overlays
+# never get two competing commits. Same images, chart and overlays.
+# https://gitlab.epfl.ch/EPFL-ENAC/build-push-deploy
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+
+include:
+  - component: $CI_SERVER_FQDN/EPFL-ENAC/build-push-deploy/deploy@0.3.0
+    inputs:
+      org: epfl
+      repo: co2-calculator
+      build_contexts: [frontend, backend, docs]
+      # Re-tag instead of rebuilding images whose context did not change,
+      # same key formula and label as deploy.yml. APP_VERSION is read from
+      # the root package.json, outside every context: a version bump must
+      # rebuild all three images. Reused images are not rescanned per
+      # deploy: image-vulnerability-scan.yml scans the tags on a schedule.
+      reuse_unchanged_images: true
+      rescan_reused_images: false
+      build_key_paths: package.json
+      helm_chart_path: helm
+      helm_chart_repository: ghcr.io/epfl-enac/co2-calculator/helm
+      # Smoke-test both secret paths. Default (external) needs a Secret name;
+      # chart-managed (dev) needs throwaway signing keys.
+      helm_chart_render_args: |
+        --set backend.existingSecret.name=ci-existing-secret
+        --set backend.existingSecret.enabled=false --set backend.secrets.JWT_HMAC_KEY=ci-render-check --set backend.secrets.SESSION_HMAC_KEY=ci-render-check
+      # GIT_SHA: the frontend's APP_VERSION for GlitchTip and the backend's
+      # GIT_SHA (#2436); the docs image ignores it.
+      build_args: |
+        GIT_SHA=$CI_COMMIT_SHA
+      # APP_VERSION (#2437): shared with deploy.yml, see the script
+      build_args_script: sh scripts/app-version.sh
+      registries: |
+        [
+          {"prefix": "ghcr.io/epfl-enac/epfl/co2-calculator",
+           "username_var": "GHCR_USERNAME", "password_var": "GHCR_TOKEN",
+           "argo_repositories": ["EPFL-ENAC/enack8s-app-config"]},
+          {"prefix": "quay-its.epfl.ch/svc1751",
+           "username_var": "QUAY_USERNAME", "password_var": "QUAY_PASSWORD",
+           "argo_repositories": ["EPFL-ENAC/openshift-app-config"]}
+        ]

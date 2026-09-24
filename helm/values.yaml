@@ -266,6 +266,18 @@ worker:
   # until the stale sweep 5 min later.
   terminationGracePeriodSeconds: 60
 
+  # #2696: the worker is queue-bound, not CPU-bound, but a running job burns
+  # ~0.8 cores against a 150m request, so CPU utilization is a faithful
+  # proxy for "job slots busy". Scale-in is safe: SIGTERM hands running
+  # jobs back (above). Each pod adds MAX_CONCURRENT_JOBS slots and at most
+  # MAX_CONCURRENT_JOBS + 2 in-flight transactions at the bouncer.
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 80
+
   env: {}
   # RUN_BACKGROUND_POLLER and DISPATCH_JOBS_INLINE are set unconditionally
   # by the template, not here — see backend-worker-deployment.yaml.

@@ -874,7 +874,7 @@ export default {
   // data of that year.
 
   'planner-year-section-title': {
-    en: "Review and complete your project’s annual carbon impact data estimation. This data comes from the CO₂ calculator when the selected year's estimation is completed. You can also fill out the sections manually using forward-looking estimates.\n\n For another person to access this section, they must be accredited as a primary user.",
+    en: "Review and complete your project’s annual carbon impact data estimation. This data comes from the CO₂ calculator when the selected year's estimation is completed. You can also fill out the sections manually using forward-looking estimates.\n\n For another person to access this section, they must be accredited as a principal user.",
     fr: "Retrouvez et complétez ici les données d'impact carbone estimé par année de projet. Ces données remontent de l'espace calculateur CO₂ si l’année sélectionnée a été complétée mais vous pouvez également remplir les sections de manière prospective.\n\n Pour qu’une autre personne puisse avoir accès à cette section, il ou elle doit être accréditée comme utilisateur ou utilisatrice principale.",
   },
 

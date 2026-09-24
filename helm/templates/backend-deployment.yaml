@@ -31,7 +31,12 @@ spec:
       maxUnavailable: 1
       {{- end }}
 
+  # #2696: with the HPA on, replicas belongs to the autoscaler. Rendering it
+  # makes Argo CD reset the count on every sync, the HPA scales back, and
+  # the pods churn forever (dev, 2026-09-23: 35 scale-downs in 3 h).
+  {{- if not .Values.backend.autoscaling.enabled }}
   replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "co2-calculator.selectorLabels" . | nindent 6 }}

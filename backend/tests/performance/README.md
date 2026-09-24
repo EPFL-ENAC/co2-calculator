@@ -23,8 +23,44 @@ make perf-table-matrix PERF_HOST=http://127.0.0.1:8010   # every submodule × li
 make perf-report                                         # p95 > 1s table
 ```
 
+Runs are headless by default; `PERF_UI=1 make perf-load …` (or `perf-dev`)
+keeps locust's web UI at http://127.0.0.1:8089 with live charts - the run
+still autostarts with the same users/rate/duration, locust stays up until
+Ctrl-C, and the report is written when it quits. Each run prints its
+target up front and a `report: file://…html` line at the end; open that.
 Reports land here in `reports/` (gitignored): one `*_stats.csv` + `*.html`
 per stage, `table_matrix.csv` for the matrix.
+
+## Against dev, clef en main
+
+```bash
+make perf-dev                                         # 50 × ExplorerReadUser, 3 min
+make perf-dev PERF_USERS=200 PERF_CLASSES=ModuleReadUser
+make perf-report
+```
+
+That is the whole recipe. `perf-dev` targets `PERF_DEV_HOST`
+(`https://co2-calculator-dev.epfl.ch/api` — the `/api` prefix matters:
+the bare host is the SPA and answers every path with `index.html`),
+logs each VU in through `/v1/auth/login-test` (dev is a DEBUG build, so
+the endpoint exists), and refuses `PlanUser` / `ExploreCreateUser` /
+`CsvUploadUser` unless `PERF_ALLOW_WRITES=1` — those enqueue real jobs
+on dev's worker pods. Reports land in `reports/dev_*`.
+
+`PERF_ROLE` still applies (`PERF_ROLE=calco2.user.standard make perf-dev`).
+Seeded-user JWT minting is local-only: it needs the target's
+`JWT_HMAC_KEY`, so `perf-dev` switches it off.
+
+If a target has **no** `login-test` (stage, prod, or dev with
+`DEBUG=false`), copy the `auth_token` cookie from a logged-in browser
+tab (DevTools → Application → Cookies) and pass it explicitly — it takes
+precedence over every other auth path:
+
+```bash
+PERF_AUTH_COOKIE='eyJ...' make perf-load PERF_HOST=https://<host>/api PERF_CLASSES=ExplorerReadUser
+```
+
+All VUs then share that one identity, so unit scoping is that user's.
 
 ## `backend/.env`'s `DB_URL` may not be localhost
 
@@ -62,7 +98,10 @@ local compose — real backend/worker pods are already on it. Run in order:
 
 Every virtual user is a **distinct seeded DEFAULT-provider user**:
 `make perf-load` derives `reports/perf_users.txt` from the DB and each VU
-mints its own `auth_token` (same `JWT_HMAC_KEY` as the target). Principal
+mints its own `auth_token` (same `JWT_HMAC_KEY` as the target). Without
+that file (dev), `login-test` runs **once per role per locust process** and
+VUs share the cookie: N concurrent logins upsert one test-user row and
+serialise on its lock while holding bouncer slots (200 logins = 43 s max). Principal
 users drive module reads/uploads/plans; standard users only own
 travel/cloud entries. Against a remote host, export
 `PERF_AUTH_COOKIE=<auth_token JWT>` instead (login-test only exists on

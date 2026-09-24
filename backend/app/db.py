@@ -286,6 +286,11 @@ def _connect_args(is_sqlite: bool) -> dict:
     # address, so ``pg_stat_activity.client_addr`` can no longer tell pods
     # apart (#2689). ``application_name`` is what the bouncer forwards and
     # what a laptop running the app against dev shows up as.
+    # Named prepares stay on psycopg's default (after 5 runs): behind the
+    # DBaaS PgBouncer (1.25, transaction pooling, max_prepared_statements
+    # > 0) psycopg 3.2+ with libpq 17+ replays them across server
+    # connections natively (#2689). Set ``prepare_threshold: None`` again
+    # only if a bouncer reports max_prepared_statements = 0.
     return {**_PG_KEEPALIVES, "application_name": f"co2-{POD_ID}"}
 
 

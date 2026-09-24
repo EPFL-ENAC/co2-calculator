@@ -156,7 +156,7 @@ Helm chart in `helm/` with:
 - **test.yml**: pytest (backend), Playwright (frontend)
 - **security.yml**: npm audit, uv audit, Bandit, TruffleHog, CodeQL
 - **quality-check.yml**: ruff, mypy, ESLint, Prettier (PRs)
-- **deploy.yml**: Container builds + Helm chart → ghcr.io (dev, stage, tags)
+- **deploy.yml**: Container builds + Helm chart → ghcr.io + quay (stage, tags). `dev` deploys from gitlab.epfl.ch instead: `.gitlab-ci.yml`, fed by **mirror-to-gitlab.yml** ([plan 2909](../implementation-plans/2909-gitlab-dev-deploy.md))
 - **deploy-mkdocs.yml**: Documentation deployment (GitHub Pages)
 - **lighthouse.yml**: Frontend performance audits (PRs)
 - **release-please.yml**: Automated semantic versioning
