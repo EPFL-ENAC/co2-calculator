@@ -23,7 +23,11 @@ def test_counts_distinct_users_and_prunes_past_the_window(clock):
         active_users.touch(user_id)
     assert [o.value for o in _observe()] == [3]
 
-    clock[0] += active_users.WINDOW_SECONDS + 1
+    # Exactly one window old still counts: a user seen within 5 min is active.
+    clock[0] += active_users.WINDOW_SECONDS
+    assert [o.value for o in _observe()] == [3]
+
+    clock[0] += 1
     active_users.touch(2)
     assert [o.value for o in _observe()] == [1]
     assert list(active_users._last_seen) == [2]

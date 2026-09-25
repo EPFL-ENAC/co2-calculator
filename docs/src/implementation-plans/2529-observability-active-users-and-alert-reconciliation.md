@@ -35,7 +35,7 @@ Two custom metrics already exist and set the pattern to copy:
 
 | Metric                   | Where                                     | Shape                                    |
 | ------------------------ | ----------------------------------------- | ---------------------------------------- |
-| `db.pool.connections`    | `backend/app/db.py:102`                   | observable gauge + callback              |
+| `db.pool.connections`    | `backend/app/db.py:371`                   | observable gauge + callback              |
 | `event_loop_lag_seconds` | `backend/app/tasks/_event_loop_lag.py:28` | histogram, recorded from a lifespan task |
 
 No `MeterProvider` is constructed in app code — `opentelemetry-instrument`
@@ -48,8 +48,8 @@ registration in the module that owns it, exactly like `db.py`.
 
 The issue proposes a middleware. Recommendation: **don't add one.**
 
-`app/core/security.py:112` already has `tag_span_with_user(user)`, called
-from `resolve_user_by_jwt_payload` — the single function every
+`app/core/security.py:165` already has `tag_span_with_user(user)`, called
+from `resolve_user_by_jwt_payload` (`:182`) — the single function every
 authenticated request passes through, which has already decoded and
 verified the JWT and already loaded the `User`. Recording `last_seen`
 there is one call next to an existing observability side effect.
@@ -102,7 +102,8 @@ Four constraints that are load-bearing, not stylistic:
    real leak, not a theoretical one.
 3. **`user_id` never becomes a metric attribute.** It stays in process
    memory; the exported series carries only the resource attributes the
-   collector adds (`namespace`, `k8s_pod_name`, `service_name`). This is
+   collector adds (`namespace`, `k8s_pod_name`, `service_name`), plus a
+   constant `route_class="api"` from the metrics transform's catch-all. This is
    the entire cardinality argument, and it is also the privacy stance
    `tag_span_with_user`'s docstring already settled — our own `User.id`,
    never the sciper, and here not even that leaves the process.
@@ -153,6 +154,10 @@ The lower bound is `max()` over pods. Chart both: `sum()` as the headline
 stat, `max()` as a second series, and the true value sits between them.
 That is one extra query, and it removes the only real objection to the
 metric.
+
+The other direction undercounts: SSE streams authenticate once, when they
+open. A user whose only traffic is one stream longer than the window drops
+out of the gauge. Say so in the panel description too.
 
 ### Grafana panel (ops repo — do not edit here)
 
@@ -205,12 +210,19 @@ by the latency and error-rate rules.
 One unit test in `backend/tests/unit/core/`, no framework beyond pytest:
 touch three ids, assert the callback yields 3; monkeypatch the clock past
 the window, touch one, assert it yields 1 and the map has been pruned to
-1 entry. That is the whole contract.
+1 entry.
 
-Shipped with two more checks: the observation carries no attributes (the
-cardinality contract), and `touch(None)` raises. `User.id` is typed
-`int | None`, so `touch()` narrows it with a `ValueError` rather than
-`security.py` growing a guard.
+Shipped with more checks:
+
+- a user seen exactly one window ago still counts (a no-window prune
+  passed the first version of this test);
+- `test_resolved_user_is_counted_as_active` runs the real
+  `get_optional_user` path, so deleting the `touch()` call in
+  `security.py` fails the suite;
+- the observation carries no attributes (the cardinality contract);
+- `touch(None)` raises. `User.id` is typed `int | None`, so `touch()`
+  narrows it with a `ValueError` rather than `security.py` growing a
+  guard.
 
 ---
 

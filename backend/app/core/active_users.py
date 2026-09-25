@@ -8,7 +8,9 @@ pruning happens in the callback, once per export interval.
 
 The user id never leaves the process: the series carries no attributes, so
 cardinality is one series per pod whatever the user count. Registered at
-import time like ``db.pool.connections``; a no-op without a MeterProvider.
+import time like ``db.pool.connections``. Without a MeterProvider (tests,
+plain local uvicorn) nothing collects, so nothing prunes: the map then
+grows with distinct users since start, about 85 B each.
 """
 
 import threading
@@ -35,7 +37,7 @@ def touch(user_id: int | None) -> None:
 
 
 def _prune_and_count(now: float) -> int:
-    """Drop users idle past the window; memory stays bounded by the window."""
+    """Drop users idle past the window; bounded while a reader collects."""
     cutoff = now - WINDOW_SECONDS
     with _lock:
         for user_id in [u for u, seen in _last_seen.items() if seen < cutoff]:
