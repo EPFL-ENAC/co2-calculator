@@ -96,8 +96,8 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
         }
 
     # No log here: callers probe several scopes per request and a "denied"
-    # on one of them is a normal outcome, not a warning. The request-level
-    # 403 below is the one line worth having (#2934).
+    # on one of them is a normal outcome, not a warning. check_module_permission
+    # logs the real denial next to its 403; bool callers log nothing (#2934).
     return {
         "allow": False,
         "reason": f"Permission denied: {path}.{action} required",

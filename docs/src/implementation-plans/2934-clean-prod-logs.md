@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2934
 last_updated: 2026-09-24
 summary: "A 24 h prod Loki dump was 97% probe access lines and collector self-warnings; drop both at the source, delete per-evaluation policy chatter, and ship the dump script so the next audit takes one command."
@@ -21,20 +21,20 @@ This plan covers the low-risk slice: no behaviour change, no auth change.
 | Delete "Permission granted" / "Permission denied" / "Module permission check" per-evaluation logs | `backend/app/core/policy.py`                                       | 62 INFO + 2 false WARNING lines/day                             |
 | `scripts/loki-dump.sh`                                                                            | new                                                                | one command to dump a day of any env from the LokiStack gateway |
 
-The collector conflict: `urllib` and `urllib3` describe `http.client.duration`
-as "Measures the duration…" while `httpx`, `aiohttp` and `requests` say
-"measures…", and the Prometheus exporter reports the clash on every scrape.
-Nothing consumes the metric for those three libraries (the app's outbound
-calls use httpx; S3 keeps its botocore spans). The env var is overridden in
-each `openshift-app-config` overlay, so that repo gets a matching PR.
+The collector conflict (46 k lines/day) is `urllib3` describing
+`http.client.duration` as "Measures the duration…" while `httpx` and
+`aiohttp` say "measures…". Disabling the urllib3 instrumentation would also
+drop the only spans the sync Elasticsearch client produces, so the fix is
+collector-side in `openshift-app-config`: a `transform` processor that
+normalises the description. Tracked in openshift-app-config, not in this PR.
 
 Non-200 probe answers still log. A real 403 still logs through the module
 permission check's "denied" warning and the access line.
 
 ## Out of scope, tracked in the issue
 
-- `GET /session` answering 200 and the single sliding cookie (needs its own
-  reviewed plan, auth).
+- `GET /session` answering 200 and the single sliding cookie: #2943, plan
+  and ADR-020 in PR #2944.
 - Turning the access log off in favour of one request-line middleware.
 
 ## Verification

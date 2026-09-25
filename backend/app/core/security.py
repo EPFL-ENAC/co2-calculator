@@ -269,17 +269,7 @@ async def get_permission_decision(user: User, path: str, action: str = "view") -
     input_data = _build_permission_input(user, path, action)
 
     # Query policy for authorization decision
-    decision = await query_policy("authz/permission/check", input_data)
-    logger.info(
-        "Permission check requested",
-        extra={
-            "user_id": sanitize(user.id),
-            "path": path,
-            "action": action,
-            "decision": decision,
-        },
-    )
-    return decision
+    return await query_policy("authz/permission/check", input_data)
 
 
 async def is_permitted(user: User, path: str, action: str = "view") -> bool:

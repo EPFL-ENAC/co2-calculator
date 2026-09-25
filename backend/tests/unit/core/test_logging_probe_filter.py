@@ -10,16 +10,9 @@ import logging
 
 import pytest
 
-from app.core.config import get_settings
 from app.core.logging import _DropHealthyProbeAccessLogFilter, setup_logging
 
 UVICORN_ACCESS_MSG = '%s - "%s %s HTTP/%s" %d'
-
-
-@pytest.fixture(autouse=True)
-def _restore_settings_cache():
-    yield
-    get_settings.cache_clear()
 
 
 def _access_record(method: str, path: str, status: int) -> logging.LogRecord:
