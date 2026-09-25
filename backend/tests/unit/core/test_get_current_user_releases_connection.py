@@ -18,6 +18,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy import inspect as sa_inspect
 from sqlmodel import text
 
+from app.core import active_users
 from app.core.security import create_access_token, get_optional_user
 from app.models.user import User, UserProvider
 
@@ -63,3 +64,26 @@ async def test_get_current_user_returns_detached_user_and_releases_connection(
     assert not db_session.in_transaction()
     # The route's own session is still usable afterwards.
     assert (await db_session.execute(text("SELECT 1"))).scalar() == 1
+
+
+@pytest.mark.asyncio
+async def test_resolved_user_is_counted_as_active(db_session, monkeypatch):
+    """#2529: the one ``touch()`` in the resolve path is what feeds the gauge."""
+    monkeypatch.setattr(active_users, "_last_seen", {})
+    user = User(
+        institutional_id="654321",
+        provider=UserProvider.TEST,
+        email="active-users@example.org",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    current = await get_optional_user(
+        request=MagicMock(),
+        background_tasks=BackgroundTasks(),
+        db=db_session,
+        auth_token=_token_for(user),
+    )
+
+    assert current is not None
+    assert current.id in active_users._last_seen
