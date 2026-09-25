@@ -34,13 +34,13 @@ HTTP client are the cost.
 
 ## Decision
 
-- One cookie, `auth_token`, idle lifetime `SESSION_IDLE_MINUTES` (480).
+- One cookie, `auth_token`, idle lifetime `ACCESS_TOKEN_EXPIRE_MINUTES` (2880).
 - The token carries `auth_time` (OIDC claim) set at login. Renewal sets
-  `exp = min(now + idle, auth_time + SESSION_MAX_HOURS)`; when that is in
+  `exp = min(now + idle, auth_time + REFRESH_TOKEN_EXPIRE_HOURS)`; when that is in
   the past the request is 401 and the user logs in again. Sessions cannot
   slide forever.
 - Renewal happens in `get_current_user` when `exp - now < idle / 2`, so at
-  most once per 4 h per user, and it is where role sync is triggered.
+  most once per 24 h per user, and it is where role sync is triggered.
 - Every renewal writes an audit row ("Session renewed"), from a background
   task with its own session, so the trail of who kept a session alive from
   where is as complete as it is today for refreshes.
@@ -78,8 +78,9 @@ fresh 24 h refresh cookie on every refresh, so a user returning within
 24 h stayed logged in with no cap. With 480 min idle and a 24 h cap, an
 overnight gap now means a login each morning, and a session ends 24 h
 after login whatever the activity. Setting `ACCESS_TOKEN_EXPIRE_MINUTES`
-to 1440 and a longer cap restores the old experience. Kept at 480 / 24
-on 2026-09-25, watched on dev (plan 2943, "Behaviour change").
+to 2880 (48 h, renewed after 24 h) with a 168 h cap keeps "back within
+24 h, still logged in" and bounds the rest to a week; that is what dev,
+stage and prod run (2026-09-25, plan 2943, "Behaviour change").
 
 A cookie that is present but refused (expired after idle,
 tampered, retired `refresh` type) is still a 401 on the session check, so

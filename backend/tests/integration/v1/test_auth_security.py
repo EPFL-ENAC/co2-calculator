@@ -22,6 +22,7 @@ from joserfc.jwk import OctKey
 
 import app.api.v1.auth as auth_module
 import app.core.config as config
+import app.core.security as security_module
 from app.core.security import create_access_token, decode_jwt
 from app.main import app
 from app.models.user import User, UserProvider
@@ -256,6 +257,15 @@ def session_user(monkeypatch) -> User:
 
 
 @pytest.fixture
+def session_lengths(monkeypatch):
+    """Pin 8 h idle / 24 h cap so the renewal cases below do not depend on
+    whatever a developer's .env or the deployed default says.
+    """
+    monkeypatch.setattr(security_module.settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 480)
+    monkeypatch.setattr(security_module.settings, "REFRESH_TOKEN_EXPIRE_HOURS", 24)
+
+
+@pytest.fixture
 def stub_workspace(monkeypatch):
     """GET /session bundles units + configured years; keep them off the mock db."""
     monkeypatch.setattr(
@@ -278,7 +288,7 @@ def _renewed_cookie(response) -> str | None:
 
 
 def test_session_past_half_life_is_renewed_on_any_request(
-    client, override_db, session_user, stub_workspace, monkeypatch
+    client, override_db, session_user, stub_workspace, session_lengths, monkeypatch
 ):
     """#2943: the cookie slides server-side. Past half the idle window the
     response re-issues it with the same ``auth_time`` and a later ``exp``, and
@@ -304,7 +314,7 @@ def test_session_past_half_life_is_renewed_on_any_request(
 
 
 def test_session_younger_than_half_life_is_left_alone(
-    client, override_db, session_user, stub_workspace
+    client, override_db, session_user, stub_workspace, session_lengths
 ):
     token = _session_token(expires_in=timedelta(hours=7), login_age=timedelta(hours=1))
 
@@ -315,7 +325,7 @@ def test_session_younger_than_half_life_is_left_alone(
 
 
 def test_session_at_hard_cap_is_not_renewed(
-    client, override_db, session_user, stub_workspace
+    client, override_db, session_user, stub_workspace, session_lengths
 ):
     """The cap is ``auth_time + REFRESH_TOKEN_EXPIRE_HOURS``: a cookie that
     already ends there gets no extension, and expires on its own.
@@ -331,7 +341,7 @@ def test_session_at_hard_cap_is_not_renewed(
 
 
 def test_pre_2943_token_without_auth_time_is_never_renewed(
-    client, override_db, session_user, stub_workspace
+    client, override_db, session_user, stub_workspace, session_lengths
 ):
     """Cookies minted before #2943 carry no ``auth_time``: accepted until their
     own ``exp``, then the user logs in once.

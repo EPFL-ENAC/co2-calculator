@@ -38,11 +38,11 @@ and that bound is the one thing kept.
 One httponly cookie, `auth_token` (name unchanged). Claims: `sub`, `email`,
 `institutional_id`, `provider`, `type: access`, plus:
 
-- `exp` = now + `ACCESS_TOKEN_EXPIRE_MINUTES` (480), the idle window. The
+- `exp` = now + `ACCESS_TOKEN_EXPIRE_MINUTES` (2880), the idle window. The
   setting keeps its name; the comment in `config.py` says what it now means.
 - `auth_time` (OIDC standard claim) = the login instant, set once by
   `/auth/callback` and `/auth/login-test`, carried unchanged through every
-  renewal. `REFRESH_TOKEN_EXPIRE_HOURS` (24) keeps its name and is the hard
+  renewal. `REFRESH_TOKEN_EXPIRE_HOURS` (168) keeps its name and is the hard
   cap on `auth_time`.
 
 `app/core/security.py`:
@@ -113,10 +113,15 @@ Two ways to go, both config-only:
    = 168 for one week) or accept no practical cap. Renewal audit rows drop
    to about one per user per 12 h of activity.
 
-Decided 2026-09-25: keep 480 min / 24 h and watch on dev. Known cost: a
-save after 8 h idle, or at hour 24 of an active session, now fails to the
-login page and loses the unsaved input. Before, the refresh-and-retry made
-those saves succeed. If that bites, option 2 is config only.
+Decided 2026-09-25, after dev testing: **2880 min idle / 168 h cap**,
+set in the dev, stage and prod overlays (openshift-app-config#73) and as
+the defaults in `config.py`, `helm/values.yaml` and `.env.example`. 480 / 24
+had brought back the complaints the old rolling refresh was set up to fix:
+a login every morning, and a lost save after 8 h idle or at hour 24. 48 h
+idle renews after 24 h, so anyone back within 24 h stays logged in, a hard
+guarantee the old logic only gave for about 16 h. 1440 min was rejected:
+it renews only after 12 h, so a 15 h overnight gap could still log out. A
+week's cap means at most one login a week.
 
 ## Verification done before review
 

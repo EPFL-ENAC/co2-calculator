@@ -351,8 +351,10 @@ class Settings(BaseSettings):
     # the second caps the whole session from the login instant (the
     # token's ``auth_time``), whatever the activity. Names kept from the
     # two-cookie era so no env file or overlay has to move.
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
-    REFRESH_TOKEN_EXPIRE_HOURS: int = 24
+    # 48 h idle keeps "back within 24 h, still logged in", the UX the old
+    # rolling refresh gave; 7 days caps what that used to leave uncapped.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 2880
+    REFRESH_TOKEN_EXPIRE_HOURS: int = 168
     # How long RoleSyncService trusts a stored role set before re-checking the
     # provider (#2539). Was a hardcoded 15-minute constructor default with no
     # env knob; POST /v1/session only refreshes reactively on a 401, so a
