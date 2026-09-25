@@ -14,6 +14,7 @@ Run from ``backend/`` against the LOCAL compose Postgres, seeded
 
     docker compose up -d otel      # repo root; or pass --exporter none
     uv run python -m tests.performance.cpu_profile                # off,prod,dev
+    uv run python -m tests.performance.cpu_profile --levels sampling -n 200
     uv run python -m tests.performance.cpu_profile --levels prod -n 200
     uv run python -m tests.performance.cpu_profile --levels dev \
         --profile merged_report_stats
@@ -27,6 +28,16 @@ Levels are the pods' own OTEL_* env vars, so the numbers transfer:
 - ``prod`` — chart default: ``sqlalchemy,psycopg`` disabled, ``always_on``.
 - ``dev``  — ``always_on``, only ``sqlalchemy`` disabled: one psycopg span
   per SQL statement.
+- ``dev0`` — as ``dev`` but ``always_off``: the instrumentation hooks run and
+  nothing is recorded, the floor any head sampling can reach.
+- ``prod10`` / ``prod1`` and ``dev10`` / ``dev1`` — as ``prod`` / ``dev`` with
+  ``parentbased_traceidratio`` at 10 % / 1 %. Use ``-n 200`` or more at 1 %:
+  a sampled request is rare, so small runs are noisy.
+
+``--levels sampling`` runs the whole sweep in order: off, dev0, prod1,
+prod10, prod, dev1, dev10, dev. Only head sampling (decided in the app at
+span start) saves app CPU; tail sampling in the collector drops spans after
+the app has created and exported them, so it saves nothing here.
 
 ``httpx`` instrumentation is disabled at every level: it would wrap this
 harness's own client (the read path makes no httpx calls). Each level runs
@@ -95,22 +106,56 @@ DB_SCOPES = (
     "opentelemetry.instrumentation.sqlalchemy",
 )
 
+NO_SQL_SPANS = "httpx,sqlalchemy,psycopg"  # chart default: prod backend
+PSYCOPG_SPANS = "httpx,sqlalchemy"  # dev and stage backends
+
+
+def sampled(ratio: str, disabled: str) -> dict[str, str]:
+    """Head sampling at a ratio, as a pod would set it."""
+    return {
+        "OTEL_TRACES_SAMPLER": "parentbased_traceidratio",
+        "OTEL_TRACES_SAMPLER_ARG": ratio,
+        "OTEL_PYTHON_DISABLED_INSTRUMENTATIONS": disabled,
+    }
+
+
 LEVELS: dict[str, dict[str, str]] = {
     "off": {
         "OTEL_SDK_DISABLED": "true",
-        "OTEL_PYTHON_DISABLED_INSTRUMENTATIONS": "httpx,sqlalchemy,psycopg",
+        "OTEL_PYTHON_DISABLED_INSTRUMENTATIONS": NO_SQL_SPANS,
     },
+    "dev0": {
+        "OTEL_TRACES_SAMPLER": "always_off",
+        "OTEL_PYTHON_DISABLED_INSTRUMENTATIONS": PSYCOPG_SPANS,
+    },
+    "prod1": sampled("0.01", NO_SQL_SPANS),
+    "prod10": sampled("0.1", NO_SQL_SPANS),
     "prod": {
         "OTEL_TRACES_SAMPLER": "always_on",
-        "OTEL_PYTHON_DISABLED_INSTRUMENTATIONS": "httpx,sqlalchemy,psycopg",
+        "OTEL_PYTHON_DISABLED_INSTRUMENTATIONS": NO_SQL_SPANS,
     },
+    "dev1": sampled("0.01", PSYCOPG_SPANS),
+    "dev10": sampled("0.1", PSYCOPG_SPANS),
     "dev": {
         "OTEL_TRACES_SAMPLER": "always_on",
-        "OTEL_PYTHON_DISABLED_INSTRUMENTATIONS": "httpx,sqlalchemy",
+        "OTEL_PYTHON_DISABLED_INSTRUMENTATIONS": PSYCOPG_SPANS,
     },
 }
-# (any span, any per-statement DB span) each level must produce.
-EXPECTED_SPANS = {"off": (False, False), "prod": (True, False), "dev": (True, True)}
+DEFAULT_LEVELS = ["off", "prod", "dev"]
+# The whole sampling sweep, cheapest first; LEVELS is declared in this order.
+SAMPLING_PRESET = "sampling"
+# (any span, any per-statement DB span) each level must produce. At 1 % a
+# default run still samples several of its ~900 requests.
+EXPECTED_SPANS = {
+    "off": (False, False),
+    "dev0": (False, False),
+    "prod1": (True, False),
+    "prod10": (True, False),
+    "prod": (True, False),
+    "dev1": (True, True),
+    "dev10": (True, True),
+    "dev": (True, True),
+}
 
 
 @dataclass(frozen=True)
@@ -477,11 +522,14 @@ def run_child(level: str, args: argparse.Namespace, requirements: Path) -> dict:
 
 
 def parse_levels(raw: str) -> list[str]:
+    if raw.strip() == SAMPLING_PRESET:
+        return list(LEVELS)
     levels = [level.strip() for level in raw.split(",") if level.strip()]
     unknown = [level for level in levels if level not in LEVELS]
     if unknown or not levels:
         raise argparse.ArgumentTypeError(
-            f"levels must be a comma list of {', '.join(LEVELS)}; got {raw!r}"
+            f"levels must be {SAMPLING_PRESET!r} or a comma list of "
+            f"{', '.join(LEVELS)}; got {raw!r}"
         )
     return levels
 
@@ -490,7 +538,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--levels", type=parse_levels, default=list(LEVELS))
+    parser.add_argument("--levels", type=parse_levels, default=DEFAULT_LEVELS)
     parser.add_argument("-n", "--requests", type=int, default=50)
     parser.add_argument("--warmup", type=int, default=50)
     parser.add_argument("--profile", choices=list(ENDPOINTS))

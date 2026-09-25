@@ -4,7 +4,14 @@ cProfile component bucketing, and the local-DB guard.
 
 import pytest
 
-from tests.performance.cpu_profile import assert_local_db
+from tests.performance.cpu_profile import (
+    DEFAULT_LEVELS,
+    EXPECTED_SPANS,
+    LEVELS,
+    SAMPLING_PRESET,
+    assert_local_db,
+    parse_levels,
+)
 from tests.performance.cpu_profile_stats import (
     APP,
     IO_WAIT,
@@ -190,3 +197,25 @@ def test_assert_local_db_accepts_local_postgres(db_url):
 def test_assert_local_db_refuses_anything_else(db_url):
     with pytest.raises(RuntimeError):
         assert_local_db(db_url)
+
+
+def test_every_level_declares_its_expected_spans():
+    assert set(EXPECTED_SPANS) == set(LEVELS)
+
+
+def test_ratio_levels_sample_a_fraction():
+    ratios = {
+        name: float(env["OTEL_TRACES_SAMPLER_ARG"])
+        for name, env in LEVELS.items()
+        if env.get("OTEL_TRACES_SAMPLER") == "parentbased_traceidratio"
+    }
+    assert ratios == {"prod1": 0.01, "prod10": 0.1, "dev1": 0.01, "dev10": 0.1}
+
+
+def test_sampling_preset_runs_every_level_in_declared_order():
+    assert parse_levels(SAMPLING_PRESET) == list(LEVELS)
+
+
+def test_default_levels_are_unchanged():
+    assert DEFAULT_LEVELS == ["off", "prod", "dev"]
+    assert parse_levels("dev1, prod10") == ["dev1", "prod10"]

@@ -88,6 +88,28 @@ wall clock, so time blocked in the selector gets its own "io wait" row and
 is left out of the CPU shares. Only the event-loop thread is profiled. The
 `.prof` file lands in `reports/`.
 
+### Sampling levels (added 2026-09-25)
+
+The first local run (tracing off) measured 4.4 ms of CPU per request on the
+600-user traffic mix, against 36.6 ms on dev; cluster nodes are 7 to 15 times
+slower per core than a laptop, so the ratio between levels is what
+transfers, not the absolute milliseconds. To price sampling, five levels
+join `off`, `prod` and `dev`:
+
+| Level    | Sampler                         | SQL spans |
+| -------- | ------------------------------- | --------- |
+| `dev0`   | `always_off`                    | psycopg   |
+| `prod1`  | `parentbased_traceidratio` 0.01 | none      |
+| `prod10` | `parentbased_traceidratio` 0.1  | none      |
+| `dev1`   | `parentbased_traceidratio` 0.01 | psycopg   |
+| `dev10`  | `parentbased_traceidratio` 0.1  | psycopg   |
+
+`--levels sampling` runs all eight in order, cheapest first. `dev0` is the
+floor any head sampling can reach: hooks run, nothing is recorded. Only head
+sampling saves app CPU; a collector tail-sampling policy (for example "keep
+every 4xx/5xx") drops spans after the app has paid to create and export
+them. Use `-n 200` or more when 1 % levels matter.
+
 ## How to run
 
 From `backend/`, with the local compose Postgres seeded:
