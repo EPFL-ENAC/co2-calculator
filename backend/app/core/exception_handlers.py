@@ -4,6 +4,8 @@ from typing import Any
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from app.core.exceptions import (
     InsufficientScopeError,
@@ -11,6 +13,7 @@ from app.core.exceptions import (
     RecordAccessDeniedError,
 )
 from app.core.logging import get_logger
+from app.db import explain_db_wait
 
 logger = get_logger(__name__)
 
@@ -89,4 +92,35 @@ async def permission_denied_handler(
     return JSONResponse(
         status_code=status.HTTP_403_FORBIDDEN,
         content=content,
+    )
+
+
+async def db_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
+    """503 JSON, not Starlette's bare 500, when the database is unavailable.
+
+    Only this pod's pool checkout timeout, a lost or never-established
+    connection (``connection_invalidated``, set by ``count_connect_failure``
+    for connect failures), or a full bouncer/server (``explain_db_wait``)
+    qualifies, whatever the DBAPIError subclass (psycopg can report a lost
+    connection as InterfaceError). Any other error is re-raised: a 500.
+    """
+    unavailable = isinstance(exc, SQLAlchemyTimeoutError)
+    if isinstance(exc, DBAPIError):
+        unavailable = exc.connection_invalidated or (
+            exc.orig is not None and explain_db_wait(exc.orig) is not None
+        )
+    if not unavailable:
+        raise exc
+    logger.error(
+        "Database unavailable, answering 503",
+        exc_info=exc,
+        extra={
+            "exception_type": type(exc).__name__,
+            "path": request.url.path,
+            "method": request.method,
+        },
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Database temporarily unavailable"},
     )

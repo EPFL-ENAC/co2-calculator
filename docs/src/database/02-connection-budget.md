@@ -62,12 +62,14 @@ is off.
 
 **Why `query_wait_timeout` is 10 s.** A request queued at the bouncer
 already holds its pod pool slot, so `DB_POOL_TIMEOUT` (5 s) cannot cut the
-wait. At 120 s the pod's pool fills with waiting requests, its `/ready`
-`SELECT 1` waits too, the pod goes NotReady after two failed probes
-(about 60 s), traffic shifts to the other pods and they saturate in turn:
-the 2026-09-08 and 2026-09-17 incidents. At 10 s the request is cut before
-the second probe, the slot is handed back and the error stays on that one
-request. 10 s is also the app's request-latency alert threshold.
+wait. At 120 s the pod's pool fills with waiting requests. Until
+2026-09-24 its `/ready` check then failed too, the pod went NotReady,
+traffic shifted to the other pods and they saturated in turn: the
+2026-09-08 and 2026-09-17 incidents. `/ready` now stays 200 through a DB
+wait once the pod has reached the DB (plan 2049), but a full pool still
+fails every request on that pod. At 10 s the request is cut, the slot is
+handed back and the error stays on that one request, answered as a 503.
+10 s is also the app's request-latency alert threshold.
 
 **Prepared statements.** psycopg 3.3.6 with libpq 18 replays named
 prepares through the bouncer natively, so the app keeps psycopg's default
@@ -96,15 +98,15 @@ environment's `DB_URL`, off-hours, when nobody is testing):
 
 Per pod, in the order they start (`app/main.py` lifespan):
 
-| Loop                                | Runs on                                                                            | Cadence      | Connections at once                                                                                         |
-| ----------------------------------- | ---------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
-| DB health poller (`_db_health.py`)  | all pods                                                                           | 1 s          | 1, never held past 1 s; `/ready` reads its verdict                                                          |
-| Pod heartbeat (`_pod_heartbeat.py`) | all pods                                                                           | 30 s         | 1, also refreshes the server-side gauge                                                                     |
-| Pipeline reconciler                 | worker only (API pods set `RUN_PIPELINE_RECONCILER=false` in every overlay, #2854) | 60 s         | 1                                                                                                           |
-| Safety poller (`_poller.py`)        | worker only (`RUN_BACKGROUND_POLLER`)                                              | 2 s          | 1, plus what it dispatches                                                                                  |
-| Job runner (`runner.py`)            | worker                                                                             | per job      | up to 3 per running job (job session, data session, chain helper); measured 1 most of the time, see below   |
-| Request handlers                    | backend                                                                            | per request  | 1 from the route's first query to the end of the response; auth releases its own before the route body runs |
-| SSE streams (`data_sync.py`)        | backend                                                                            | per 2 s poll | 1 for a few ms per poll, none between polls                                                                 |
+| Loop                                | Runs on                                                                            | Cadence                        | Connections at once                                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| DB health poller (`_db_health.py`)  | all pods                                                                           | 30 s (5 s until first success) | 1, never held past 1 s; `/ready` reads its verdict                                                          |
+| Pod heartbeat (`_pod_heartbeat.py`) | all pods                                                                           | 30 s                           | 1, also refreshes the server-side gauge                                                                     |
+| Pipeline reconciler                 | worker only (API pods set `RUN_PIPELINE_RECONCILER=false` in every overlay, #2854) | 60 s                           | 1                                                                                                           |
+| Safety poller (`_poller.py`)        | worker only (`RUN_BACKGROUND_POLLER`)                                              | 2 s                            | 1, plus what it dispatches                                                                                  |
+| Job runner (`runner.py`)            | worker                                                                             | per job                        | up to 3 per running job (job session, data session, chain helper); measured 1 most of the time, see below   |
+| Request handlers                    | backend                                                                            | per request                    | 1 from the route's first query to the end of the response; auth releases its own before the route body runs |
+| SSE streams (`data_sync.py`)        | backend                                                                            | per 2 s poll                   | 1 for a few ms per poll, none between polls                                                                 |
 
 Measured (2026-09-18, local Postgres, `pg_stat_activity` every 50 ms via
 `backend/tests/performance/pipeline_connections.py`; one 500-row upload

@@ -32,6 +32,7 @@ async def test_failing_ready_attaches_the_verdict_to_the_span():
     down = _state("down", error="connection failed: FATAL: 53300")
     with (
         patch("app.main._fresh_db_state", return_value=down),
+        patch("app.main.db_ever_healthy", return_value=False),
         patch("app.main.trace.get_current_span", return_value=span),
     ):
         resp = await ready()
@@ -46,6 +47,32 @@ async def test_failing_ready_attaches_the_verdict_to_the_span():
     )
     # The security boundary from test_security_alert_fixes still holds: the
     # error goes to the span (internal telemetry), never the response body.
+    assert b"53300" not in resp.body
+
+
+async def test_degraded_ready_stays_200_but_keeps_the_outage_loud():
+    """DB down after a first success keeps the pod in the Service, yet the
+    verdict still reaches the span and the warning log.
+    """
+    span = MagicMock()
+    down = _state("down", error="connection failed: FATAL: 53300")
+    with (
+        patch("app.main._fresh_db_state", return_value=down),
+        patch("app.main.db_ever_healthy", return_value=True),
+        patch("app.main.trace.get_current_span", return_value=span),
+        patch("app.main.logger") as log,
+    ):
+        resp = await ready()
+
+    assert resp.status_code == 200
+    span.set_attributes.assert_called_once_with(
+        {
+            "db.health.status": "down",
+            "db.health.error": "connection failed: FATAL: 53300",
+            "db.health.latency_ms": 12.5,
+        }
+    )
+    log.warning.assert_called_once()
     assert b"53300" not in resp.body
 
 

@@ -643,12 +643,16 @@ class Settings(BaseSettings):
         ),
     )
     DB_HEALTH_CHECK_INTERVAL_SECONDS: int = Field(
-        default=1,
+        default=30,
         ge=1,
         description=(
-            "Seconds between background SELECT 1 checks. /ready and "
-            "/healthz read the cached result of the last check rather "
-            "than querying the DB themselves."
+            "Seconds between background SELECT 1 checks once the DB has "
+            "answered at least once (until then the loop retries every "
+            "DB_HEALTH_BOOT_RETRY_SECONDS). /ready and /healthz read the "
+            "cached result of the last check rather than querying the DB "
+            "themselves. After boot, readiness only needs to know the "
+            "loop is alive, while each check costs a bouncer transaction "
+            "and orphan psycopg spans on every pod."
         ),
     )
     DB_HEALTH_SLOW_THRESHOLD_MS: int = Field(

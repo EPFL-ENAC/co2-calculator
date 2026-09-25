@@ -10,12 +10,17 @@ from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.internal import router as internal_router
 from app.api.router import api_router
 from app.core.config import RoleProviderType, UnitProviderType, get_settings
-from app.core.exception_handlers import permission_denied_handler
+from app.core.exception_handlers import (
+    db_unavailable_handler,
+    permission_denied_handler,
+)
 from app.core.exceptions import (
     InsufficientScopeError,
     PermissionDeniedError,
@@ -26,7 +31,12 @@ from app.core.request_origin import RequestOriginMiddleware
 from app.core.session_renewal import SessionRenewalMiddleware
 from app.db import engine
 from app.tasks._background import cancel_background_tasks
-from app.tasks._db_health import DBHealthState, get_db_health_state, is_fresh
+from app.tasks._db_health import (
+    DBHealthState,
+    db_ever_healthy,
+    get_db_health_state,
+    is_fresh,
+)
 
 # Setup logging
 setup_logging()
@@ -505,6 +515,10 @@ exclude_per_chunk_asgi_spans(app)
 app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
 app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
 app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
+# DB outages answer 503 JSON, not a bare 500; the handler re-raises any
+# other DBAPIError, so bugs stay 500.
+app.add_exception_handler(SQLAlchemyTimeoutError, db_unavailable_handler)
+app.add_exception_handler(DBAPIError, db_unavailable_handler)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)
@@ -561,6 +575,18 @@ async def healthz():
     return JSONResponse(status_code=status.HTTP_200_OK, content=content)
 
 
+def _readiness(state: DBHealthState | None) -> str:
+    """healthy; degraded (DB down after this pod once reached it); or
+    unhealthy (never reached it, or the poller stopped ticking).
+    """
+    verdict = "unhealthy"
+    if state is not None and state.status != "down":
+        verdict = "healthy"
+    if state is not None and state.status == "down" and db_ever_healthy():
+        verdict = "degraded"
+    return verdict
+
+
 @app.get("/ready", response_class=JSONResponse)
 async def ready():
     """Readiness check endpoint.
@@ -568,25 +594,30 @@ async def ready():
     #2049: reads the background DB health poller's cached verdict — zero
     I/O of its own, so a saturated pool can no longer make this endpoint
     itself hang (#2050 A1 bounded that per-request check; this removes
-    it). 503 when the DB is down, unchecked, or the poller has gone
-    stale; 200 otherwise. A merely *slow* DB still passes — DB latency is
-    shared state, so gating readiness on it would take every pod unready
-    at once, turning "slow" into the very outage this endpoint exists to
-    prevent. Used by Kubernetes readinessProbe.
+    it). 503 only before the first ok/slow check since boot (broken DB
+    config never takes traffic) or when the verdict is stale (this pod's
+    poller died). A slow DB, or one down after that first success
+    ("degraded"), still answers 200: the DB is shared, so gating on it
+    pulls every pod from the Service at once and the router serves its
+    HTML 503 for the whole API. Accepted cost: a pod that loses its own
+    network path to the DB also stays in, answering 503 JSON per request.
+    Used by Kubernetes readinessProbe.
 
     External provider health (Accred) lives in /health/deps (#2050 A1):
     it must never gate readiness — a blip there is EPFL's incident, not
     ours.
     """
     state = _fresh_db_state()
-    healthy = state is not None and state.status != "down"
-    status_code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    verdict = _readiness(state)
+    status_code = status.HTTP_200_OK
+    if verdict == "unhealthy":
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-    if not healthy:
+    if verdict != "healthy":
         logger.warning(
-            "Readiness check failed",
+            "Readiness check %s",
+            verdict,
             extra={
-                "healthy": healthy,
                 "database_status": state.status if state else "unknown",
                 "db_error": state.error if state else None,
             },
@@ -610,8 +641,10 @@ async def ready():
     return JSONResponse(
         status_code=status_code,
         content={
-            "status": "healthy" if healthy else "unhealthy",
-            "database": state.status if state else "unknown",
+            "status": verdict,
+            "database": _DB_STATUS_DISPLAY.get(
+                state.status if state else "", "unknown"
+            ),
         },
     )
 
