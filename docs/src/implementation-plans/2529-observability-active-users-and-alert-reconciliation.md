@@ -2,8 +2,8 @@
 status: in-progress
 issue: 2529
 title: "Concurrent-users gauge + reconcile job-latency alerting with measured load"
-last_updated: 2026-08-30
-summary: "Item A: a `co2_active_users_5m` observable gauge plus a capacity-tier panel — unimplemented in both repos, unchanged. Item B was written to reconcile `JobLatencySLOBreach`; that alert was deleted in every environment by openshift-app-config #38 on 2026-09-07 ('no alerting on job-class routes at all'), so it is rewritten to keep only what is still true: why a request-duration histogram whose last bucket is 10 s could never have measured a 42 s job, one live classification defect that routes plan prefill into the tightly-alerted `api` class, and a dev-only route_class split that stage and prod never received."
+last_updated: 2026-09-25
+summary: "Item A: the `co2_active_users_5m` observable gauge is implemented in the backend; the dev deploy, the observed-label check and the capacity-tier panel remain. Item B was written to reconcile `JobLatencySLOBreach`; that alert was deleted in every environment by openshift-app-config #38 on 2026-09-07 ('no alerting on job-class routes at all'), so it is rewritten to keep only what is still true: why a request-duration histogram whose last bucket is 10 s could never have measured a 42 s job, one live classification defect that routes plan prefill into the tightly-alerted `api` class, and a dev-only route_class split that stage and prod never received. Both ops fixes are drafted in openshift-app-config#74, gated on a label observation and a maintainer decision. #2854's per-job-type duration histograms answer open question 1 only in part."
 ---
 
 # Concurrent-users gauge + reconcile job-latency alerting with measured load
@@ -207,6 +207,11 @@ touch three ids, assert the callback yields 3; monkeypatch the clock past
 the window, touch one, assert it yields 1 and the map has been pruned to
 1 entry. That is the whole contract.
 
+Shipped with two more checks: the observation carries no attributes (the
+cardinality contract), and `touch(None)` raises. `User.id` is typed
+`int | None`, so `touch()` narrows it with a `ValueError` rather than
+`security.py` growing a guard.
+
 ---
 
 ## Item B — job-class alerting, after it was removed
@@ -347,6 +352,51 @@ only available instrument was a saturated request-duration histogram. It
 stops being defensible once 2049-C4 exists, and it is the strongest
 argument for unblocking it.
 
+### Update 2026-09-25: per-job histograms exist now (#2854)
+
+#2854 added two histograms per `job_type` in
+`backend/app/tasks/_job_timings.py`: `job_duration_seconds` (claim to
+FINISHED, also labelled `result`) and `job_queue_wait_seconds` (created
+to claimed). Buckets are `[1, 2, 5, 10, 30, 60, 120, 300, 600, 1200,
+1800, 3600]` s, and the dev dashboard already charts both. This answers
+open question 1 only in part:
+
+- **Plan prefill is covered.** It is its own `job_type`,
+  `simulator_plan_prefill` (`app/tasks/simulator_plan_tasks.py`),
+  enqueued by `_enqueue_prefill` and run through `run_job`, so its
+  duration and queue wait are measured. But the #2529 §3 target "plan
+  prefill p95 < 15 s" falls between the 10 and 30 s buckets and cannot
+  be read exactly: move the target to a boundary, or add 15 to
+  `JOB_SECONDS_BOUNDARIES`.
+- **Upload-to-ingested is not.** Locust's `FLOW csv upload e2e` polls
+  `/v1/sync/pipelines/{id}` until every job of the pipeline has
+  finished. `csv_ingest`'s duration leaves out its queue wait (a separate
+  histogram; two histograms do not add per job) and the jobs it chains,
+  so it is a lower bound of the flow. The end-to-end number still needs
+  2049-C4's `pipeline_duration_seconds`, which stays gated.
+- A run preempted before its FINISHED compare-and-set records no
+  duration.
+
+**Proposed SLO, text only.** The share of `csv_ingest` jobs finishing
+within 60 s, read off the exact `le="60"` bucket, with a target of
+≥ 95 %. This is the job-level half of "upload-to-ingested p95 < 60
+s/file":
+
+```promql
+sum(rate(job_duration_seconds_bucket{namespace="$ns", job_type="csv_ingest", le="60"}[1d]))
+/
+sum(rate(job_duration_seconds_count{namespace="$ns", job_type="csv_ingest"}[1d]))
+```
+
+- Confirm the literal `le` first, since Prometheus 3 may store it as
+  `"60.0"`: `count by (le) (job_duration_seconds_bucket{namespace="$ns",
+job_type="csv_ingest"})`.
+- It is a target to chart, not a rule. Stage's `csv_ingest` p95 was
+  ~376 s (`test_job_timings.py`), so it would breach on day one. It
+  measures the #2527 work.
+- An alert on it would also cross #38's decision and the two-maintainer
+  gate on pipeline internals.
+
 ### What this item deliberately does not propose
 
 **Re-adding job-class latency alerts.** #38 removed them on a considered
@@ -361,11 +411,11 @@ histogram whose last bucket is 10 s.
 
 ### Item A
 
-- [ ] `backend/app/core/active_users.py` — locked map, `touch()`, pruning
+- [x] `backend/app/core/active_users.py` — locked map, `touch()`, pruning
       observable-gauge callback, unit `{user}`.
-- [ ] One call in `resolve_user_by_jwt_payload`
+- [x] One call in `resolve_user_by_jwt_payload`
       (`backend/app/core/security.py`), beside `tag_span_with_user`.
-- [ ] Unit test in `backend/tests/unit/core/test_active_users.py`.
+- [x] Unit test in `backend/tests/unit/core/test_active_users.py`.
 - [ ] Deploy to dev; confirm `co2_active_users_5m` appears with one series
       per backend pod and a plausible value. Same trip, record which labels
       actually survive — group by `service_name` and `k8s_pod_name` and see
@@ -387,10 +437,17 @@ left is the classification defect and one decision.
 - [ ] **Ops repo PR**: add the project-plans prefill routes to the right
       job class, so they stop landing in `route_class="api"` under the
       tight `LatencyP50/95/99High` thresholds that are still active.
+      Drafted as commit 2 of openshift-app-config#74. The span side
+      uses the real templates; the metric side expects
+      `/api/{plan_id}` and `/api/{plan_id}/years/{year}` (PATCH) and
+      `/api/{plan_id}/prefill/{job_id}` (GET), which is derived from
+      FastAPI 0.141's un-prefixed `scope["route"]` and still waits on
+      the query above.
 - [ ] **Decide**: propagate the dev-only `job_poll` / `job_trigger`
       transform to stage and prod, or revert dev to match them. Today the
       same dashboard panel and TraceQL filter mean different things per
-      environment.
+      environment. Commit 1 of openshift-app-config#74 propagates;
+      drop it if the call is to revert.
 - [ ] Re-verify classification during a real import, per #1402's open
       step — a wrong regex mis-classifies silently and every threshold
       downstream becomes meaningless without failing.
@@ -404,6 +461,9 @@ left is the classification defect and one decision.
    the only way to alert on the 42 s / 184 s numbers at all, and it needs
    two-maintainer review because it touches pipeline internals. Item B
    can ship without it, but it will keep measuring the wrong thing.
+   **2026-09-25: partly answered.** #2854's per-job-type histograms
+   measure plan prefill, a single job. Upload-to-ingested is a pipeline,
+   so it still needs 2049-C4. See "Update 2026-09-25" in Item B.
 2. **`sum()` or `max()` as the panel's headline stat?** Proposed `sum()`
    (upper bound, errs toward acting early), with `max()` charted
    alongside. Say if you would rather the headline read low.
