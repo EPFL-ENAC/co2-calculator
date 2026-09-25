@@ -8,7 +8,7 @@ from starlette.datastructures import URL, Headers
 import app.api.v1.auth as auth_module
 import app.core.config as config
 from app.main import app
-from app.models.user import User, UserProvider
+from app.models.user import User
 
 API_PREFIX = config.get_settings().API_VERSION
 
@@ -149,54 +149,24 @@ async def test_auth_callback_exception(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("payload", [None, {"sub": None}])
-async def test_get_session_invalid_token(monkeypatch, payload):
-    monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
-    db = MagicMock()
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(_session_request(), auth_token="token", db=db)
-    assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("user_attr", ["email", "institutional_id"])
-async def test_get_session_user_missing(monkeypatch, user_attr):
-    monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value={"sub": "1"}))
-    mock_user = MagicMock(
-        id=1,
-        email="test@example.com",
-        institutional_id="123456",
-        roles=["user"],
+async def test_get_session_anonymous_answers_200_with_null_user():
+    """No cookie means no session, and that is an answer, not an error (#2943):
+    the SPA learns it in one request instead of a 401 followed by a refresh.
+    """
+    session = await auth_module.get_session(
+        _session_request(), user=None, db=MagicMock()
     )
-    setattr(mock_user, user_attr, None)
 
-    mock_get_user_by_user_id = AsyncMock(return_value=mock_user)
-    monkeypatch.setattr(auth_module.UserService, "get_by_id", mock_get_user_by_user_id)
-    db = MagicMock()
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(_session_request(), auth_token="token", db=db)
-    assert exc.value.status_code in [
-        status.HTTP_401_UNAUTHORIZED,
-        status.HTTP_403_FORBIDDEN,
-    ]
+    assert session.user is None
+    assert session.units == []
+    assert session.configured_years == []
 
 
 @pytest.mark.asyncio
-async def test_get_session_no_token():
-    db = MagicMock()
+async def test_get_session_user_missing_email(monkeypatch):
+    user = User(id=1, institutional_id="123456", email=None)
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(_session_request(), auth_token=None, db=db)
-    assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-async def test_get_session_exception(monkeypatch):
-    monkeypatch.setattr(
-        auth_module, "decode_jwt", MagicMock(side_effect=Exception("fail"))
-    )
-    db = MagicMock()
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(_session_request(), auth_token="token", db=db)
+        await auth_module.get_session(_session_request(), user=user, db=MagicMock())
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -214,10 +184,6 @@ async def test_get_session_echoes_the_address_the_server_saw(
     resolves against FORWARDED_ALLOW_IPS — never from the forgeable header.
     """
     user = User(id=2, institutional_id="123456", email="tester@epfl.ch")
-    monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value={"sub": "2"}))
-    monkeypatch.setattr(
-        auth_module, "resolve_user_by_jwt_payload", AsyncMock(return_value=user)
-    )
     monkeypatch.setattr(
         auth_module.UnitService, "get_user_units", AsyncMock(return_value=[])
     )
@@ -226,135 +192,10 @@ async def test_get_session_echoes_the_address_the_server_saw(
     )
 
     session = await auth_module.get_session(
-        _session_request(host), auth_token="token", db=MagicMock()
+        _session_request(host), user=user, db=MagicMock()
     )
 
     assert session.client_ip == expected
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("payload", [None, {"type": "access"}, {"sub": None}])
-async def test_refresh_session_invalid_payload(monkeypatch, payload):
-    monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
-    db = MagicMock()
-    response = MagicMock()
-    request = MagicMock()
-    bg_tasks = MagicMock()
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_session(
-            refresh_token="token",
-            response=response,
-            request=request,
-            background_tasks=bg_tasks,
-            db=db,
-        )
-    assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-async def test_refresh_session_user_missing(monkeypatch):
-    monkeypatch.setattr(
-        auth_module,
-        "decode_jwt",
-        MagicMock(
-            return_value={"type": "refresh", "sub": "1", "institutional_id": "123456"}
-        ),
-    )
-    db = MagicMock()
-    response = MagicMock()
-    request = MagicMock()
-    bg_tasks = MagicMock()
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_session(
-            refresh_token="token",
-            response=response,
-            request=request,
-            background_tasks=bg_tasks,
-            db=db,
-        )
-    assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-async def test_refresh_session_no_token():
-    db = MagicMock()
-    response = MagicMock()
-    request = MagicMock()
-    bg_tasks = MagicMock()
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_session(
-            refresh_token=None,
-            response=response,
-            request=request,
-            background_tasks=bg_tasks,
-            db=db,
-        )
-    assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-async def test_refresh_session_exception(monkeypatch):
-    monkeypatch.setattr(
-        auth_module, "decode_jwt", MagicMock(side_effect=Exception("fail"))
-    )
-    db = MagicMock()
-    response = MagicMock()
-    request = MagicMock()
-    bg_tasks = MagicMock()
-    with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_session(
-            refresh_token="token",
-            response=response,
-            request=request,
-            background_tasks=bg_tasks,
-            db=db,
-        )
-    assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.asyncio
-async def test_refresh_session_logs_audit_event(monkeypatch):
-    monkeypatch.setattr(
-        auth_module,
-        "decode_jwt",
-        MagicMock(
-            return_value={
-                "type": "refresh",
-                "sub": "1",
-                "institutional_id": "123456",
-                "provider": UserProvider.TEST,
-            }
-        ),
-    )
-    mock_user = MagicMock(
-        id=42,
-        email="test@example.com",
-        institutional_id="123456",
-        provider=UserProvider.TEST,
-    )
-    monkeypatch.setattr(
-        auth_module.UserService,
-        "get_by_institutional_id_and_provider",
-        AsyncMock(return_value=mock_user),
-    )
-    log_mock = AsyncMock()
-    monkeypatch.setattr(auth_module, "_log_auth_audit_event", log_mock)
-
-    db = MagicMock()
-    response = Response()
-    request = MagicMock()
-    bg_tasks = MagicMock()
-
-    result = await auth_module.refresh_session(
-        refresh_token="token",
-        response=response,
-        request=request,
-        background_tasks=bg_tasks,
-        db=db,
-    )
-
-    assert result["message"] == "Token refreshed successfully"
-    log_mock.assert_awaited_once()
 
 
 def test_logout(client):
@@ -368,6 +209,8 @@ def test_logout(client):
         app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["message"] == "Logged out successfully"
+    cleared = [c for c in response.headers.get_list("set-cookie") if "Max-Age=0" in c]
+    assert [c.split("=")[0] for c in cleared] == ["auth_token"]
 
 
 @pytest.mark.asyncio

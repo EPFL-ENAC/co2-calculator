@@ -1,15 +1,24 @@
 """Security utilities for JWT authentication and authorization."""
 
 import asyncio
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
 from typing import Final
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import (
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from fastapi.security import HTTPBearer
 from joserfc import jwt
-from joserfc.errors import BadSignatureError, ExpiredTokenError, InvalidClaimError
+from joserfc.errors import JoseError
 from joserfc.jwk import OctKey
 from joserfc.jwt import JWTClaimsRegistry
 from opentelemetry import trace
@@ -22,6 +31,9 @@ from app.core.policy import query_policy
 from app.db import get_db
 from app.models.user import User, UserProvider
 from app.services.user_service import UserService
+from app.tasks.role_sync_tasks import trigger_role_sync_for_user
+from app.tasks.session_tasks import audit_session_renewal
+from app.utils.request_context import extract_ip_address
 
 settings = get_settings()
 security = HTTPBearer()
@@ -33,22 +45,13 @@ logger = get_logger(__name__)
 # config), so a single shared instance is safe across the process.
 _CLAIMS_REGISTRY = JWTClaimsRegistry()
 
-# Token-type discriminators used as the `type` JWT claim and as the
-# `expected_token_type` argument to resolve_user_by_jwt_payload. Defined
-# as named constants (not string literals at call sites) so bandit B106
-# doesn't false-positive: it scans kwargs whose name contains "token"
-# for hardcoded credentials, which these decidedly are not.
+# Token-type discriminator used as the `type` JWT claim and as the
+# `expected_token_type` argument to resolve_user_by_jwt_payload. A named
+# constant (not a string literal at call sites) so bandit B106 doesn't
+# false-positive: it scans kwargs whose name contains "token" for
+# hardcoded credentials, which this decidedly is not.
 TOKEN_TYPE_ACCESS: Final[str] = "access"
-TOKEN_TYPE_REFRESH: Final[str] = "refresh"
-
-
-async def get_jwt_from_cookie(auth_token: str = Cookie(None)):
-    if not auth_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    return auth_token
+SESSION_COOKIE: Final[str] = "auth_token"
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
@@ -64,18 +67,64 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     return encoded_jwt
 
 
-def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    """Create JWT refresh token."""
-    if expires_delta is None:
-        raise ValueError("expires_delta must be provided for access tokens")
-    to_encode = data.copy()
-    to_encode["type"] = TOKEN_TYPE_REFRESH
-    expire = datetime.now(UTC) + expires_delta
-    to_encode.update({"exp": expire})
+def _session_end(now: int, auth_time: int) -> int:
+    """When a cookie minted now must expire: idle window, capped by login age."""
+    idle = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    cap = settings.REFRESH_TOKEN_EXPIRE_HOURS * 3600
+    return min(now + idle, auth_time + cap)
 
-    key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
-    encoded_jwt = jwt.encode({"alg": settings.ALGORITHM}, to_encode, key)
-    return encoded_jwt
+
+def issue_session_cookie(
+    response: Response,
+    *,
+    sub: str,
+    email: str,
+    institutional_id: str,
+    provider: str,
+    auth_time: int,
+) -> None:
+    """Mint the one session cookie (#2943).
+
+    ``auth_time`` (OIDC claim) is the login instant and never moves; every
+    renewal copies it, so a session slides on activity but ends at
+    ``auth_time + REFRESH_TOKEN_EXPIRE_HOURS`` whatever the user does.
+    """
+    now = int(time.time())
+    ttl = _session_end(now, auth_time) - now
+    token = create_access_token(
+        data={
+            "sub": sub,
+            "email": email,
+            "institutional_id": institutional_id,
+            "provider": provider,
+            "type": TOKEN_TYPE_ACCESS,
+            "auth_time": auth_time,
+        },
+        expires_delta=timedelta(seconds=ttl),
+    )
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=ttl,
+        path=settings.OAUTH_COOKIE_PATH,
+        secure=settings.COOKIE_SECURE,
+    )
+
+
+def session_needs_renewal(payload: dict, now: int) -> bool:
+    """Past half the idle window, and a new cookie would actually last longer.
+
+    A token without ``auth_time`` predates #2943 and is never renewed: it
+    lives out its own ``exp`` and the user logs in once.
+    """
+    auth_time = payload.get("auth_time")
+    if auth_time is None:
+        return False
+    exp = int(payload["exp"])
+    half_idle = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 30
+    return exp - now < half_idle and _session_end(now, int(auth_time)) > exp
 
 
 def decode_jwt(token: str) -> dict:
@@ -87,17 +136,19 @@ def decode_jwt(token: str) -> dict:
     valid until JWT_HMAC_KEY rotates.
 
     The 401 detail is intentionally opaque: callers don't need to know
-    whether the failure was a bad signature, expired token, or invalid
-    claim, and disclosing it leaks oracle-style information back to
-    whoever sent the token (CWE-209). The underlying exception is logged
-    at INFO so it remains diagnosable server-side.
+    whether the failure was a bad signature, expired token, invalid
+    claim or an algorithm we refuse, and disclosing it leaks oracle-style
+    information back to whoever sent the token (CWE-209). Every joserfc
+    error lands here (#2943): before, ``alg=none`` on a protected route
+    was a 500. The underlying exception is logged at INFO so it remains
+    diagnosable server-side.
     """
     try:
         key = OctKey.import_key(settings.JWT_HMAC_KEY.encode())
         payload = jwt.decode(token, key, algorithms=[settings.ALGORITHM])
         _CLAIMS_REGISTRY.validate(payload.claims)
         return payload.claims
-    except (BadSignatureError, ExpiredTokenError, InvalidClaimError) as e:
+    except JoseError as e:
         logger.info(
             "JWT validation failed",
             extra={"error": str(e), "error_type": type(e).__name__},
@@ -193,13 +244,54 @@ async def resolve_user_by_jwt_payload(
     return user
 
 
-async def get_current_user(
+def _renew_session(
+    payload: dict,
+    user: User,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+) -> None:
+    """Re-issue the cookie on the response and record the renewal off-request.
+
+    Both side effects run after the response is sent, each with its own DB
+    session: the audit row because a renewal is a session event like a
+    login, the role sync because this is the same cadence ``POST /session``
+    used to give it (plan 2539).
+    """
+    issue_session_cookie(
+        response,
+        sub=str(payload["sub"]),
+        email=str(payload["email"]),
+        institutional_id=str(payload["institutional_id"]),
+        provider=str(payload["provider"]),
+        auth_time=int(payload["auth_time"]),
+    )
+    background_tasks.add_task(
+        audit_session_renewal,
+        user_id=user.id or 0,
+        institutional_id=user.institutional_id,
+        email=user.email,
+        ip_address=extract_ip_address(request),
+        route_path=request.url.path,
+    )
+    background_tasks.add_task(
+        trigger_role_sync_for_user, user_id=user.id or 0, force=False
+    )
+
+
+async def get_optional_user(
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    token: str = Depends(get_jwt_from_cookie),
-) -> User:
-    """Get current user from JWT token. Thin wrapper over
-    :func:`resolve_user_by_jwt_payload` that enforces the access-token
-    contract — refresh tokens must not be accepted for protected routes.
+    auth_token: str | None = Cookie(None),
+) -> User | None:
+    """The session behind the cookie, or ``None`` when there is no cookie.
+
+    A cookie that is present but does not validate is still a 401: the
+    browser sent a credential and it was refused, which is not the same
+    state as "anonymous". Past half the idle window the cookie is renewed
+    on this response (#2943), so an active user never sees it expire.
 
     Returns a *detached* ``User`` and hands the pooled connection back
     before the route body runs. ``get_db`` is a ``yield`` dependency that
@@ -211,12 +303,26 @@ async def get_current_user(
     its first query autobegins again and takes a connection only then.
     ``User`` has no relationships, so a detached instance is complete.
     """
-    payload = decode_jwt(token)
+    if not auth_token:
+        return None
+    payload = decode_jwt(auth_token)
     user = await resolve_user_by_jwt_payload(
         payload, db, expected_token_type=TOKEN_TYPE_ACCESS
     )
     db.expunge(user)
     await db.rollback()
+    if session_needs_renewal(payload, int(time.time())):
+        _renew_session(payload, user, request, response, background_tasks)
+    return user
+
+
+async def get_current_user(user: User | None = Depends(get_optional_user)) -> User:
+    """Protected-route dependency: the session user, or 401."""
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
     return user
 
 

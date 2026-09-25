@@ -1,12 +1,12 @@
 ---
-status: in-progress
+status: delivered
 last_updated: 2026-09-25
 summary: "One httponly session cookie renewed server-side at half-life with a hard cap from the OIDC auth_time claim replaces the access + refresh pair; the client never refreshes and GET /session answers 200 with user null when anonymous."
 ---
 
 # ADR-020: Single sliding session cookie
 
-**Status**: Proposed (issue #2943)
+**Status**: Accepted (issue #2943, 2026-09-25)
 **Date**: 2026-09-24
 **Deciders**: Development Team
 **Amends**: [ADR-012](./012-jwt-authentication-strategy.md), mitigation
@@ -73,17 +73,17 @@ Positive: one cookie, one code path in the guard, no auth branches in the
 HTTP client beyond "401 on a real request → login page", a faster return
 after idle (no refresh round trip), zero session 401s in the log.
 
-Negative: a deliberate two-week compatibility window. The old frontend
-expects 401 on the session check and calls `POST /session` on any 401, so
-the switch ships in two dated steps: step 1 changes the cookie and the
-renewal while keeping the 401 and the refresh endpoint alive as a
-compatibility path; step 2, at least two weeks after step 1 reaches prod,
-flips `GET /session` to 200/null and deletes the refresh endpoint. This is
-the one exception to "no backward-compatibility paths" in this ADR, and
-it carries its removal date. Revocation is unchanged from ADR-012: none
-before expiry.
+Negative: a cookie that is present but refused (expired after idle,
+tampered, retired `refresh` type) is still a 401 on the session check, so
+"every user's first morning load" writes one 401 line. That is a real
+event, not the two-line dance of before. Revocation is unchanged from
+ADR-012: none before expiry.
 
-Rollout: an `auth_token` minted before the change validates but is not
+Rollout, in one step (maintainer's call, 2026-09-25, no compatibility
+window): an `auth_token` minted before the change validates but is not
 renewed (it carries neither `auth_time` nor `iat`), so each user logs in
-once more within 8 h of the deploy, which is what their access token would
-have required anyway; the stale `refresh_token` expires within 24 h.
+once more within 8 h of the deploy, which their access token would have
+required anyway; the stale `refresh_token` expires within 24 h. An old
+frontend bundle left open reads the anonymous 200 as "no user" and shows
+the login page; its refresh attempt on an expired cookie meets a 405 and
+ends on the login page too.

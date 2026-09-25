@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "CO2 Calculator API - LOCAL",
-    "description": "\n    CO2 Calculator API with permission-based authorization using Open Policy Agent.\n\n    ## Features\n\n    * **JWT Authentication** - Secure token-based authentication\n    * **Permission-Based Authorization** - Fine-grained access control with\n      calculated permissions\n    * **OPA Policies** - Policy-based resource filtering and access control\n    * **Multi-tenancy** - Support for multiple EPFL units with scope-based\n      data filtering\n    * **RESTful API** - Clean and consistent API design\n\n    ## Permission-Based Authorization\n\n    The API uses a permission-based authorization model where:\n\n    - **Roles are assigned** to users (e.g., principal, backoffice metier, super admin)\n    - **Permissions are calculated** dynamically from roles at authentication\n    - **Access control** is enforced at the route level using permissions\n    - **Data filtering** is applied based on user scope (global, unit, own)\n\n    ### Permission Structure\n\n    Permissions follow a hierarchical dot-notation structure:\n\n    * **backoffice.*** - One permission per backoffice page\n        * `backoffice.reporting` (view, export) - Reporting (affiliation-scoped)\n        * `backoffice.users` (view, edit, export) - User management\n        * `backoffice.documentation` / `backoffice.ui_texts` (view, edit)\n        * `backoffice.configuration` / `backoffice.pipeline_operations`\n          (view, edit) - super admin only\n        * `backoffice.logs` (view) - super admin only\n\n    * **modules.*** - CO2 calculation modules (unit-scoped `\u2026/<unit>`, or\n      own-scoped `\u2026/<unit>/own` for standard users)\n        * `modules.headcount`, `modules.professional_travel`, `modules.equipment`,\n          \u2026 (view, edit, sync)\n\n    ### Permission Actions\n\n    Each permission supports different actions:\n    - **view** - Read access to resources\n    - **edit** - Create, update, and delete operations\n    - **export** - Data export capabilities\n\n    ### How Permissions Work\n\n    1. User authenticates via `/api/v1/auth/login` and receives JWT token\n    2. JWT token contains user information and assigned roles\n    3. On each request, permissions are calculated from roles\n    4. Routes use `require_permission(\"path.resource\", \"action\")` decorator\n    5. If permission denied, returns 403 with specific error message\n    6. Data queries are filtered by user scope (global/unit/own)\n\n    ### Example Permission Check\n\n    ```python\n    @router.get(\"/headcounts\")\n    async def get_headcounts(\n        user: User = Depends(require_permission(\"modules.headcount\", \"view\"))\n    ):\n        # Only users with modules.headcount.view permission can access\n        # Data is filtered by scope: global, unit, or own\n    ```\n\n    ## Authorization Model with OPA\n\n    The API uses OPA (Open Policy Agent) patterns for authorization decisions:\n\n    1. **Route-level permission checks** - Enforced via `require_permission()`\n       decorator\n    2. **Service-level data filtering** - Applied via `get_data_filters()`\n       based on scope\n    3. **Resource-level access control** - Checked via `check_resource_access()`\n       for individual resources\n\n    ### Scope-Based Data Filtering\n\n    Data access is automatically filtered based on user scope:\n\n    * **Global scope** (super admin) - See all data\n    * **Unit scope** (principals) - See data for their assigned units\n    * **Own scope** (standard users) - See only their own data\n\n    ## Assigned Roles\n\n    Users are assigned one or more of these roles. Permissions are calculated\n    from role assignments:\n\n    * **calco2.user.std** - Basic user with own-scope access\n    * **calco2.user.principal** - Unit-level manager with unit-scope access\n    * **calco2.backoffice.metier** - Backoffice administrator with reporting and\n      data access\n    * **calco2.backoffice.admin** - Super administrator with full system and backoffice\n    See permission documentation for detailed role-to-permission mapping.\n\n    ## 403 Error Responses\n\n    When a user lacks required permissions, the API returns a 403 Forbidden response:\n\n    ```json\n    {\n        \"detail\": \"Permission denied: modules.headcount.edit required\"\n    }\n    ```\n\n    ### Common Causes\n\n    * **Missing permission** - User's roles don't grant the required permission\n    * **Insufficient scope** - User has permission but wrong scope\n      (e.g., different unit)\n    * **Resource restrictions** - Business rules prevent access\n      (e.g., API trips are read-only)\n\n    ### Requesting Access\n\n    To gain additional permissions:\n    1. Contact your unit principal or backoffice administrator\n    2. Request the specific permission needed (shown in error message)\n    3. Administrator can assign appropriate role via\n       `/api/v1/backoffice/users` endpoints\n\n    ",
+    "description": "\n    CO2 Calculator API with permission-based authorization using Open Policy Agent.\n\n    ## Features\n\n    * **JWT Authentication** - Secure token-based authentication\n    * **Permission-Based Authorization** - Fine-grained access control with\n      calculated permissions\n    * **OPA Policies** - Policy-based resource filtering and access control\n    * **Multi-tenancy** - Support for multiple EPFL units with scope-based\n      data filtering\n    * **RESTful API** - Clean and consistent API design\n\n    ## Permission-Based Authorization\n\n    The API uses a permission-based authorization model where:\n\n    - **Roles are assigned** to users (e.g., principal, backoffice metier, super admin)\n    - **Permissions are calculated** dynamically from roles at authentication\n    - **Access control** is enforced at the route level using permissions\n    - **Data filtering** is applied based on user scope (global, unit, own)\n\n    ### Permission Structure\n\n    Permissions follow a hierarchical dot-notation structure:\n\n    * **backoffice.*** - One permission per backoffice page\n        * `backoffice.reporting` (view, export) - Reporting (affiliation-scoped)\n        * `backoffice.users` (view, edit, export) - User management\n        * `backoffice.documentation` / `backoffice.ui_texts` (view, edit)\n        * `backoffice.configuration` / `backoffice.pipeline_operations`\n          (view, edit) - super admin only\n        * `backoffice.logs` (view) - super admin only\n\n    * **modules.*** - CO2 calculation modules (unit-scoped `\u2026/<unit>`, or\n      own-scoped `\u2026/<unit>/own` for standard users)\n        * `modules.headcount`, `modules.professional_travel`, `modules.equipment`,\n          \u2026 (view, edit, sync)\n\n    ### Permission Actions\n\n    Each permission supports different actions:\n    - **view** - Read access to resources\n    - **edit** - Create, update, and delete operations\n    - **export** - Data export capabilities\n\n    ### How Permissions Work\n\n    1. User authenticates via `/api/v1/auth/login` and receives JWT token\n    2. JWT token contains user information and assigned roles\n    3. On each request, permissions are calculated from roles\n    4. Routes use `require_permission(\"path.resource\", \"action\")` decorator\n    5. If permission denied, returns 403 with specific error message\n    6. Data queries are filtered by user scope (global/unit/own)\n\n    ### Example Permission Check\n\n    ```python\n    @router.get(\"/headcounts\")\n    async def get_headcounts(\n        user: User = Depends(require_permission(\"modules.headcount\", \"view\"))\n    ):\n        # Only users with modules.headcount.view permission can access\n        # Data is filtered by scope: global, unit, or own\n    ```\n\n    ## Authorization Model with OPA\n\n    The API uses OPA (Open Policy Agent) patterns for authorization decisions:\n\n    1. **Route-level permission checks** - Enforced via `require_permission()`\n       decorator\n    2. **Service-level data filtering** - Applied via `get_data_filters()`\n       based on scope\n    3. **Resource-level access control** - Checked via `check_resource_access()`\n       for individual resources\n\n    ### Scope-Based Data Filtering\n\n    Data access is automatically filtered based on user scope:\n\n    * **Global scope** (super admin) - See all data\n    * **Unit scope** (principals) - See data for their assigned units\n    * **Own scope** (standard users) - See only their own data\n\n    ## Assigned Roles\n\n    Users are assigned one or more of these roles. Permissions are calculated\n    from role assignments:\n\n    * **calco2.user.standard** - Basic user with own-scope access\n    * **calco2.user.principal** - Unit-level manager with unit-scope access\n    * **calco2.backoffice.metier** - Backoffice administrator with reporting and\n      data access\n    * **calco2.backoffice.admin** - Super administrator with full system and backoffice\n    See permission documentation for detailed role-to-permission mapping.\n\n    ## 403 Error Responses\n\n    When a user lacks required permissions, the API returns a 403 Forbidden response:\n\n    ```json\n    {\n        \"detail\": \"Permission denied: modules.headcount.edit required\"\n    }\n    ```\n\n    ### Common Causes\n\n    * **Missing permission** - User's roles don't grant the required permission\n    * **Insufficient scope** - User has permission but wrong scope\n      (e.g., different unit)\n    * **Resource restrictions** - Business rules prevent access\n      (e.g., API trips are read-only)\n\n    ### Requesting Access\n\n    To gain additional permissions:\n    1. Contact your unit principal or backoffice administrator\n    2. Request the specific permission needed (shown in error message)\n    3. Administrator can assign appropriate role via\n       `/api/v1/backoffice/users` endpoints\n\n    ",
     "version": "0.1.0"
   },
   "paths": {
@@ -61,7 +61,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "co2.user.std",
+              "default": "calco2.user.standard",
               "title": "Role"
             }
           }
@@ -94,7 +94,7 @@
           "session"
         ],
         "summary": "Get Session",
-        "description": "Return the current session bootstrap payload (whoami + workspace context).\n\nRequires a valid ``auth_token`` cookie. Resolves user by stable\nidentity (institutional_id, provider) from JWT. Uses cached DB\nroles \u2014 does not sync from the role provider synchronously.\n\nBeyond the user, the response bundles the units the caller can access and\nthe globally-configured years, so the frontend hydrates its whole auth/\nworkspace context in a single request instead of three.",
+        "description": "Return the session bootstrap payload (whoami + workspace context).\n\nAnonymous callers get 200 with ``user: null``: \"what session do I have\"\nhas \"none\" as a valid answer, and the SPA needs no retry to learn it\n(#2943). A cookie that fails validation is still a 401 (see\n``get_optional_user``). Uses cached DB roles \u2014 does not sync from the\nrole provider synchronously.\n\nBeyond the user, the response bundles the units the caller can access and\nthe globally-configured years, so the frontend hydrates its whole auth/\nworkspace context in a single request instead of three.",
         "operationId": "get_session_v1_session_get",
         "parameters": [
           {
@@ -137,58 +137,12 @@
           }
         }
       },
-      "post": {
-        "tags": [
-          "session"
-        ],
-        "summary": "Refresh Session",
-        "description": "Refresh access token using refresh token.\n\nClient should call this when access token expires.\nReturns new access token in cookie.\nResolves user by stable identity (institutional_id, provider) from JWT.",
-        "operationId": "refresh_session_v1_session_post",
-        "parameters": [
-          {
-            "name": "refresh_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Refresh Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "delete": {
         "tags": [
           "session"
         ],
         "summary": "Delete Session",
-        "description": "Logout the current user.\n\nClears both auth_token and refresh_token cookies.\nNote: This does not log out from Entra ID SSO session.",
+        "description": "Logout the current user: clear the session cookie.\n\nNote: This does not log out from Entra ID SSO session.",
         "operationId": "delete_session_v1_session_delete",
         "parameters": [
           {
@@ -244,7 +198,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -260,6 +221,65 @@
                     "$ref": "#/components/schemas/UnitWithUserRole"
                   },
                   "title": "Response List User Units V1 Users Units Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{user_id}/revoke-roles": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Revoke User Roles",
+        "description": "Force an immediate, authoritative role check for one user (#2539).\n\nThe declined ``force`` hatch from #2531/#2538, reinstated but reachable\nonly here: re-runs the provider check right now (skipping the TTL gate\nand the two-strikes guard) and applies whatever comes back, including\nempty. It does not invent a revocation the provider doesn't confirm \u2014\nif the provider still reports the user's roles, nothing changes.\n\nFor a `JwtClaimsRoleProvider` user there is no out-of-band source to\nre-check (roles only ever come from the JWT at login), so this 400s\nrather than silently no-op'ing.",
+        "operationId": "revoke_user_roles_v1_users__user_id__revoke_roles_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleSyncResult"
                 }
               }
             }
@@ -326,7 +346,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -389,7 +416,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -443,7 +477,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -674,7 +715,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -876,7 +924,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -917,7 +972,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1089,7 +1151,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1261,7 +1330,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1433,7 +1509,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1532,7 +1615,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1687,7 +1777,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1766,7 +1863,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1827,7 +1931,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1914,7 +2025,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -1968,7 +2086,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2024,7 +2149,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2174,7 +2306,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2242,7 +2381,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2364,7 +2510,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2444,7 +2597,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2528,7 +2688,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2624,7 +2791,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2692,7 +2866,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2773,7 +2954,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2839,7 +3027,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2905,7 +3100,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -2983,7 +3185,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3037,7 +3246,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3091,7 +3307,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3157,7 +3380,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3202,7 +3432,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3258,7 +3495,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3310,7 +3554,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3392,7 +3643,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3521,7 +3779,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3625,7 +3890,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3735,7 +4007,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3791,7 +4070,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3856,7 +4142,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3899,7 +4192,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3938,14 +4238,14 @@
         }
       }
     },
-    "/v1/carbon-reports/simulator/explore/unit/{unit_id}/reference-year/{reference_year}/": {
+    "/v1/carbon-reports/simulator/explore/unit/{unit_id}/": {
       "get": {
         "tags": [
           "carbon-reports"
         ],
         "summary": "Get Simulator Explore Carbon Report",
-        "description": "Get an existing Simulator Explore carbon report.\n\nIf the report has exceeded its TTL (EXPLORE_TTL_SECONDS) a background task\nis scheduled\nto delete the stale report and seed a fresh one \u2014 the current (stale)\nreport is returned immediately so the user is not blocked.",
-        "operationId": "get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___get",
+        "description": "Get the user's current Simulator Explore sandbox for a unit.\n\nRead-only: no create-fallback (404 if none exists yet), no staleness\nhandling \u2014 #2656 removed the year key and the TTL refresh entirely. A\nsandbox exists only once a POST creates it, and is replaced, not\nrefreshed, by the next POST.",
+        "operationId": "get_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___get",
         "parameters": [
           {
             "name": "unit_id",
@@ -3957,20 +4257,18 @@
             }
           },
           {
-            "name": "reference_year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Reference Year"
-            }
-          },
-          {
             "name": "auth_token",
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -3998,13 +4296,13 @@
           }
         }
       },
-      "put": {
+      "post": {
         "tags": [
           "carbon-reports"
         ],
-        "summary": "Put Simulator Explore Carbon Report",
-        "description": "Idempotent Simulator Explore sandbox: create on first call, return\nthe existing one on every call after (#2487).\n\nReplaces the GET(404) + POST pair the frontend used to orchestrate \u2014\ntwo round trips, and the 404-as-control-flow race #2483 had to\nSAVEPOINT-guard. A stale existing sandbox is refreshed in the\nbackground and returned as-is immediately, matching the GET route.",
-        "operationId": "put_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id__reference_year__reference_year___put",
+        "summary": "Create Simulator Explore Carbon Report",
+        "description": "Start a new Simulator Explore sandbox (#2656).\n\nAlways creates \u2014 no idempotency, no existence check. \"Start an\nexploration\" (a page mount or a refresh alike) always gets a brand-new\nempty sandbox; the caller's other sandboxes for this unit are deleted in\nthe background right after. Replaces the old idempotent PUT (#2487) and\nthe 24h TTL refresh it triggered.",
+        "operationId": "create_simulator_explore_carbon_report_v1_carbon_reports_simulator_explore_unit__unit_id___post",
         "parameters": [
           {
             "name": "unit_id",
@@ -4016,26 +4314,24 @@
             }
           },
           {
-            "name": "reference_year",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Reference Year"
-            }
-          },
-          {
             "name": "auth_token",
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
         ],
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -4081,7 +4377,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4133,7 +4436,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4198,7 +4508,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4269,7 +4586,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4331,7 +4655,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4376,7 +4707,7 @@
           "carbon-reports"
         ],
         "summary": "Update Carbon Report Module Reference Percentage",
-        "description": "Apply one reference percentage to every snapshot entry of a module.\n\nBacks the grant equipment \"global percentage\" mode (#1981): the\ncalculator's prefilled lines are kept and one percentage prices them\nall. Only Project Grant reports carry this mode.",
+        "description": "Apply one reference percentage to every snapshot entry of a module.\n\nBacks the equipment \"global percentage\" mode (#1981): the calculator's\nprefilled lines are kept and one percentage prices them all. Both the\nProject Grant and the Detailed per Year sections carry this mode\n(#2749).",
         "operationId": "update_carbon_report_module_reference_percentage_v1_carbon_reports__carbon_report_id__modules__module_type_id__reference_percentage_patch",
         "parameters": [
           {
@@ -4402,7 +4733,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4426,6 +4764,76 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Update Carbon Report Module Reference Percentage V1 Carbon Reports  Carbon Report Id  Modules  Module Type Id  Reference Percentage Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/carbon-reports/{carbon_report_id}/modules/{module_type_id}/reference-percentage/reset": {
+      "post": {
+        "tags": [
+          "carbon-reports"
+        ],
+        "summary": "Reset Carbon Report Module Reference Percentage",
+        "description": "Undo the equipment module's global percentage (#2783).\n\nDeletes the aggregate lines the global mode created (and any hand-added\nentries) and rebuilds the module from the reference year at 0%,\nrestoring individually editable per-line snapshot rows.",
+        "operationId": "reset_carbon_report_module_reference_percentage_v1_carbon_reports__carbon_report_id__modules__module_type_id__reference_percentage_reset_post",
+        "parameters": [
+          {
+            "name": "carbon_report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Carbon Report Id"
+            }
+          },
+          {
+            "name": "module_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Module Type Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reset Carbon Report Module Reference Percentage V1 Carbon Reports  Carbon Report Id  Modules  Module Type Id  Reference Percentage Reset Post"
                 }
               }
             }
@@ -4475,7 +4883,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4537,7 +4952,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4591,7 +5013,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4660,7 +5089,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4710,7 +5146,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4770,7 +5213,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4824,7 +5274,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4876,7 +5333,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4932,7 +5396,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -4995,7 +5466,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5057,7 +5535,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5144,7 +5629,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5236,7 +5728,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5301,7 +5800,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5389,7 +5895,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5467,7 +5980,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5503,7 +6023,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5560,7 +6087,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5629,7 +6163,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5692,7 +6233,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5748,7 +6296,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5804,7 +6359,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5861,7 +6423,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5904,7 +6473,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -5943,7 +6519,7 @@
           "data-sync"
         ],
         "summary": "Job Stream By Id",
-        "description": "Server-Sent Events endpoint to stream a single job update in real-time.\n\nPolls the database for status changes and sends updates to the client.\nStream ends when the job is completed, failed, or the client disconnects.\n\nSession lifetime: a fresh ``SessionLocal()`` is opened per poll iteration\nand closed before the sleep so we don't pin an asyncpg pool slot for the\nfull stream duration (minutes).  ``request.is_disconnected()`` is checked\nat the top of each iteration so client aborts surface immediately rather\nthan after the next poll.\n\nTODO(#459): tighten when sub-perimeter scoping ships",
+        "description": "Server-Sent Events endpoint to stream a single job update in real-time.\n\nPolls the database for status changes and sends updates to the client.\nStream ends when the job is completed, failed, or the client disconnects.\n\nSession lifetime: no pooled connection is held anywhere on this path.\n``get_current_user`` hands its connection back before the stream opens\n(it used to be pinned until the stream ended, #2654, #2689), and a fresh\n``SessionLocal()`` is opened per poll\niteration and closed before the sleep, so no pool slot is pinned for the\nfull stream duration (minutes).  ``request.is_disconnected()`` is checked\nat the top of each iteration so client aborts surface immediately rather\nthan after the next poll.\n\nTODO(#459): tighten when sub-perimeter scoping ships",
         "operationId": "job_stream_by_id_v1_sync_jobs__job_id__stream_get",
         "parameters": [
           {
@@ -5960,7 +6536,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6019,7 +6602,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6075,7 +6665,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6131,7 +6728,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6331,7 +6935,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6384,7 +6995,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6419,7 +7037,7 @@
           "data-sync"
         ],
         "summary": "Pipeline Stream By Id",
-        "description": "Server-Sent Events stream for every job sharing a ``pipeline_id``.\n\nas the read-only ``GET /sync/pipelines/{pipeline_id}`` endpoint.\n\nPlan 310D \u2014 the frontend stale-stats UX subscribes here when a module's\ncarbon-report response surfaces a ``current_pipeline_id``.  Each tick\nre-reads every job in the pipeline and emits an ``event:\npipeline-update`` SSE message *only when* a job's\n``(state, status_message, result, started_at, finished_at)`` tuple\nchanged \u2014 so an idle pipeline doesn't spam the wire.  ``started_at``\nis included because PR #1026 made it transition NOT_STARTED \u2192 claim\nvia ``func.coalesce``, and the dashboard wants to surface that flip.\nA separate ``event: ping`` heartbeat\nfires every ~15s to keep proxies (nginx, AWS ALB) from idling the\nconnection out.  The stream closes once **every** job in the pipeline is\n``FINISHED``; a final ``stream_closed`` flag is sent so the client can\nreact before the EventSource reconnect-on-close kicks in.\n\nReturns ``404`` when no rows share the given ``pipeline_id`` \u2014 fired on\nthe first poll *before* the stream opens, so SSE clients see a clean\nHTTP error rather than a 200-with-empty-body that they'd interpret as\nan aborted connection.",
+        "description": "Server-Sent Events stream for every job sharing a ``pipeline_id``.\n\nGated like ``require_module_or_config_view`` but inline: see\n``job_stream_by_id`` for why a stream must not hold a pooled\nconnection (#2654).\n\nPlan 310D \u2014 the frontend stale-stats UX subscribes here when a module's\ncarbon-report response surfaces a ``current_pipeline_id``.  Each tick\nre-reads every job in the pipeline and emits an ``event:\npipeline-update`` SSE message *only when* a job's\n``(state, status_message, result, started_at, finished_at)`` tuple\nchanged \u2014 so an idle pipeline doesn't spam the wire.  ``started_at``\nis included because PR #1026 made it transition NOT_STARTED \u2192 claim\nvia ``func.coalesce``, and the dashboard wants to surface that flip.\nA separate ``event: ping`` heartbeat\nfires every ~15s to keep proxies (nginx, AWS ALB) from idling the\nconnection out.  The stream closes once **every** job in the pipeline is\n``FINISHED``; a final ``stream_closed`` flag is sent so the client can\nreact before the EventSource reconnect-on-close kicks in.\n\nReturns ``404`` when no rows share the given ``pipeline_id`` \u2014 fired on\nthe first poll *before* the stream opens, so SSE clients see a clean\nHTTP error rather than a 200-with-empty-body that they'd interpret as\nan aborted connection.",
         "operationId": "pipeline_stream_by_id_v1_sync_pipelines__pipeline_id__stream_get",
         "parameters": [
           {
@@ -6437,7 +7055,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6503,7 +7128,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6573,7 +7205,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6616,7 +7255,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6678,7 +7324,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6734,7 +7387,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6817,7 +7477,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6859,7 +7526,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6913,7 +7587,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -6969,7 +7650,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7029,7 +7717,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7090,7 +7785,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7342,7 +8044,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7531,7 +8240,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7583,7 +8299,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7784,7 +8507,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7825,7 +8555,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7881,7 +8618,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7931,7 +8675,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -7998,7 +8749,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -8060,7 +8818,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -8149,7 +8914,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -8208,7 +8980,14 @@
             "in": "cookie",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Auth Token"
             }
           }
@@ -8334,6 +9113,25 @@
         ],
         "title": "AbortPipelineResponse",
         "description": "Summary of an abort operation \u2014 how many jobs flipped, who did it.\n\nThe flipped jobs themselves are observable through the existing\npipeline SSE stream (``GET /sync/pipelines/{id}/stream``) on the\nnext poll, so this response stays terse: clients use it to render\na toast and re-read state from the stream they're already\nsubscribed to."
+      },
+      "AffiliationScope": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "affiliation",
+            "title": "Kind",
+            "default": "affiliation"
+          },
+          "affiliation": {
+            "type": "string",
+            "title": "Affiliation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "affiliation"
+        ],
+        "title": "AffiliationScope"
       },
       "AuditChangeTypeEnum": {
         "type": "string",
@@ -9112,6 +9910,17 @@
             "type": "integer",
             "title": "Overall Status",
             "default": 0
+          },
+          "factor_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Factor Year"
           }
         },
         "type": "object",
@@ -10010,6 +10819,18 @@
         "title": "FileUploadResponse",
         "description": "Schema for file upload response."
       },
+      "GlobalScope": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "global",
+            "title": "Kind",
+            "default": "global"
+          }
+        },
+        "type": "object",
+        "title": "GlobalScope"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -10448,16 +11269,7 @@
           "stats": {
             "anyOf": [
               {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10465,7 +11277,7 @@
               }
             ],
             "title": "Stats",
-            "description": "Module statistics"
+            "description": "The module's persisted stats JSON (carbon_report_modules.stats)"
           },
           "totals": {
             "$ref": "#/components/schemas/ModuleTotals",
@@ -10566,6 +11378,25 @@
         ],
         "title": "ModuleTypeEnum",
         "description": "How the data entered the system.\n\nCurrent:\n- api: direct API call\n- csv: CSV file upload\n\nPotential future values\n- webhook: event-driven external push\n- sync: scheduled integration sync\n- import_job: background/batch import\n- manual: manual user entry"
+      },
+      "OwnScope": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "own",
+            "title": "Kind",
+            "default": "own"
+          },
+          "institutional_id": {
+            "type": "string",
+            "title": "Institutional Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institutional_id"
+        ],
+        "title": "OwnScope"
       },
       "PaginatedUnitReportingData": {
         "properties": {
@@ -11372,6 +12203,112 @@
         "title": "RecomputeStatsResponse",
         "description": "Result of the admin bulk stats-recompute trigger."
       },
+      "Role": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/RoleName"
+          },
+          "on": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GlobalScope"
+              },
+              {
+                "$ref": "#/components/schemas/UnitScope"
+              },
+              {
+                "$ref": "#/components/schemas/OwnScope"
+              },
+              {
+                "$ref": "#/components/schemas/AffiliationScope"
+              }
+            ],
+            "title": "On",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "affiliation": "#/components/schemas/AffiliationScope",
+                "global": "#/components/schemas/GlobalScope",
+                "own": "#/components/schemas/OwnScope",
+                "unit": "#/components/schemas/UnitScope"
+              }
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "on"
+        ],
+        "title": "Role"
+      },
+      "RoleName": {
+        "type": "string",
+        "enum": [
+          "calco2.user.standard",
+          "calco2.user.principal",
+          "calco2.backoffice.metier",
+          "calco2.backoffice.admin"
+        ],
+        "title": "RoleName"
+      },
+      "RoleSyncOutcome": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "no_change",
+          "skipped_ttl",
+          "skipped_user_not_found",
+          "skipped_provider_unavailable",
+          "skipped_suspicious_empty"
+        ],
+        "title": "RoleSyncOutcome",
+        "description": "Why a role sync ended the way it did.\n\n``SKIPPED_*`` outcomes never write to the user: the sync could not\nestablish what the roles are, so the stored ones stand (#2531)."
+      },
+      "RoleSyncResult": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/RoleSyncOutcome"
+          },
+          "has_changed": {
+            "type": "boolean",
+            "title": "Has Changed",
+            "default": false
+          },
+          "roles_changed": {
+            "type": "boolean",
+            "title": "Roles Changed",
+            "default": false
+          },
+          "old_roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array",
+            "title": "Old Roles",
+            "default": []
+          },
+          "new_roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array",
+            "title": "New Roles",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "outcome"
+        ],
+        "title": "RoleSyncResult",
+        "description": "Result of a role synchronization operation."
+      },
       "RowPolicy": {
         "properties": {
           "create": {
@@ -11405,7 +12342,14 @@
       "SessionRead": {
         "properties": {
           "user": {
-            "$ref": "#/components/schemas/UserRead"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "units": {
             "items": {
@@ -11554,17 +12498,6 @@
             "title": "Is Grant Proposal",
             "default": false
           },
-          "default_factor_year": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Factor Year"
-          },
           "created_by": {
             "anyOf": [
               {
@@ -11609,6 +12542,17 @@
               }
             ],
             "title": "Total Tonnes Co2Eq"
+          },
+          "grant_total_tonnes_co2eq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Total Tonnes Co2Eq"
           },
           "prefill_job_id": {
             "anyOf": [
@@ -11826,6 +12770,17 @@
               }
             ],
             "title": "Prefill Job Id"
+          },
+          "factor_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Factor Year"
           }
         },
         "type": "object",
@@ -12714,6 +13669,25 @@
         "title": "UnitReportingData",
         "description": "Schema for individual unit reporting data."
       },
+      "UnitScope": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "unit",
+            "title": "Kind",
+            "default": "unit"
+          },
+          "institutional_id": {
+            "type": "string",
+            "title": "Institutional Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institutional_id"
+        ],
+        "title": "UnitScope"
+      },
       "UnitWithUserRole": {
         "properties": {
           "id": {
@@ -13038,6 +14012,12 @@
             "type": "array",
             "title": "Project Plans",
             "default": []
+          },
+          "permissions": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Permissions",
+            "default": {}
           }
         },
         "type": "object",

@@ -346,9 +346,11 @@ class Settings(BaseSettings):
         ),
     )
 
-    # Session lifetimes — see issue #949. Tuned for an internal EPFL app
-    # behind Entra SSO + httpOnly+secure+samesite cookies; 8h access / 24h
-    # refresh keeps a working day usable while still capping idle sessions.
+    # Session lifetimes (#949, #2943): one sliding httpOnly cookie. The
+    # first is the idle window, renewed on activity once past its half;
+    # the second caps the whole session from the login instant (the
+    # token's ``auth_time``), whatever the activity. Names kept from the
+    # two-cookie era so no env file or overlay has to move.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     REFRESH_TOKEN_EXPIRE_HOURS: int = 24
     # How long RoleSyncService trusts a stored role set before re-checking the

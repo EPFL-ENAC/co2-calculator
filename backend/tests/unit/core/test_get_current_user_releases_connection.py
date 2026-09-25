@@ -11,12 +11,14 @@ this makes the one dependency behave, for every route.
 """
 
 from datetime import timedelta
+from unittest.mock import MagicMock
 
 import pytest
+from fastapi import BackgroundTasks, Response
 from sqlalchemy import inspect as sa_inspect
 from sqlmodel import text
 
-from app.core.security import create_access_token, get_current_user
+from app.core.security import create_access_token, get_optional_user
 from app.models.user import User, UserProvider
 
 
@@ -45,7 +47,14 @@ async def test_get_current_user_returns_detached_user_and_releases_connection(
     db_session.add(user)
     await db_session.commit()
 
-    current = await get_current_user(db=db_session, token=_token_for(user))
+    current = await get_optional_user(
+        request=MagicMock(),
+        response=Response(),
+        background_tasks=BackgroundTasks(),
+        db=db_session,
+        auth_token=_token_for(user),
+    )
+    assert current is not None
 
     assert current.id == user.id
     assert current.institutional_id == "123456"
