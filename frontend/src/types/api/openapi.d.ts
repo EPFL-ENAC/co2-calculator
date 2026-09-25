@@ -88,11 +88,13 @@ export interface paths {
         };
         /**
          * Get Session
-         * @description Return the current session bootstrap payload (whoami + workspace context).
+         * @description Return the session bootstrap payload (whoami + workspace context).
          *
-         *     Requires a valid ``auth_token`` cookie. Resolves user by stable
-         *     identity (institutional_id, provider) from JWT. Uses cached DB
-         *     roles — does not sync from the role provider synchronously.
+         *     Anonymous callers get 200 with ``user: null``: "what session do I have"
+         *     has "none" as a valid answer, and the SPA needs no retry to learn it
+         *     (#2943). A cookie that fails validation is still a 401 (see
+         *     ``get_optional_user``). Uses cached DB roles — does not sync from the
+         *     role provider synchronously.
          *
          *     Beyond the user, the response bundles the units the caller can access and
          *     the globally-configured years, so the frontend hydrates its whole auth/
@@ -100,20 +102,11 @@ export interface paths {
          */
         get: operations["get_session_v1_session_get"];
         put?: never;
-        /**
-         * Refresh Session
-         * @description Refresh access token using refresh token.
-         *
-         *     Client should call this when access token expires.
-         *     Returns new access token in cookie.
-         *     Resolves user by stable identity (institutional_id, provider) from JWT.
-         */
-        post: operations["refresh_session_v1_session_post"];
+        post?: never;
         /**
          * Delete Session
-         * @description Logout the current user.
+         * @description Logout the current user: clear the session cookie.
          *
-         *     Clears both auth_token and refresh_token cookies.
          *     Note: This does not log out from Entra ID SSO session.
          */
         delete: operations["delete_session_v1_session_delete"];
@@ -4174,7 +4167,7 @@ export interface components {
          *     faked.
          */
         SessionRead: {
-            user: components["schemas"]["UserRead"];
+            user: components["schemas"]["UserRead"] | null;
             /** Units */
             units: components["schemas"]["UnitWithUserRole"][];
             /** Configured Years */
@@ -5097,37 +5090,6 @@ export interface operations {
             };
         };
     };
-    refresh_session_v1_session_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: {
-                refresh_token?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     delete_session_v1_session_delete: {
         parameters: {
             query?: never;
@@ -5165,7 +5127,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5198,7 +5160,7 @@ export interface operations {
                 user_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5236,7 +5198,7 @@ export interface operations {
                 unit_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5272,7 +5234,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5307,7 +5269,7 @@ export interface operations {
                 unit_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5361,7 +5323,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5411,7 +5373,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5442,7 +5404,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5488,7 +5450,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5534,7 +5496,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5580,7 +5542,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5617,7 +5579,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5657,7 +5619,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5694,7 +5656,7 @@ export interface operations {
                 module_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5728,7 +5690,7 @@ export interface operations {
                 module_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5766,7 +5728,7 @@ export interface operations {
                 module_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5799,7 +5761,7 @@ export interface operations {
                 carbon_report_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5832,7 +5794,7 @@ export interface operations {
                 carbon_report_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5880,7 +5842,7 @@ export interface operations {
                 submodule_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -5915,7 +5877,7 @@ export interface operations {
                 submodule_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -5963,7 +5925,7 @@ export interface operations {
                 submodule_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6001,7 +5963,7 @@ export interface operations {
                 item_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6037,7 +5999,7 @@ export interface operations {
                 item_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6071,7 +6033,7 @@ export interface operations {
                 item_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -6111,7 +6073,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6146,7 +6108,7 @@ export interface operations {
                 module_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6181,7 +6143,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6217,7 +6179,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6254,7 +6216,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6289,7 +6251,7 @@ export interface operations {
                 carbon_report_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6324,7 +6286,7 @@ export interface operations {
                 carbon_report_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6361,7 +6323,7 @@ export interface operations {
                 carbon_report_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6394,7 +6356,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6427,7 +6389,7 @@ export interface operations {
                 unit_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6460,7 +6422,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6499,7 +6461,7 @@ export interface operations {
                 kind: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6543,7 +6505,7 @@ export interface operations {
                 module: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6586,7 +6548,7 @@ export interface operations {
                 data_entry: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6629,7 +6591,7 @@ export interface operations {
                 data_entry: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6662,7 +6624,7 @@ export interface operations {
                 unit_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6696,7 +6658,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6727,7 +6689,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -6764,7 +6726,7 @@ export interface operations {
                 unit_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6797,7 +6759,7 @@ export interface operations {
                 unit_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6830,7 +6792,7 @@ export interface operations {
                 carbon_report_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6863,7 +6825,7 @@ export interface operations {
                 carbon_report_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -6897,7 +6859,7 @@ export interface operations {
                 module_type_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -6935,7 +6897,7 @@ export interface operations {
                 module_type_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -6972,7 +6934,7 @@ export interface operations {
                 carbon_report_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -7010,7 +6972,7 @@ export interface operations {
                 module_type_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -7050,7 +7012,7 @@ export interface operations {
                 module_type_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7086,7 +7048,7 @@ export interface operations {
                 module_type_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -7123,7 +7085,7 @@ export interface operations {
                 unit_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7156,7 +7118,7 @@ export interface operations {
                 unit_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: {
@@ -7193,7 +7155,7 @@ export interface operations {
                 plan_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7226,7 +7188,7 @@ export interface operations {
                 plan_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7257,7 +7219,7 @@ export interface operations {
                 plan_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -7295,7 +7257,7 @@ export interface operations {
                 job_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7328,7 +7290,7 @@ export interface operations {
                 plan_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7361,7 +7323,7 @@ export interface operations {
                 plan_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7397,7 +7359,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -7434,7 +7396,7 @@ export interface operations {
                 plan_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7472,7 +7434,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7512,7 +7474,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7548,7 +7510,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7612,7 +7574,7 @@ export interface operations {
                 file_path: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7687,7 +7649,7 @@ export interface operations {
                 file_path: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7716,7 +7678,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -7751,7 +7713,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -7789,7 +7751,7 @@ export interface operations {
                 data_entry_type_id: components["schemas"]["DataEntryTypeEnum"];
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -7826,7 +7788,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7859,7 +7821,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7892,7 +7854,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7925,7 +7887,7 @@ export interface operations {
                 pipeline_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7956,7 +7918,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -7989,7 +7951,7 @@ export interface operations {
                 job_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8023,7 +7985,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8058,7 +8020,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8091,7 +8053,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8133,7 +8095,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8166,7 +8128,7 @@ export interface operations {
                 pipeline_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8199,7 +8161,7 @@ export interface operations {
                 pipeline_id: string;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8235,7 +8197,7 @@ export interface operations {
                 data_entry_type_id: components["schemas"]["DataEntryTypeEnum"];
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8271,7 +8233,7 @@ export interface operations {
                 module_type_id: components["schemas"]["ModuleTypeEnum"];
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8302,7 +8264,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -8339,7 +8301,7 @@ export interface operations {
                 job_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8373,7 +8335,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8409,7 +8371,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8440,7 +8402,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8473,7 +8435,7 @@ export interface operations {
                 connector: components["schemas"]["ConnectorType"];
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8506,7 +8468,7 @@ export interface operations {
                 connector: components["schemas"]["ConnectorType"];
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -8543,7 +8505,7 @@ export interface operations {
                 connector: components["schemas"]["ConnectorType"];
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -8580,7 +8542,7 @@ export interface operations {
                 connector: components["schemas"]["ConnectorType"];
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8636,7 +8598,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8677,7 +8639,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8710,7 +8672,7 @@ export interface operations {
                 log_id: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8753,7 +8715,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8784,7 +8746,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8817,7 +8779,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8850,7 +8812,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: {
@@ -8887,7 +8849,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -8924,7 +8886,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody: {
@@ -8964,7 +8926,7 @@ export interface operations {
             header?: never;
             path?: never;
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;
@@ -8998,7 +8960,7 @@ export interface operations {
                 year: number;
             };
             cookie?: {
-                auth_token?: string;
+                auth_token?: string | null;
             };
         };
         requestBody?: never;

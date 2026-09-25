@@ -64,7 +64,8 @@ class SessionRead(BaseModel):
     faked.
     """
 
-    user: UserRead
+    # ``None`` is the anonymous answer: no cookie, so no session (#2943).
+    user: UserRead | None
     units: list[UnitWithUserRole]
     configured_years: list[YearConfigurationListItem]
     min_configurable_year: int
