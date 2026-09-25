@@ -24,6 +24,7 @@ from joserfc.jwt import JWTClaimsRegistry
 from opentelemetry import trace
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import active_users
 from app.core.config import get_settings
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
@@ -242,6 +243,7 @@ async def resolve_user_by_jwt_payload(
             detail="User not found",
         )
     tag_span_with_user(user)
+    active_users.touch(user.id)
     return user
 
 
