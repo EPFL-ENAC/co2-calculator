@@ -1,87 +1,31 @@
 # Role Synchronization Architecture
 
-## Overview
+Roles are read from the database on every request; the role provider
+(Accred, JWT claims, test) is consulted only in the background. Current
+details, including the TTL gate, the empty-response guard and the admin
+force path, live in the rendered docs:
+[Auth Flow, section 6a](src/architecture/04-auth-flow.md#6a-background-role-sync).
 
-The `/refresh` endpoint triggers background role synchronization, while `/me` returns cached roles from the database in ~8ms without triggering sync.
+## Trigger
 
-## Components
+A background role sync runs whenever the session cookie is renewed, which
+happens on the first request past half the idle window (#2943). With the
+deployed 48 h idle window that is at most once per 24 h of activity per
+user. `GET /v1/session` itself never syncs: it returns cached DB roles.
 
-### 1. `/me` Endpoint (Fast)
+The former `/me` and `/refresh` endpoints are gone: `/me` became
+`GET /v1/session`, and the refresh endpoint was replaced by server-side
+renewal.
 
-- Validates JWT
-- Fetches user from DB (including cached roles)
-- Returns immediately
-- No background sync triggered
+## Consistency model
 
-### 2. `/refresh` Endpoint (Triggers Sync)
+Eventual: a role granted or revoked upstream lands at the user's next
+renewal, bounded by `ROLE_SYNC_TTL_MINUTES` debounce. An admin can force it
+immediately with `POST /v1/users/{user_id}/revoke-roles`.
 
-- Validates JWT
-- Fetches user from DB
-- Triggers background role sync (non-blocking)
-- Returns user info with cached roles
+## Safety guarantees
 
-### 3. Background Role Sync
-
-- Runs asynchronously via FastAPI BackgroundTasks
-- Fetches fresh roles from provider (Accred/JWT/Test)
-- Compares with cached roles
-- Updates DB only if changes detected
-
-## Consistency Model
-
-**Eventual Consistency:**
-
-- `/me` returns immediately with cached roles
-- `/refresh` triggers background sync within 15 minutes (TTL)
-- TTL ensures eventual convergence
-- Manual sync trigger via `/refresh` when needed
-
-## Safety Guarantees
-
-1. **Authorization always uses DB roles** - No external API calls on `/me`
-2. **Failures don't block endpoints** - Background sync errors logged but don't affect response
-3. **No recursive syncs** - TTL prevents sync storms
-4. **Unit cleanup** - Removed roles automatically clean up unit associations
-
-## Performance
-
-| Operation           | Before      | After                  |
-| ------------------- | ----------- | ---------------------- |
-| `/me` latency       | ~1000ms     | ~8ms                   |
-| `/refresh` latency  | ~1000ms     | ~8ms + background sync |
-| External API calls  | Per request | Periodic (15 min)      |
-| Role update latency | Immediate   | ~5-15 min (eventual)   |
-
-## Monitoring
-
-- Logs: `role_sync_*` events in backend logs
-- Errors: `RoleProviderNetworkError` logged with context
-
-## Implementation Details
-
-### Database Schema
-
-Added `last_roles_sync_at` timestamp field to User model to track when roles were last synced from provider.
-
-### Role Sync Service
-
-`RoleSyncService` handles:
-
-- TTL-based sync throttling (15 minutes default)
-- Role comparison (old vs new)
-- User role updates
-- Unit membership synchronization
-
-### Background Tasks
-
-`trigger_role_sync_for_user` function:
-
-- Fetches user from DB
-- Gets role provider based on user provider type
-- Fetches fresh roles from external provider
-- Calls `RoleSyncService.sync_user_roles()`
-
-### Frontend Integration
-
-- TTL-based fallback: re-fetch `/me` periodically if needed
-- Manual refresh via `/refresh` endpoint when user explicitly requests sync
+1. **Authorization always uses DB roles** — no provider call on the request path.
+2. **Failures don't block requests** — background sync errors are logged and counted.
+3. **No sync storms** — the TTL gate debounces the parallel renewals of one page load.
+4. **Unit cleanup** — removed roles clean up unit associations.

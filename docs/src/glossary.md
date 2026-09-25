@@ -57,9 +57,10 @@ classification fix. Triggered automatically when factor pipelines deliver
 new versions. See
 [`310-b-factor-pipeline.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans/310-b-factor-pipeline.md).
 
-**`/refresh`** — Endpoint that triggers a background role sync from
-Entra/Accred and returns immediately. Pair with `/me` to read the result.
-See [`role-sync-architecture.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/role-sync-architecture.md).
+**Session renewal** — The backend re-issues the `auth_token` cookie on the
+first request past half its idle window, audits it ("Session renewed")
+and triggers a background role sync from Entra/Accred. Replaced the
+`/refresh` endpoint (#2943). See [Auth Flow](architecture/04-auth-flow.md).
 
 **Role sync** — Background process that reconciles a user's roles and
 affiliations from the upstream identity provider into the local DB.

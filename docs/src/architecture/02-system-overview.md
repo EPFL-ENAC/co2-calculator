@@ -230,8 +230,9 @@ Detailed sequences (uploads, exports, auth) are in
 
 ## Cross-cutting
 
-- **Identity.** Entra ID OIDC handshake exchanged for HTTP-only
-  `auth_token` / `refresh_token` cookies — see [Auth Flow](./04-auth-flow.md).
+- **Identity.** Entra ID OIDC handshake exchanged for one HTTP-only
+  `auth_token` cookie that slides on activity (48 h idle, 7-day cap) —
+  see [Auth Flow](./04-auth-flow.md).
 - **Secrets.** ConfigMaps + Kubernetes Secrets per environment, all
   pulled from Infisical by the External Secrets Operator. See
   [Environments](./05-environments.md).

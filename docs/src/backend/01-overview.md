@@ -139,7 +139,8 @@ DB_URL=postgresql://user:pass@localhost:5432/co2calculator
 # Security (generate: openssl rand -hex 32)
 JWT_HMAC_KEY=your-jwt-signing-key-here
 SESSION_HMAC_KEY=your-session-signing-key-here
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+ACCESS_TOKEN_EXPIRE_MINUTES=2880   # session idle window, renewed past its half
+REFRESH_TOKEN_EXPIRE_HOURS=168     # session hard cap from login
 
 # OAuth/OIDC (see backend/.env.example for full set + Keycloak variant)
 OAUTH_ISSUER_URL=https://login.microsoftonline.com/{tenant}/v2.0

@@ -27,7 +27,7 @@ Three boundaries pinned by tests. The module docstring at
 | Boundary         | Trusted artefact                                                            | Untrusted artefact                                              | Test that pins it                                                   |
 | ---------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
 | IdP → backend    | `userinfo` claims from `authorize_access_token` (signed by IdP)             | Query params, headers, request body on `/callback`              | `test_callback_binds_session_to_idp_institutional_id`               |
-| Backend → cookie | JWTs minted by `_set_auth_cookies`, signed with `settings.JWT_HMAC_KEY`     | Anything else the client could return as evidence of identity   | `test_auth_cookies_secure_when_cookie_secure_true`                  |
+| Backend → cookie | JWT minted by `issue_session_cookie`, signed with `settings.JWT_HMAC_KEY`   | Anything else the client could return as evidence of identity   | `test_auth_cookies_secure_when_cookie_secure_true`                  |
 | Cookie → backend | `decode_jwt(cookie)` payload after signature + algorithm + `exp` validation | Cookie body in transit, query params, headers carrying identity | `test_jwt_expired_rejected`, `test_jwt_tampered_signature_rejected` |
 
 `/auth/login-test` deliberately bypasses boundary 1; its only safeguard
@@ -54,7 +54,7 @@ sequenceDiagram
     Entra-->>API: access_token + userinfo
     API->>API: Fetch roles via RoleProvider
     API->>DB: Upsert user, audit event
-    API-->>SPA: 302 to FRONTEND/ + Set-Cookie auth_token + Set-Cookie refresh_token
+    API-->>SPA: 302 to FRONTEND/ + Set-Cookie auth_token (with auth_time)
     SPA->>SPA: Hydrate auth store (GET /v1/session)
     SPA-->>U: Navigate to home
 ```
@@ -68,32 +68,66 @@ sequenceDiagram
 
 ## 4. Session lifecycle
 
+One httponly cookie, `auth_token`, slides on activity and is capped from
+the login instant ([ADR-020](../architecture-decision-records/020-single-sliding-session-cookie.md),
+[#2943](https://github.com/EPFL-ENAC/co2-calculator/issues/2943)). There is
+no refresh token and no refresh endpoint.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Anonymous
     Anonymous --> Authenticating: GET /v1/auth/login
-    Authenticating --> Authenticated: /v1/auth/callback sets cookies + 302 /
-    Authenticated --> Authenticated: POST /v1/session (rotates both cookies)
-    Authenticated --> Anonymous: DELETE /v1/session (clears cookies)
+    Authenticating --> Authenticated: /v1/auth/callback sets auth_token + 302 /
+    Authenticated --> Authenticated: any request past half the idle window re-issues the cookie
+    Authenticated --> Anonymous: idle window or cap reached (401, login page)
+    Authenticated --> Anonymous: DELETE /v1/session (clears the cookie)
 ```
 
-Refresh (`POST /v1/session`) rotates **both** access and refresh cookies
-via `_set_auth_cookies`. Logout (`DELETE /v1/session`) clears them
-client-side but does not invalidate the JWT server-side: a leaked cookie
-remains valid until `exp`. F6 (server-side denylist) is deferred — see
+| Setting                       | Deployed value | Meaning                                                                                             |
+| ----------------------------- | -------------- | --------------------------------------------------------------------------------------------------- |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | 2880 (48 h)    | Idle window. Renewed on the first request past its half, so anyone back within 24 h stays logged in |
+| `REFRESH_TOKEN_EXPIRE_HOURS`  | 168 (7 days)   | Hard cap from `auth_time`: no renewal extends a session beyond it                                   |
+
+The names date from the two-cookie design and were kept so no environment
+had to change. Values live in the openshift-app-config overlays; set the
+idle window to a minute in a local `.env` to watch renewals happen after
+30 s.
+
+**Renewal.** `get_optional_user` (`backend/app/core/security.py`) checks
+every authenticated request. Past half the idle window it mints a new
+cookie with the same `auth_time` and `exp = min(now + idle, auth_time +
+cap)`, and queues two background tasks with their own DB sessions: a
+"Session renewed" audit row carrying `renewed_exp` (the `exp` it
+replaced, so the parallel requests of one page load group together) and
+the role sync of [section 6a](#6a-background-role-sync). The cookie is
+parked on `request.state` and `SessionRenewalMiddleware`
+(`backend/app/core/session_renewal.py`) appends it at response start, so
+it reaches responses a route builds itself too: 304s, downloads, SSE
+streams, redirects.
+
+**Bootstrap.** `GET /v1/session` answers 200 with `user: null` when there
+is no cookie, so the SPA learns "anonymous" in one request. A cookie that
+is present but refused (expired, capped, tampered, retired `refresh`
+type) is still a 401, and the SPA reads it as anonymous too. The frontend
+never retries a 401: on any other route it means "log in again".
+
+**Logout.** `DELETE /v1/session` clears the cookie client-side but does not
+invalidate the JWT server-side: a leaked cookie remains valid until `exp`.
+F6 (server-side denylist) is deferred — see
 [issue #458 follow-up comment](https://github.com/EPFL-ENAC/co2-calculator/issues/458#issuecomment-4560788251).
 
 ## 5. JWT structure
 
-Claims minted by `_set_auth_cookies` in `backend/app/api/v1/auth.py`:
+Claims minted by `issue_session_cookie` in `backend/app/core/security.py`:
 
-| Claim              | Purpose                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| `sub`              | IdP sub claim (Entra object UUID); fallback to `str(user.id)` if IdP omits it        |
-| `institutional_id` | Stable EPFL identifier — the primary trust-boundary key                              |
-| `provider`         | `UserProvider` enum value (`1=DEFAULT`, `2=TEST`, `3=ACCRED`)                        |
-| `type`             | `"access"` or `"refresh"` — see `TOKEN_TYPE_ACCESS` / `TOKEN_TYPE_REFRESH` constants |
-| `exp`              | UTC expiry                                                                           |
+| Claim              | Purpose                                                                       |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `sub`              | IdP sub claim (Entra object UUID); fallback to `str(user.id)` if IdP omits it |
+| `institutional_id` | Stable EPFL identifier — the primary trust-boundary key                       |
+| `provider`         | `UserProvider` enum value (`1=DEFAULT`, `2=TEST`, `3=ACCRED`)                 |
+| `type`             | Always `"access"` (`TOKEN_TYPE_ACCESS`); a retired `"refresh"` JWT is refused |
+| `auth_time`        | OIDC login instant, copied unchanged by every renewal; the cap counts from it |
+| `exp`              | UTC expiry: `min(now + idle window, auth_time + cap)`                         |
 
 Algorithm: `HS256`. Key: `settings.JWT_HMAC_KEY` (single shared symmetric
 secret — see [ADR-012](../architecture-decision-records/012-jwt-authentication-strategy.md)).
@@ -101,11 +135,14 @@ secret — see [ADR-012](../architecture-decision-records/012-jwt-authentication
 Validation path in `backend/app/core/security.py`:
 
 1. `decode_jwt(token)` — `jwt.decode(...)` runs signature + algorithm check.
+   Every joserfc error is a 401; before #2943 an `alg=none` token on a
+   protected route was a 500.
 2. `_CLAIMS_REGISTRY.validate(payload.claims)` — explicit `exp` check.
    Before F10 this call was missing; expired tokens silently passed.
 3. `resolve_user_by_jwt_payload(payload, db, expected_token_type=...)`
-   — the centralized identity-resolution helper shared by `/me`,
-   refresh, and `get_current_user`.
+   — the centralized identity-resolution helper, called from
+   `get_optional_user`, which backs both `GET /v1/session` and
+   `get_current_user`.
 
 ## 6. Role provider plugin
 
@@ -126,10 +163,11 @@ warning rather than aborting the login.
 
 ### 6a. Background role sync
 
-`POST /v1/session` (token refresh) fires a `BackgroundTask` —
+Every session renewal (section 4) fires a `BackgroundTask` —
 `trigger_role_sync_for_user` — that re-checks the role provider so a
 long-lived session eventually picks up role changes without forcing a
-logout. Login itself resolves roles synchronously on the critical path and
+logout. With a 48 h idle window that is at most once per 24 h of
+activity per user. Login itself resolves roles synchronously on the critical path and
 is unaffected by any of this — see [#2531](https://github.com/EPFL-ENAC/co2-calculator/issues/2531)
 and its
 [plan](../implementation-plans/2531-role-sync-empty-response-wipe.md) for
@@ -141,8 +179,9 @@ the failure this replaced (an empty provider response was written as
 - **TTL gate** (`settings.ROLE_SYNC_TTL_MINUTES`, default 60) — skips the
   provider call entirely if synced within the window. Not a security
   boundary; `ACCESS_TOKEN_EXPIRE_MINUTES` and `REFRESH_TOKEN_EXPIRE_HOURS`
-  are. This is a debounce so a burst of near-simultaneous calls (multiple
-  tabs 401ing together) doesn't all re-hit the provider.
+  are. This is a debounce so a burst of near-simultaneous calls (the
+  parallel requests of one page load all renewing) doesn't all re-hit the
+  provider.
 - **An empty response never wipes on its own.** `roles_empty_since` is
   stamped on the first empty result and cleared on any non-empty one. A
   _second_ empty result, confirmed `2 * ROLE_SYNC_TTL_MINUTES` after the
@@ -194,10 +233,10 @@ truth: the implementation plan
 | F2      | `backend/tests/integration/v1/test_auth_security.py` | `test_auth_cookies_secure_when_cookie_secure_true`, `test_auth_cookies_not_secure_when_cookie_secure_false`                                    |
 | F3      | `backend/tests/integration/v1/test_auth_security.py` | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build`                                                 |
 | F4      | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected`                                            |
-| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_refresh_rotates_both_auth_and_refresh_cookies`                                                                                           |
+| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_session_past_half_life_is_renewed_on_any_request` (refresh rotation retired by #2943)                                                    |
 | F6      | _deferred_                                           | _server-side JTI denylist — see follow-up comment_                                                                                             |
 | F7      | `backend/tests/integration/v1/test_auth_security.py` | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure`                                          |
-| F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token`                                                  |
+| F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`                                                                                                    |
 | F9      | `backend/tests/unit/providers/test_role_provider.py` | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                                                                             |
 | F10     | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_expired_rejected`                                                                                                                    |
 | F11     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_role_name_is_skipped_not_raised`, `test_empty_role_name_is_skipped_not_raised` (in `TestJwtClaimsRoleProviderClaimCombinations`) |
@@ -206,7 +245,17 @@ truth: the implementation plan
 Additional pinning tests:
 
 - `test_callback_sets_cookies_and_redirects_to_frontend` — pins the direct cookie-on-callback behaviour (PR #1687).
-- `test_e2e_callback_session_refresh_logout_happy_path` — end-to-end happy path.
+- `test_e2e_callback_session_logout_happy_path` — end-to-end happy path.
+- Session cookie (#2943), in `test_auth_security.py`:
+  `test_session_younger_than_half_life_is_left_alone`,
+  `test_session_at_hard_cap_is_not_renewed`,
+  `test_pre_2943_token_without_auth_time_is_never_renewed`,
+  `test_anonymous_session_is_200_with_null_user_and_no_cookie`,
+  `test_me_rejects_refresh_token_in_auth_cookie`.
+- `backend/tests/unit/core/test_session_renewal_middleware.py` — the
+  renewed cookie reaches JSON, 304 and streaming responses.
+- `frontend/tests/unit/session-bootstrap.spec.ts` — bootstrap is one
+  request: 200 without user and 401 are anonymous, a 500 is an error.
 - `test_secure_cookie_is_dropped_over_http_breaking_followup_calls` —
   F2 regression guard; demonstrates the cookie-drop symptom.
 - `TestJwtClaimsRoleProviderClaimCombinations::*` — claim-combination
@@ -247,7 +296,7 @@ described below.
 Cookie auth is forgeable by construction, so two controls stand in front
 of every state-changing request:
 
-1. **`SameSite=Lax` on the auth cookies** — browser-enforced, so it holds
+1. **`SameSite=Lax` on the auth cookie** — browser-enforced, so it holds
    independently of our own code, and it keeps the cookie _off_ a
    cross-site request entirely rather than receiving one and refusing it.
 2. **`RequestOriginMiddleware`** (`backend/app/core/request_origin.py`) —
@@ -281,9 +330,9 @@ See [plan #89](../implementation-plans/89-security-in-depth.md).
 
 ## 10. Future work
 
-- **F6** — Logout JWT denylist (server-side JTI store). Pairs with
-  refresh-token reuse detection to convert F5 from hygiene into actual
-  stolen-token mitigation.
+- **F6** — Logout JWT denylist (server-side JTI store). The only way to
+  cut a stolen cookie short of its `exp`; until then the idle window and
+  the 7-day cap bound it.
 - **`JWTClaimsRegistry` leeway tuning** — currently default `0` seconds;
   30 s is the candidate value to absorb pod-to-pod NTP drift.
 - **Narrow the role-provider boundary** — F11/F12 are delivered, but the
@@ -301,4 +350,5 @@ See [plan #89](../implementation-plans/89-security-in-depth.md).
 - [ADR-005 Authorization strategy](../architecture-decision-records/005-authorization-strategy.md)
 - [ADR-012 JWT authentication](../architecture-decision-records/012-jwt-authentication-strategy.md)
 - [ADR-019 BFF cookie exchange (superseded)](../architecture-decision-records/019-bff-cookie-exchange.md)
+- [ADR-020 Single sliding session cookie](../architecture-decision-records/020-single-sliding-session-cookie.md)
 - [Issue #458 — security: authentication & integration hardening](https://github.com/EPFL-ENAC/co2-calculator/issues/458)
