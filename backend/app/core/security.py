@@ -269,17 +269,7 @@ async def get_permission_decision(user: User, path: str, action: str = "view") -
     input_data = _build_permission_input(user, path, action)
 
     # Query policy for authorization decision
-    decision = await query_policy("authz/permission/check", input_data)
-    logger.info(
-        "Permission check requested",
-        extra={
-            "user_id": sanitize(user.id),
-            "path": path,
-            "action": action,
-            "decision": decision,
-        },
-    )
-    return decision
+    return await query_policy("authz/permission/check", input_data)
 
 
 async def is_permitted(user: User, path: str, action: str = "view") -> bool:
@@ -309,24 +299,24 @@ async def is_permitted(user: User, path: str, action: str = "view") -> bool:
     return decision.get("allow", False)
 
 
-async def check_permission(user: User, path: str, action: str = "view") -> None:
-    """Check if the user has the specified permission and raise HTTPException if not.
-    Supports glob patterns, e.g. path="modules.*".
+async def check_permission(
+    user: User,
+    path: str,
+    action: str = "view",
+    detail: str = "You do not have permission to perform this action",
+) -> None:
+    """Raise 403 unless the user has the permission; supports globs ("modules.*").
 
-    Args:
-        user: Current user
-        path: Permission path or glob (e.g., "modules.headcount", "modules.*")
-        action: Permission action (e.g., "view", "edit", "export", default: "view")
-
-    Raises:
-        HTTPException with status 403 if user does not have permission
-        for ANY matching path
+    The one log line for a refused request lives here (#2934): every route
+    gate goes through it, so a denied backoffice action is greppable by
+    user_id and permission path, not just by its 403 access line.
     """
     if not await is_permitted(user, path, action):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to perform this action",
+        logger.warning(
+            "Permission check denied",
+            extra={"user_id": sanitize(user.id), "path": path, "action": action},
         )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
 def require_permission(path: str, action: str = "view") -> Callable:
