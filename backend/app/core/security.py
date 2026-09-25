@@ -28,6 +28,7 @@ from app.core.config import get_settings
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
+from app.core.session_renewal import RENEWED_COOKIE_STATE_KEY
 from app.db import get_db
 from app.models.user import User, UserProvider
 from app.services.user_service import UserService
@@ -248,24 +249,28 @@ def _renew_session(
     payload: dict,
     user: User,
     request: Request,
-    response: Response,
     background_tasks: BackgroundTasks,
 ) -> None:
-    """Re-issue the cookie on the response and record the renewal off-request.
+    """Re-issue the cookie and record the renewal off-request.
 
-    Both side effects run after the response is sent, each with its own DB
-    session: the audit row because a renewal is a session event like a
-    login, the role sync because this is the same cadence ``POST /session``
-    used to give it (plan 2539).
+    The ``Set-Cookie`` value is parked on the request state, and
+    ``SessionRenewalMiddleware`` appends it to whatever response goes out:
+    a route returning its own ``Response`` (304, download, stream) would
+    otherwise drop it. Both side effects run after the response is sent,
+    each with its own DB session: the audit row because a renewal is a
+    session event like a login, the role sync because this is the cadence
+    ``POST /session`` used to give it (plan 2539).
     """
+    carrier = Response()
     issue_session_cookie(
-        response,
+        carrier,
         sub=str(payload["sub"]),
         email=str(payload["email"]),
         institutional_id=str(payload["institutional_id"]),
         provider=str(payload["provider"]),
         auth_time=int(payload["auth_time"]),
     )
+    setattr(request.state, RENEWED_COOKIE_STATE_KEY, carrier.headers["set-cookie"])
     background_tasks.add_task(
         audit_session_renewal,
         user_id=user.id or 0,
@@ -273,6 +278,7 @@ def _renew_session(
         email=user.email,
         ip_address=extract_ip_address(request),
         route_path=request.url.path,
+        renewed_exp=int(payload["exp"]),
     )
     background_tasks.add_task(
         trigger_role_sync_for_user, user_id=user.id or 0, force=False
@@ -281,7 +287,6 @@ def _renew_session(
 
 async def get_optional_user(
     request: Request,
-    response: Response,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     auth_token: str | None = Cookie(None),
@@ -312,7 +317,7 @@ async def get_optional_user(
     db.expunge(user)
     await db.rollback()
     if session_needs_renewal(payload, int(time.time())):
-        _renew_session(payload, user, request, response, background_tasks)
+        _renew_session(payload, user, request, background_tasks)
     return user
 
 

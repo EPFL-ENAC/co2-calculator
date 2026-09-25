@@ -23,6 +23,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger, setup_logging
 from app.core.request_origin import RequestOriginMiddleware
+from app.core.session_renewal import SessionRenewalMiddleware
 from app.db import engine
 from app.tasks._background import cancel_background_tasks
 from app.tasks._db_health import DBHealthState, get_db_health_state, is_fresh
@@ -491,6 +492,10 @@ app.add_middleware(
 # the stack outside-in from the last registration): a request rejected for its
 # origin must not touch session state on the way out.
 app.add_middleware(RequestOriginMiddleware)
+
+# Outermost, so a renewed session cookie reaches every response shape,
+# including the ones a route builds itself (#2943).
+app.add_middleware(SessionRenewalMiddleware)
 
 # Must run after every add_middleware() call above -- see the function's
 # docstring for why order here is load-bearing, not stylistic (#2397).

@@ -14,7 +14,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import BackgroundTasks, Response
+from fastapi import BackgroundTasks
 from sqlalchemy import inspect as sa_inspect
 from sqlmodel import text
 
@@ -49,7 +49,6 @@ async def test_get_current_user_returns_detached_user_and_releases_connection(
 
     current = await get_optional_user(
         request=MagicMock(),
-        response=Response(),
         background_tasks=BackgroundTasks(),
         db=db_session,
         auth_token=_token_for(user),

@@ -300,6 +300,7 @@ def test_session_past_half_life_is_renewed_on_any_request(
     assert new_claims["exp"] > old_claims["exp"]
     assert audit.await_count == 1
     assert audit.await_args.kwargs["user_id"] == 42
+    assert audit.await_args.kwargs["renewed_exp"] == old_claims["exp"]
 
 
 def test_session_younger_than_half_life_is_left_alone(

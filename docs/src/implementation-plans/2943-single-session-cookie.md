@@ -1,5 +1,5 @@
 ---
-status: delivered
+status: in-progress
 issue: 2943
 last_updated: 2026-09-25
 summary: "One sliding httponly session cookie renewed inside the auth dependency and audited on renewal replaces the access + refresh pair and the client-driven POST /session; GET /session answers 200 with user null when anonymous. Shipped in one step, no compatibility window, after the maintainer chose to test the cut-over on dev and stage."
@@ -88,6 +88,45 @@ One httponly cookie, `auth_token` (name unchanged). Claims: `sub`, `email`,
 - `openapi.d.ts` regenerated from the app (`SessionRead.user` nullable,
   `POST /session` gone). The committed snapshot had drifted, so the diff
   carries other endpoints' doc changes too.
+
+## Behaviour change: session length (open decision)
+
+The old pair was not "8 h idle, 24 h cap". Every `POST /session` re-minted
+**both** cookies, so the refresh cookie got a fresh 24 h each time the 8 h
+access token lapsed. In practice a user stayed logged in indefinitely as
+long as they came back within 24 h, with no cap at all.
+
+With the values every environment runs today (480 min / 24 h):
+
+| user                                            | before             | after                       |
+| ----------------------------------------------- | ------------------ | --------------------------- |
+| works 9:00–18:00, back next morning (15 h idle) | silently continued | login page                  |
+| active all day, every day                       | never logged out   | logged out 24 h after login |
+| idle more than 24 h                             | login page         | login page                  |
+
+Two ways to go, both config-only:
+
+1. **Keep the new shape** (8 h idle, 24 h cap): a morning login per day,
+   Entra SSO usually makes it one silent redirect.
+2. **Match the old UX**: `ACCESS_TOKEN_EXPIRE_MINUTES=1440` (24 h idle,
+   renewed after 12 h), and either keep a cap (`REFRESH_TOKEN_EXPIRE_HOURS`
+   = 168 for one week) or accept no practical cap. Renewal audit rows drop
+   to about one per user per 12 h of activity.
+
+To be decided after testing on dev.
+
+## Renewal side effects
+
+- **Every response shape carries the cookie.** FastAPI merges a
+  dependency's headers only into plain-data returns, so the renewed
+  `Set-Cookie` is parked on `request.state` and `SessionRenewalMiddleware`
+  (`app/core/session_renewal.py`, raw ASGI, outermost) appends it at
+  response start: 304s, downloads, SSE streams and redirects included.
+- **Concurrent renewals.** A page load fans out several requests with the
+  same past-half-life cookie; each re-issues it (harmless, stateless) and
+  each writes one "Session renewed" row. Accepted: a handful of rows per
+  user per renewal window, grouped when reading by `renewed_exp` in the
+  snapshot, the `exp` of the cookie they replaced. Revisit if the audit table volume says otherwise.
 
 ## Rollout
 
