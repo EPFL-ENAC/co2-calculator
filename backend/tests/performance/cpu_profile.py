@@ -144,8 +144,8 @@ LEVELS: dict[str, dict[str, str]] = {
 DEFAULT_LEVELS = ["off", "prod", "dev"]
 # The whole sampling sweep, cheapest first; LEVELS is declared in this order.
 SAMPLING_PRESET = "sampling"
-# (any span, any per-statement DB span) each level must produce. At 1 % a
-# default run still samples several of its ~900 requests.
+# (any span, any per-statement DB span) each level must produce, checked
+# after the whole run: a ratio level samples nothing in the first requests.
 EXPECTED_SPANS = {
     "off": (False, False),
     "dev0": (False, False),
@@ -319,6 +319,11 @@ async def session_target(client: httpx.AsyncClient, role: str) -> Target:
     return Target(units=units, years=years)
 
 
+def checks_tracing_early(level: str) -> bool:
+    """Deterministic levels fail fast after login; ratio levels only at the end."""
+    return LEVELS[level].get("OTEL_TRACES_SAMPLER") != "parentbased_traceidratio"
+
+
 def verify_tracing(level: str, spans: SpanCounter) -> None:
     """Fail unless the spans seen so far match what the level promises."""
     seen = (spans.total > 0, spans.db > 0)
@@ -404,7 +409,8 @@ async def measure_level(args: argparse.Namespace) -> dict[str, Any]:
     ) as client:
         await login(client, args.role)
         target = await session_target(client, args.role)
-        verify_tracing(args.worker, probe.spans)
+        if checks_tracing_early(args.worker):
+            verify_tracing(args.worker, probe.spans)
         created = await ensure_explore_sandboxes(client, target.units)
         print(f"target {target}, explore sandboxes created: {created}", flush=True)
         endpoints: dict[str, dict[str, Any]] = {}
@@ -413,6 +419,7 @@ async def measure_level(args: argparse.Namespace) -> dict[str, Any]:
             samples = await drive(client, probe, target, request, args.requests)
             endpoints[name] = summarize_samples(samples)
             print(f"{name}: {endpoints[name]}", flush=True)
+        verify_tracing(args.worker, probe.spans)
         profile = None
         if args.profile:
             profile = await profile_endpoint(client, probe, target, args)
