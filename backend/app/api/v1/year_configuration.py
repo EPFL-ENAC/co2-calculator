@@ -489,7 +489,6 @@ async def create_audit_entry(
         data_diff=data_diff,
         change_type=change_type,
         changed_by=user.id,
-        changed_at=datetime.utcnow(),
         handler_id=user.institutional_id,
         handled_ids=[user.institutional_id],
         ip_address="127.0.0.1",

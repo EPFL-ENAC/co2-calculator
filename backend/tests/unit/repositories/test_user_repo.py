@@ -120,6 +120,7 @@ async def test_create_user_minimal(repo):
     assert result.email == "newuser@example.com"
     assert result.roles == []
     assert result.last_login is not None
+    assert result.last_login.tzinfo is not None
 
 
 @pytest.mark.asyncio
@@ -211,6 +212,7 @@ async def test_update_user_display_name(repo):
     # Verify display_name was updated
     assert result.display_name == "New Name"
     assert result.last_login is not None
+    assert result.last_login.tzinfo is not None
 
 
 @pytest.mark.asyncio
