@@ -153,8 +153,7 @@ export function useUploadCard() {
     const isGenericStatus = ['success', 'processing'].includes(
       statusMessage.trim().toLowerCase(),
     );
-    const rawRowErrors =
-      stats?.row_errors ?? (meta?.row_errors as JobRowError[] | undefined);
+    const rawRowErrors = stats?.row_errors;
     const rowErrorsCount =
       stats?.row_errors_count ?? (meta?.row_errors_count as number | undefined);
     const missingSyncedUnitErrors = groupMissingSyncedUnitErrors(

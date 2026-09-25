@@ -446,11 +446,17 @@ class BaseReductionObjectiveCSVProvider(CSVIngestionProvider, ABC):
         status_message = (
             f"Processed {stats['rows_processed']} rows, {stats['rows_skipped']} skipped"
         )
+        # Same meta shape as the module CSV providers: counts at the root,
+        # the row-error list only under ``stats`` (what the UI reads, #2464).
+        metadata_for_job: dict[str, Any] = {
+            k: v for k, v in stats.items() if k != "row_errors"
+        }
+        metadata_for_job["stats"] = dict(stats)
         await self._update_job(
             status_message=status_message,
             state=IngestionState.FINISHED,
             result=result,
-            extra_metadata=dict(stats),
+            extra_metadata=metadata_for_job,
         )
 
         return {
