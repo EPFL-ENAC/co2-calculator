@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import app.services.audit_sync_service as audit_sync_module
 from app.models.audit import AuditDocument, SyncStatusEnum
 from app.services.audit_sync_service import AuditSyncService
 
@@ -90,6 +91,8 @@ class TestAuditSyncService:
         assert result is True
         assert sample_audit_record.sync_status == SyncStatusEnum.SYNCED
         assert sample_audit_record.synced_at is not None
+        # timestamptz column: a naive value would be read in the session zone
+        assert sample_audit_record.synced_at.tzinfo is not None
         assert sample_audit_record.sync_error is None
         audit_sync_service._es_client.sync_audit_record.assert_called_once()
         mock_session.add.assert_called()
@@ -350,6 +353,50 @@ class TestAuditSyncService:
         # once for final state
         assert mock_session.add.call_count == 6
         mock_session.flush.assert_awaited()
+
+    async def test_sync_pending_audit_records_writes_aware_synced_at(
+        self, audit_sync_service, mock_session, monkeypatch
+    ):
+        """#2956: the success, conflict and skipped paths all stamp an aware
+        ``synced_at`` (timestamptz column).
+        """
+        monkeypatch.setattr(
+            audit_sync_module.settings, "AUDIT_SYNC_SKIP_ENTITY_TYPES", "skipped"
+        )
+        records = [
+            AuditDocument(
+                id=i,
+                entity_type=entity_type,
+                entity_id=i,
+                version=1,
+                data_snapshot={},
+                change_type="CREATE",
+                handler_id="test_handler",
+                ip_address="127.0.0.1",
+                current_hash="test_hash",
+                sync_status=SyncStatusEnum.PENDING,
+            )
+            for i, entity_type in [(1, "synced"), (2, "conflict"), (3, "skipped")]
+        ]
+        mock_result = AsyncMock()
+        mock_result.all = MagicMock(return_value=records)
+        mock_session.exec = AsyncMock(return_value=mock_result)
+        audit_sync_service._es_client.bulk_sync_audit_records.return_value = {
+            "success": [{"id": 1}],
+            "errors": [],
+            "conflicts": [{"id": 2}],
+        }
+
+        await audit_sync_service.sync_pending_audit_records(batch_size=100)
+
+        assert [r.sync_status for r in records] == [
+            SyncStatusEnum.SYNCED,
+            SyncStatusEnum.SYNCED,
+            SyncStatusEnum.SKIPPED,
+        ]
+        assert all(
+            r.synced_at is not None and r.synced_at.tzinfo is not None for r in records
+        )
 
     async def test_sync_pending_audit_records_no_pending_records(
         self, audit_sync_service, mock_session

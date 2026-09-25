@@ -12,7 +12,7 @@ model that defaults a dict/timestamp). Use these instead of passing the
 builtin directly as ``default_factory``.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 def default_dict() -> dict:
@@ -25,3 +25,9 @@ def default_list() -> list:
 
 def default_utcnow() -> datetime:
     return datetime.utcnow()
+
+
+# For timestamptz columns. default_utcnow stays naive: data_entries'
+# created_at/updated_at are still plain timestamp columns.
+def default_aware_utcnow() -> datetime:
+    return datetime.now(UTC)

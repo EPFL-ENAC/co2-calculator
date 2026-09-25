@@ -30,6 +30,12 @@ detecting, it needs a different signal than request duration (e.g. a stuck
 job, covered by the `job`-class alerts and the pipeline's own health
 metrics), not a latency SLO.
 
+The dashboard follows the same rule. The `Latency ${percentile:text} by
+route_class` panel leaves out `stream`, and `probe` too, which has its own
+panel. A `percentile` dropdown (P50/P95/P99, default P95 + P99) draws one
+panel per selected value
+([openshift-app-config#71](https://github.com/EPFL-ENAC/openshift-app-config/pull/71)).
+
 ## Probe trace sampling
 
 Metrics (`route_class`) and traces (Tempo, via `enac-it-otel`) are separate
@@ -55,18 +61,18 @@ then promote. Tracked in
 
 ## Per-environment status
 
-| Signal                                                   | Dev                                 | Stage                       | Prod                                                      |
-| -------------------------------------------------------- | ----------------------------------- | --------------------------- | --------------------------------------------------------- |
-| `route_class` label (collector transform)                | ✅                                  | ✅                          | ✅                                                        |
-| Grafana: Latency percentile, split by `route_class`      | ✅                                  | ✅                          | ✅                                                        |
-| Grafana: probe / DB pool panels                          | ✅                                  | ✅                          | ✅                                                        |
-| `LatencyP50/95/99High` scoped to `route_class="api"`     | ✅                                  | ✅                          | ✅                                                        |
-| `BackendMetricsAbsent` (deadman's switch)                | ✅                                  | ✅                          | ✅                                                        |
-| `HighErrorRate` -- global (not per-pod) 5xx ratio        | ✅ 2%                               | ✅ 2%                       | ✅ 1% (retuned from data)                                 |
-| `ErrorRateSustainedElevated` -- 6h window, severity:info | ✅ 0.3%                             | ✅ 0.3%                     | ✅ 0.3%                                                   |
-| `UploadLatencySLOBreach`                                 | ✅ (thresholds from 4wk stage data) | ✅                          | 🟡 interim -- stage-derived thresholds, see below (#2301) |
-| Job-class latency alerts                                 | ❌ removed 2026-09-07               | ❌ removed 2026-09-07       | ❌ removed 2026-09-07                                     |
-| Probe trace sampling -- latency-aware, not blanket drop  | ✅                                  | ⬜ not yet promoted (#2302) | ⬜ not yet promoted (#2302)                               |
+| Signal                                                                           | Dev                                 | Stage                       | Prod                                                      |
+| -------------------------------------------------------------------------------- | ----------------------------------- | --------------------------- | --------------------------------------------------------- |
+| `route_class` label (collector transform)                                        | ✅                                  | ✅                          | ✅                                                        |
+| Grafana: `Latency ${percentile:text} by route_class`, one panel per `percentile` | ✅                                  | ✅                          | ✅                                                        |
+| Grafana: probe / DB pool panels                                                  | ✅                                  | ✅                          | ✅                                                        |
+| `LatencyP50/95/99High` scoped to `route_class="api"`                             | ✅                                  | ✅                          | ✅                                                        |
+| `BackendMetricsAbsent` (deadman's switch)                                        | ✅                                  | ✅                          | ✅                                                        |
+| `HighErrorRate` -- global (not per-pod) 5xx ratio                                | ✅ 2%                               | ✅ 2%                       | ✅ 1% (retuned from data)                                 |
+| `ErrorRateSustainedElevated` -- 6h window, severity:info                         | ✅ 0.3%                             | ✅ 0.3%                     | ✅ 0.3%                                                   |
+| `UploadLatencySLOBreach`                                                         | ✅ (thresholds from 4wk stage data) | ✅                          | 🟡 interim -- stage-derived thresholds, see below (#2301) |
+| Job-class latency alerts                                                         | ❌ removed 2026-09-07               | ❌ removed 2026-09-07       | ❌ removed 2026-09-07                                     |
+| Probe trace sampling -- latency-aware, not blanket drop                          | ✅                                  | ⬜ not yet promoted (#2302) | ⬜ not yet promoted (#2302)                               |
 
 Prod's `route_class` transform only shipped recently. `UploadLatencySLOBreach`
 is live there now, but running on **stage's** 4-week-derived threshold

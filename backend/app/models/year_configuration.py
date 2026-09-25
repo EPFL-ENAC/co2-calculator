@@ -8,7 +8,7 @@ from sqlalchemy import DateTime as SADateTime
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import JSON, Field, SQLModel
 
-from app.models._field_defaults import default_dict, default_utcnow
+from app.models._field_defaults import default_aware_utcnow, default_dict
 from app.models.user import UserProvider
 
 
@@ -53,11 +53,9 @@ class YearConfiguration(YearConfigurationBase, table=True):
         ),
         description="Provider scope (accred, default, test)",
     )
-    # Naive timestamp, as migrated: sa_type pins it so a SQLModel bump
-    # can't swap in its timestamptz default (see test_datetime_column_types).
     updated_at: datetime = Field(
-        default_factory=default_utcnow,
-        sa_type=SADateTime,
-        sa_column_kwargs={"onupdate": datetime.utcnow},
+        default_factory=default_aware_utcnow,
+        sa_type=SADateTime(timezone=True),
+        sa_column_kwargs={"onupdate": default_aware_utcnow},
         description="Last modification timestamp",
     )
