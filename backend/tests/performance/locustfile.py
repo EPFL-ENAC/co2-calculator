@@ -40,6 +40,7 @@ from pathlib import Path
 
 from gevent.lock import BoundedSemaphore
 from locust import HttpUser, between, task
+from locust.exception import StopUser
 
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
 from tests.performance.perf_common import (
@@ -155,7 +156,7 @@ class CO2User(HttpUser):
         else:
             self.client.cookies.set("auth_token", self._login_test_cookie())
 
-        session = self.client.get("/v1/session", name="/v1/session").json()
+        session = self._bootstrap_json("/v1/session")
         # configured_years entries are YearConfiguration objects, not ints.
         self.years = [y["year"] for y in session.get("configured_years", [])]
         self.unit_ids = [u["id"] for u in session.get("units", [])]
@@ -192,7 +193,23 @@ class CO2User(HttpUser):
     def _list_all_units(self) -> list[dict]:
         # #2379 removed skip/limit from this endpoint: the list is bounded by
         # the caller's membership rows, so one GET returns everything.
-        return self.client.get("/v1/units", name="/v1/units").json()
+        return self._bootstrap_json("/v1/units")
+
+    def _bootstrap_json(self, path: str):
+        """GET a bootstrap resource, or record a failure and stop this VU.
+
+        A 5xx or an HTML error page used to fall through to the next call
+        and kill the greenlet with a JSONDecodeError (500/800 users, 24 Sep).
+        """
+        with self.client.get(path, name=path, catch_response=True) as resp:
+            try:
+                body = resp.json() if resp.ok else None
+            except ValueError:  # JSONDecodeError: not a JSON body
+                body = None
+            if body is None:
+                resp.failure(f"HTTP {resp.status_code} (expected 2xx JSON)")
+                raise StopUser(f"{path} failed with HTTP {resp.status_code}")
+        return body
 
     def pick_unit(self) -> int:
         return random.choice(self.unit_ids)  # nosec B311
