@@ -62,6 +62,59 @@ PERF_AUTH_COOKIE='eyJ...' make perf-load PERF_HOST=https://<host>/api PERF_CLASS
 
 All VUs then share that one identity, so unit scoping is that user's.
 
+## Ladder + infra summary
+
+One command per config under test, against dev by default:
+
+```bash
+export GRAFANA_TOKEN=<service-account token>   # or GRAFANA_SESSION=<grafana_session cookie>
+make perf-ladder PERF_LADDER_TAG=pool70_base
+make perf-summary PERF_SUMMARY_TAGS="dev_pool70_base_100 dev_pool70_base_600"   # older tags, or a rerun
+```
+
+- `PERF_LADDER_TAG` is required: it names the config, e.g. `pool70_base`.
+  The ladder runs a warm-up (`<tag>_warmup`, 50 users × 60 s, not
+  summarised), then each `PERF_LADDER` stage (default `100 600`) for
+  `PERF_LADDER_TIME` (default `3m`) as `<tag>_<users>`. `perf-dev` adds
+  the `dev_` prefix and keeps its write guard.
+- Stages are `PERF_LADDER_COOLDOWN` s apart (default 60). That stays well
+  under the HPA's default 300 s scale-down window, so the fleet stays warm.
+- A failed stage stops the ladder. With credentials set, the summary runs
+  one cooldown after the last stage, once the OTel export has caught up.
+  Without them, the ladder prints the `make perf-summary` command to run.
+- Stages last 3 minutes because Prometheus scrapes cAdvisor every 30 s.
+  The summary refuses a steady window under 60 s: a 1-minute stage leaves
+  about 34 s.
+- Credentials come only from `GRAFANA_TOKEN` (Bearer) or `GRAFANA_SESSION`
+  (the `grafana_session` cookie of a logged-in tab). A copied cookie can
+  expire during a 10-minute ladder, so use a token for unattended runs.
+  A 401/403 fails hard: export a fresh one and rerun `perf-summary`.
+  Override `GRAFANA_URL`, `GRAFANA_DATASOURCE_UID` or `PERF_NAMESPACE` to
+  point it elsewhere.
+
+The summary prints one markdown table, one column per tag, and writes
+`reports/<tag>_infra.json`:
+
+| Row                                           | Meaning                                                                                                                 |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| steady window                                 | First history row at the final user count, plus 15 s to settle, to the last row with users running                      |
+| requests / failures / rps in window           | Locust's cumulative `Aggregated` counters over that window: the denominator                                             |
+| p50 / p95 / p99, failures (whole run)         | `<tag>_stats.csv` aggregate, ramp-up included                                                                           |
+| backend CPU-seconds                           | `sum(increase(container_cpu_usage_seconds_total{container="backend"}[window]))` at the window end                       |
+| **CPU ms / request**                          | 1000 × CPU-seconds ÷ locust requests in the window                                                                      |
+| slice stability: median / p95                 | The same ratio over 60 s trailing slices stepped every 30 s. It shows spread over time, **not** per-request percentiles |
+| busiest pod / mean pod CPU, imbalance         | Per-pod CPU (cores) over the window: the peak, the mean of every pod sample, and their ratio                            |
+| CPU throttled share                           | Throttled ÷ total CFS periods; "no CPU limit" when cAdvisor has no CFS series (no quota)                                |
+| HPA replicas                                  | Min–max of the backend HPA's current replicas                                                                           |
+| DB server connections, pod pool `checked_out` | Maxima of OTel gauges: coarse, exported every ~60 s and lagging                                                         |
+
+Why locust counts the requests: the OTel request counters export every
+~60 s and lag. On 24 Sep they read about half of locust's rate and
+alternated 0/33/0/69 between samples. Locust's count includes failed
+requests, and the `FLOW` rows of the Plan and Upload scenarios. The
+history CSV cannot separate either, so read CPU per request on the
+read-only classes.
+
 ## `backend/.env`'s `DB_URL` may not be localhost
 
 `DB_URL` may point at a shared platform DB (e.g. `co2-dev.xxxx.epfl.ch`), not
@@ -92,6 +145,7 @@ local compose — real backend/worker pods are already on it. Run in order:
 | `table_matrix.py`         | Exhaustive table-endpoint sweep: every submodule × limit {20,100,500,1000} × every sort column × order, plus filter search, deep pagination, item GETs, chart companions  |
 | `perf_common.py`          | Shared helpers (JWT minting, sort-column discovery) — importable without locust                                                                                           |
 | `report_slow.py`          | Scans stage CSVs for endpoints with p95 over a threshold                                                                                                                  |
+| `infra_summary.py`        | `make perf-summary`: backend CPU ms per request per stage (cAdvisor ÷ locust), pod imbalance, throttling, HPA replicas, DB gauges                                         |
 | `pipeline_connections.py` | Samples `pg_stat_activity` while one upload per module type runs (`--parallel N` for N units at once): held connections per pipeline phase, for the connection budget doc |
 
 ## How auth works
