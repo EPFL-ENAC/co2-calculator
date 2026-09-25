@@ -3,7 +3,7 @@ status: delivered
 issue: 2049
 last_updated: 2026-09-25
 title: "Background DB health poller — zero I/O on /healthz and /ready"
-summary: "Continuation of 2050's Track A1: a background loop (1 s, 10 s since 2026-09-25) caches a SELECT 1 verdict in a per-pod global; /healthz and /ready read it instead of doing their own DB round trip, so a saturated pool can no longer make either endpoint itself hang."
+summary: "Continuation of 2050's Track A1: a background loop (1 s; 30 s with a 5 s boot retry since 2026-09-25) caches a SELECT 1 verdict in a per-pod global; /healthz and /ready read it instead of doing their own DB round trip, so a saturated pool can no longer make either endpoint itself hang."
 ---
 
 # Background DB health poller (#2049)
@@ -118,15 +118,24 @@ wait, so writes are at most interval + 1 s apart. The stale window is
 event-loop lag during an outage.
 `test_stuck_probe_teardown_does_not_freeze_the_loop` pins that the
 timestamp advances, and `test_hung_db_tick_stays_fresh` pins the slack.
+`test_loop_retries_fast_until_first_success` pins the boot retry.
 
-**Interval: 10 s (was 1 s).** After the boot check, which runs at once,
-readiness only needs to know the loop is alive, and the kubelet reads `/ready`
-every 10 s anyway. A faster poll bought nothing, but it cost something on every
-pod. Each check is a bouncer transaction, plus orphan psycopg spans on dev and
-the stage/prod workers. Those spans reach the collector and are held 30 s
-before tail sampling drops them (the 2026-09-14 exporter flood). At 10 s, a
-dead poller reads stale after 31 s. `/healthz`'s DB field and the degraded log
-lag by up to 10 s.
+**Interval: 30 s (was 1 s), 5 s until the first success.** After the boot
+check, which runs at once, the result no longer changes `/ready`'s status code.
+It only feeds the degraded message, `/healthz`'s DB field and dead-loop
+detection, and none of them needs a fast poll. A 1 s poll cost something on
+every pod: each check is a bouncer transaction, plus orphan psycopg spans on
+dev and the stage/prod workers. Those spans reach the collector and are held
+30 s before tail sampling drops them (the 2026-09-14 exporter flood).
+
+Until the first success the loop retries every `DB_HEALTH_BOOT_RETRY_SECONDS`
+(5 s) instead. A pod booted during a DB blip then turns ready at the next
+readiness probe after the DB recovers, not up to 30 s later. A healthy boot
+never pays for this, because its first check succeeds.
+
+At 30 s, a dead poller reads stale after 91 s. The degraded log and
+`/healthz`'s DB field lag by up to 30 s. Alerts use 5-minute metric windows,
+so the lag doesn't affect them.
 
 **503 JSON for DB outages.** `db_unavailable_handler` (registered for
 SQLAlchemy's pool `TimeoutError` and `DBAPIError`) maps the

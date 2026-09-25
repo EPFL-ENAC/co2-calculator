@@ -36,6 +36,12 @@ logger = get_logger(__name__)
 # failure.
 DB_HEALTH_CHECK_TIMEOUT_SECONDS = 1
 
+# Until the first ok/slow check, retry this often instead of the (long)
+# interval: a pod booted during a DB blip then turns ready at the next
+# readiness probe (every 10 s) after the DB recovers. A healthy boot never
+# pays it — its first check already succeeds.
+DB_HEALTH_BOOT_RETRY_SECONDS = 5
+
 # A cached verdict older than this multiple of the check interval (plus
 # one check timeout) means the loop stopped ticking (crashed, or
 # RUN_DB_HEALTH_POLLER is off) — treated as unknown rather than trusted
@@ -159,6 +165,16 @@ async def _check_once(settings: Settings) -> None:
     )
 
 
+def _next_delay_seconds(interval: int) -> int:
+    """The configured interval, or the short boot retry while the DB has
+    never answered (never longer than the interval itself).
+    """
+    delay = interval
+    if not _ever_healthy:
+        delay = min(interval, DB_HEALTH_BOOT_RETRY_SECONDS)
+    return delay
+
+
 async def db_health_check_loop() -> None:
     """Run the DB health check on the configured cadence forever."""
     settings = get_settings()
@@ -177,7 +193,7 @@ async def db_health_check_loop() -> None:
         )
     while True:
         try:
-            await asyncio.sleep(interval)
+            await asyncio.sleep(_next_delay_seconds(interval))
             await _check_once(settings)
         except asyncio.CancelledError:
             if _probe is not None and not _probe.done():

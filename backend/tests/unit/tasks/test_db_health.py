@@ -262,3 +262,31 @@ async def test_loop_survives_iteration_exception():
             await _db_health.db_health_check_loop()
 
     assert call_count["n"] == 2, "loop must continue past the first exception"
+
+
+@pytest.mark.asyncio
+async def test_loop_retries_fast_until_first_success():
+    """A pod whose boot check fails retries every DB_HEALTH_BOOT_RETRY_SECONDS,
+    not the long interval, then settles on the interval once the DB answered.
+    """
+    sleeps: list[int] = []
+
+    async def fail_then_succeed(_settings):
+        if sleeps:
+            _db_health._ever_healthy = True
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) == 2:
+            raise asyncio.CancelledError()
+
+    with (
+        patch("app.tasks._db_health.get_settings") as gs,
+        patch("app.tasks._db_health._check_once", side_effect=fail_then_succeed),
+        patch("app.tasks._db_health.asyncio.sleep", side_effect=fake_sleep),
+    ):
+        gs.return_value = MagicMock(DB_HEALTH_CHECK_INTERVAL_SECONDS=30)
+        with pytest.raises(asyncio.CancelledError):
+            await _db_health.db_health_check_loop()
+
+    assert sleeps == [_db_health.DB_HEALTH_BOOT_RETRY_SECONDS, 30]
