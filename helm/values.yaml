@@ -38,7 +38,9 @@ backend:
     API_DOCS_PREFIX: "/api"
     LOG_LEVEL: "INFO"
     ALGORITHM: "HS256"
+    # Session cookie (#2943): idle window, renewed past its half...
     ACCESS_TOKEN_EXPIRE_MINUTES: "480"
+    # ...and hard cap from login. Names kept from the refresh-token era.
     REFRESH_TOKEN_EXPIRE_HOURS: "24"
     ROLE_PROVIDER_TYPE: "jwt" # Could be 'jwt', 'accred', or 'test'
     UNIT_PROVIDER_TYPE: "database" # Could be 'database', 'accred', or 'test'
