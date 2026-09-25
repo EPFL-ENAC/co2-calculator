@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from app.core.exceptions import (
@@ -101,10 +101,11 @@ async def db_unavailable_handler(request: Request, exc: Exception) -> JSONRespon
     Only this pod's pool checkout timeout, a lost or never-established
     connection (``connection_invalidated``, set by ``count_connect_failure``
     for connect failures), or a full bouncer/server (``explain_db_wait``)
-    qualifies. Any other OperationalError is re-raised and stays a 500.
+    qualifies, whatever the DBAPIError subclass (psycopg can report a lost
+    connection as InterfaceError). Any other error is re-raised: a 500.
     """
     unavailable = isinstance(exc, SQLAlchemyTimeoutError)
-    if isinstance(exc, OperationalError):
+    if isinstance(exc, DBAPIError):
         unavailable = exc.connection_invalidated or (
             exc.orig is not None and explain_db_wait(exc.orig) is not None
         )

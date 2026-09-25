@@ -12,7 +12,7 @@ import pytest
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError, OperationalError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from app.core.exception_handlers import (
@@ -169,7 +169,7 @@ def _client_raising(exc: Exception) -> TestClient:
     """A bare app wired like main.app, with one route that raises ``exc``."""
     app = FastAPI()
     app.add_exception_handler(SQLAlchemyTimeoutError, db_unavailable_handler)
-    app.add_exception_handler(OperationalError, db_unavailable_handler)
+    app.add_exception_handler(DBAPIError, db_unavailable_handler)
 
     @app.get("/boom")
     async def boom():
@@ -182,7 +182,7 @@ class TestDbUnavailableHandler:
     """A DB outage answers 503 JSON; every other error stays a 500."""
 
     def test_main_app_wires_the_handler(self):
-        for exc_class in (SQLAlchemyTimeoutError, OperationalError):
+        for exc_class in (SQLAlchemyTimeoutError, DBAPIError):
             assert main_app.exception_handlers[exc_class] is db_unavailable_handler
 
     @pytest.mark.parametrize(
@@ -200,6 +200,15 @@ class TestDbUnavailableHandler:
                     connection_invalidated=True,
                 ),
                 id="connection-lost-or-never-established",
+            ),
+            pytest.param(
+                InterfaceError(
+                    "SELECT 1",
+                    {},
+                    psycopg.InterfaceError("the connection is lost"),
+                    connection_invalidated=True,
+                ),
+                id="connection-lost-as-interface-error",
             ),
             pytest.param(
                 OperationalError(

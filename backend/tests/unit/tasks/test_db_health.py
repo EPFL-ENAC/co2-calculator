@@ -223,6 +223,19 @@ def test_is_fresh_false_once_stale():
     assert not is_fresh(state, interval_seconds=1)
 
 
+def test_hung_db_tick_stays_fresh():
+    """A hung DB stretches a tick to interval + check timeout; with 1.5 s
+    of event-loop lag on top, a live loop must still read fresh, or every
+    pod drops out of readiness at once during the outage.
+    """
+    interval = 1
+    age = interval + _db_health.DB_HEALTH_CHECK_TIMEOUT_SECONDS + 1.5
+    state = DBHealthState(
+        status="down", latency_ms=1000.0, checked_at_monotonic=time.monotonic() - age
+    )
+    assert is_fresh(state, interval_seconds=interval)
+
+
 @pytest.mark.asyncio
 async def test_loop_survives_iteration_exception():
     """A raised exception from one tick does not kill the loop — mirrors

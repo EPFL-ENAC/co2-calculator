@@ -148,9 +148,10 @@ backend:
     timeoutSeconds: 5
     failureThreshold: 5
 
-  # /ready fails only for per-pod faults: no DB check has succeeded since
-  # boot, or the pod's health poller died. A shared DB outage after that
-  # stays 200 ("degraded"), so the pods don't all leave the Service together.
+  # /ready fails only before the first DB check succeeds since boot, or when
+  # the pod's health poller died. A DB outage after that stays 200
+  # ("degraded"), so the pods don't all leave the Service together; a pod
+  # that loses its own path to the DB stays in too, answering 503 JSON.
   readinessProbe:
     httpGet:
       path: /ready

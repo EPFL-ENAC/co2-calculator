@@ -10,7 +10,7 @@ from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -516,9 +516,9 @@ app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
 app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
 app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
 # DB outages answer 503 JSON, not a bare 500; the handler re-raises any
-# other OperationalError, so bugs stay 500.
+# other DBAPIError, so bugs stay 500.
 app.add_exception_handler(SQLAlchemyTimeoutError, db_unavailable_handler)
-app.add_exception_handler(OperationalError, db_unavailable_handler)
+app.add_exception_handler(DBAPIError, db_unavailable_handler)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)
@@ -594,12 +594,14 @@ async def ready():
     #2049: reads the background DB health poller's cached verdict — zero
     I/O of its own, so a saturated pool can no longer make this endpoint
     itself hang (#2050 A1 bounded that per-request check; this removes
-    it). 503 only for per-pod faults: no ok/slow check since boot (broken
-    DB config never takes traffic) or a stale verdict (this pod's poller
-    died). A slow DB, or one down after that first success ("degraded"),
-    still answers 200: the DB is shared, so gating on it pulls every pod
-    from the Service at once and the router serves its HTML 503 for the
-    whole API. Used by Kubernetes readinessProbe.
+    it). 503 only before the first ok/slow check since boot (broken DB
+    config never takes traffic) or when the verdict is stale (this pod's
+    poller died). A slow DB, or one down after that first success
+    ("degraded"), still answers 200: the DB is shared, so gating on it
+    pulls every pod from the Service at once and the router serves its
+    HTML 503 for the whole API. Accepted cost: a pod that loses its own
+    network path to the DB also stays in, answering 503 JSON per request.
+    Used by Kubernetes readinessProbe.
 
     External provider health (Accred) lives in /health/deps (#2050 A1):
     it must never gate readiness — a blip there is EPFL's incident, not

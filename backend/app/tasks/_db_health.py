@@ -3,10 +3,11 @@
 ``/ready`` used to run its own bounded ``SELECT 1`` per probe (#2050 A1) —
 correct, but every probe still paid a real DB round trip, and a saturated
 pool made every one of them queue for a connection. This loop runs the
-same check once a second in the background and caches the verdict in a
-module-global; ``/ready``/``/healthz`` then read memory, doing zero I/O of
-their own. Mirrors ``_pod_heartbeat.py``'s shape (first tick before sleep,
-per-iteration try/except so a transient DB hiccup can't kill the loop).
+same check every ``DB_HEALTH_CHECK_INTERVAL_SECONDS`` in the background
+and caches the verdict in a module-global; ``/ready``/``/healthz`` then
+read memory, doing zero I/O of their own. Mirrors ``_pod_heartbeat.py``'s
+shape (first tick before sleep, per-iteration try/except so a transient DB
+hiccup can't kill the loop).
 
 Single process per pod (no gunicorn workers — see plan 2050's Track A
 rejected alternatives), so a bare module-global needs no lock: only this
@@ -35,9 +36,10 @@ logger = get_logger(__name__)
 # failure.
 DB_HEALTH_CHECK_TIMEOUT_SECONDS = 1
 
-# A cached verdict older than this multiple of the check interval means
-# the loop stopped ticking (crashed, or RUN_DB_HEALTH_POLLER is off) —
-# treated as unknown rather than trusted stale data.
+# A cached verdict older than this multiple of the check interval (plus
+# one check timeout) means the loop stopped ticking (crashed, or
+# RUN_DB_HEALTH_POLLER is off) — treated as unknown rather than trusted
+# stale data.
 _STALE_AFTER_INTERVALS = 3
 
 
@@ -86,7 +88,12 @@ def is_fresh(state: DBHealthState, *, interval_seconds: int) -> bool:
     step must not false-trip this.
     """
     age = time.monotonic() - state.checked_at_monotonic
-    return age <= _STALE_AFTER_INTERVALS * interval_seconds
+    # A hung DB stretches each tick to interval + timeout; without the
+    # timeout term a short interval leaves almost no slack before a live
+    # loop reads as dead.
+    return age <= _STALE_AFTER_INTERVALS * interval_seconds + (
+        DB_HEALTH_CHECK_TIMEOUT_SECONDS
+    )
 
 
 async def _run_probe() -> tuple[float, str | None]:
