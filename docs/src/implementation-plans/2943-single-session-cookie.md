@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 2943
 last_updated: 2026-09-25
 summary: "One sliding httponly session cookie renewed inside the auth dependency and audited on renewal replaces the access + refresh pair and the client-driven POST /session; GET /session answers 200 with user null when anonymous. Shipped in one step, no compatibility window, after the maintainer chose to test the cut-over on dev and stage."
@@ -89,7 +89,7 @@ One httponly cookie, `auth_token` (name unchanged). Claims: `sub`, `email`,
   `POST /session` gone). The committed snapshot had drifted, so the diff
   carries other endpoints' doc changes too.
 
-## Behaviour change: session length (open decision)
+## Behaviour change: session length
 
 The old pair was not "8 h idle, 24 h cap". Every `POST /session` re-minted
 **both** cookies, so the refresh cookie got a fresh 24 h each time the 8 h
@@ -113,7 +113,19 @@ Two ways to go, both config-only:
    = 168 for one week) or accept no practical cap. Renewal audit rows drop
    to about one per user per 12 h of activity.
 
-To be decided after testing on dev.
+Decided 2026-09-25: keep 480 min / 24 h and watch on dev. Known cost: a
+save after 8 h idle, or at hour 24 of an active session, now fails to the
+login page and loses the unsaved input. Before, the refresh-and-retry made
+those saves succeed. If that bites, option 2 is config only.
+
+## Verification done before review
+
+- Rollout matrix replayed against both code versions: six cookie states
+  on the dev and this branch's backend, and the real dev and new frontends
+  in Playwright against the other backend's answers. Every combination
+  either works or ends on the login page; none errors.
+- Renewal watched locally at a 1-minute idle window (fires after 30 s),
+  in Chromium and Safari. Real Entra login checked.
 
 ## Renewal side effects
 

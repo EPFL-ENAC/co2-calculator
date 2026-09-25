@@ -1,12 +1,12 @@
 ---
-status: in-progress
+status: delivered
 last_updated: 2026-09-25
 summary: "One httponly session cookie renewed server-side at half-life with a hard cap from the OIDC auth_time claim replaces the access + refresh pair; the client never refreshes and GET /session answers 200 with user null when anonymous."
 ---
 
 # ADR-020: Single sliding session cookie
 
-**Status**: Proposed, implemented for testing on dev (issue #2943, 2026-09-25)
+**Status**: Accepted (issue #2943, 2026-09-25)
 **Date**: 2026-09-24
 **Deciders**: Development Team
 **Amends**: [ADR-012](./012-jwt-authentication-strategy.md), mitigation
@@ -78,8 +78,8 @@ fresh 24 h refresh cookie on every refresh, so a user returning within
 24 h stayed logged in with no cap. With 480 min idle and a 24 h cap, an
 overnight gap now means a login each morning, and a session ends 24 h
 after login whatever the activity. Setting `ACCESS_TOKEN_EXPIRE_MINUTES`
-to 1440 and a longer cap restores the old experience; decided after dev
-testing (plan 2943, "Behaviour change").
+to 1440 and a longer cap restores the old experience. Kept at 480 / 24
+on 2026-09-25, watched on dev (plan 2943, "Behaviour change").
 
 A cookie that is present but refused (expired after idle,
 tampered, retired `refresh` type) is still a 401 on the session check, so
