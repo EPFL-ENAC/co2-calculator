@@ -71,6 +71,7 @@ Negative: renewals are no longer audited as events. The audit trail keeps
 login and logout; the hard cap bounds a session to 24 h as before.
 Revocation is unchanged from ADR-012: none before expiry.
 
-Rollout: an `auth_token` minted before the change validates (missing
-`auth_time` is read as `iat`); the stale `refresh_token` is ignored and
-expires within 24 h.
+Rollout: an `auth_token` minted before the change validates but is not
+renewed (it carries neither `auth_time` nor `iat`), so each user logs in
+once more within 8 h of the deploy; the stale `refresh_token` is ignored
+and expires within 24 h.

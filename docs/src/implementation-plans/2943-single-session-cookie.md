@@ -116,9 +116,11 @@ Frontend (Playwright CT, `frontend/tests/unit`):
 ## Rollout
 
 Users holding the old cookie pair at deploy time: `auth_token` still
-validates (same claims minus `auth_time`; treat a missing `auth_time` as
-`iat` and renew from there), `refresh_token` is ignored and expires on its
-own within 24 h. No forced re-login.
+validates (same claims minus `auth_time`). Tokens today carry no `iat`, so a
+token without `auth_time` is simply not renewed: it lives out its remaining
+idle window (8 h at most) and the user logs in once. `refresh_token` is
+ignored and expires on its own within 24 h. One re-login per user in the
+first day, no data impact.
 
 ## Verification
 
