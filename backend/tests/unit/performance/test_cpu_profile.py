@@ -10,6 +10,7 @@ from tests.performance.cpu_profile import (
     LEVELS,
     SAMPLING_PRESET,
     assert_local_db,
+    checks_tracing_early,
     parse_levels,
 )
 from tests.performance.cpu_profile_stats import (
@@ -219,3 +220,12 @@ def test_sampling_preset_runs_every_level_in_declared_order():
 def test_default_levels_are_unchanged():
     assert DEFAULT_LEVELS == ["off", "prod", "dev"]
     assert parse_levels("dev1, prod10") == ["dev1", "prod10"]
+
+
+def test_ratio_levels_are_not_checked_before_any_endpoint_ran():
+    # Regression: at 1 % the two bootstrap requests carry no span, so an early
+    # check aborted every sampled level of --levels sampling (2026-09-25).
+    assert not checks_tracing_early("prod1")
+    assert not checks_tracing_early("dev10")
+    assert checks_tracing_early("off")
+    assert checks_tracing_early("dev")
