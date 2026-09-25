@@ -25,7 +25,7 @@ from app.api.auth_first_route import AuthFirstRoute
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.security import is_permitted
+from app.core.security import check_permission
 from app.core.submodule_mandatoriness import (
     MODULES_REQUIRING_COMMON_FACTOR,
     get_submodule_mandatoriness,
@@ -647,11 +647,12 @@ async def create_year_configuration(
     Returns:
         Created year configuration.
     """
-    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only super administrators can create year configurations",
-        )
+    await check_permission(
+        current_user,
+        "backoffice.configuration",
+        "edit",
+        detail="Only super administrators can create year configurations",
+    )
 
     current_year = datetime.now().year
     min_year = settings.MIN_CONFIGURABLE_YEAR
@@ -834,11 +835,12 @@ async def update_year_configuration(
     Returns:
         Updated year configuration.
     """
-    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only super administrators can update year configurations",
-        )
+    await check_permission(
+        current_user,
+        "backoffice.configuration",
+        "edit",
+        detail="Only super administrators can update year configurations",
+    )
 
     # Validate reduction objectives goals if provided
     if payload.config and "reduction_objectives" in payload.config:
@@ -985,11 +987,12 @@ async def upload_reduction_objective_file(
     Returns:
         File metadata.
     """
-    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only super administrators can upload files",
-        )
+    await check_permission(
+        current_user,
+        "backoffice.configuration",
+        "edit",
+        detail="Only super administrators can upload files",
+    )
 
     # This route had no size limit at all, unlike every other upload path
     # (#2261). AuthFirstRoute already bounded the whole request body from the

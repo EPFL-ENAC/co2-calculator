@@ -31,7 +31,7 @@ from app.api.auth_first_route import AuthFirstRoute
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.security import is_permitted
+from app.core.security import check_permission
 from app.models.user import User
 from app.utils.permissions import has_permission
 
@@ -199,11 +199,12 @@ async def list_files(
         403: Missing required permission
         400: Invalid file path
     """
-    if not await is_permitted(current_user, "backoffice.configuration", "view"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires backoffice.configuration.view",
-        )
+    await check_permission(
+        current_user,
+        "backoffice.configuration",
+        "view",
+        detail="Permission denied: requires backoffice.configuration.view",
+    )
 
     logger.info(
         "File list requested",
@@ -267,11 +268,12 @@ async def get_file(
         400: Invalid file path
         500: Internal server error
     """
-    if not await is_permitted(current_user, "backoffice.configuration", "view"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires backoffice.configuration.view",
-        )
+    await check_permission(
+        current_user,
+        "backoffice.configuration",
+        "view",
+        detail="Permission denied: requires backoffice.configuration.view",
+    )
 
     logger.info(
         "File requested",
@@ -409,11 +411,12 @@ async def delete_temp_files(
 
     Only files in /tmp/ folder can be deleted.
     """
-    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires backoffice.configuration.edit",
-        )
+    await check_permission(
+        current_user,
+        "backoffice.configuration",
+        "edit",
+        detail="Permission denied: requires backoffice.configuration.edit",
+    )
 
     logger.info(
         "File deletion from /tmp requested",

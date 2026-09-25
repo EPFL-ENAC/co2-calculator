@@ -81,7 +81,8 @@ class _DropHealthyProbeAccessLogFilter(logging.Filter):
     """Drop ``uvicorn.access`` records for 200 responses to liveness/readiness probes.
 
     uvicorn logs access lines as ``'%s - "%s %s HTTP/%s" %d'`` with args
-    ``(client, method, path, http_version, status)``.
+    ``(client, method, path_with_query_string, http_version, status)``. The
+    match is exact, so a probe path that gains a query string logs again.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:

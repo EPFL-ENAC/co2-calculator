@@ -2,7 +2,7 @@
 status: delivered
 issue: 2934
 last_updated: 2026-09-24
-summary: "A 24 h prod Loki dump was 97% probe access lines and collector self-warnings; drop both at the source, delete per-evaluation policy chatter, and ship the dump script so the next audit takes one command."
+summary: "A 24 h prod Loki dump was 97% probe access lines and collector self-warnings; drop the probe lines at the source, delete per-evaluation policy chatter, route every 403 gate through one logged helper, and ship the dump script; the collector fix is config in openshift-app-config."
 ---
 
 # Clean prod logs: probes, collector conflict, policy chatter
@@ -14,12 +14,11 @@ This plan covers the low-risk slice: no behaviour change, no auth change.
 
 ## What ships
 
-| change                                                                                            | where                                                              | removes                                                         |
-| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------- |
-| Drop `uvicorn.access` lines for 200 answers to `/healthz` and `/ready`                            | `backend/app/core/logging.py`                                      | ~35 k lines/day (backend + worker)                              |
-| Disable `urllib`, `urllib3`, `requests` OTel instrumentations                                     | `helm/values.yaml` **and** every overlay in `openshift-app-config` | 46 k collector "Instrument description conflict" lines/day      |
-| Delete "Permission granted" / "Permission denied" / "Module permission check" per-evaluation logs | `backend/app/core/policy.py`                                       | 62 INFO + 2 false WARNING lines/day                             |
-| `scripts/loki-dump.sh`                                                                            | new                                                                | one command to dump a day of any env from the LokiStack gateway |
+| change                                                                                            | where                         | removes                                                         |
+| ------------------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------- |
+| Drop `uvicorn.access` lines for 200 answers to `/healthz` and `/ready`                            | `backend/app/core/logging.py` | ~35 k lines/day (backend + worker)                              |
+| Delete "Permission granted" / "Permission denied" / "Module permission check" per-evaluation logs | `backend/app/core/policy.py`  | 62 INFO + 2 false WARNING lines/day                             |
+| `scripts/loki-dump.sh`                                                                            | new                           | one command to dump a day of any env from the LokiStack gateway |
 
 The collector conflict (46 k lines/day) is `urllib3` describing
 `http.client.duration` as "Measures the duration…" while `httpx` and
@@ -28,8 +27,15 @@ drop the only spans the sync Elasticsearch client produces, so the fix is
 collector-side in `openshift-app-config`: a `transform` processor that
 normalises the description. Tracked in openshift-app-config, not in this PR.
 
-Non-200 probe answers still log. A real 403 still logs through the module
-permission check's "denied" warning and the access line.
+Non-200 probe answers still log. A real 403 logs once, with user_id and
+permission path: `check_module_permission` for module gates, and
+`check_permission` for the six backoffice gates in `files.py` and
+`year_configuration.py`, which used to inline `is_permitted` + raise and
+relied on the deleted per-evaluation line for their only trace.
+
+Still logged per evaluation, deliberately left: the "Data filter: … scope"
+INFO lines in `_evaluate_data_filter_policy`. They fire once per list call,
+not per scope probe, and describe the scope actually applied.
 
 ## Out of scope, tracked in the issue
 
