@@ -53,8 +53,11 @@ class YearConfiguration(YearConfigurationBase, table=True):
         ),
         description="Provider scope (accred, default, test)",
     )
+    # Naive timestamp, as migrated: sa_type pins it so a SQLModel bump
+    # can't swap in its timestamptz default (see test_datetime_column_types).
     updated_at: datetime = Field(
         default_factory=default_utcnow,
+        sa_type=SADateTime,
         sa_column_kwargs={"onupdate": datetime.utcnow},
         description="Last modification timestamp",
     )
