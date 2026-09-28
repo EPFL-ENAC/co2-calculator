@@ -161,9 +161,9 @@ slice, because the factor lock lives as long as the transaction
 loop. After a mid-slice disconnect, the next statement raises
 `PendingRollbackError`, which already aborts the batch.
 
-**Follow-up, not done.** A DB error raised after a response has started, such as
+**Follow-up, done in #2956.** A DB error raised after a response has started, such as
 the SSE job stream's per-poll session in `api/v1/data_sync.py`, cannot become a 503. Starlette then raises `RuntimeError("Caught handled exception, but
 response already started.")`, and the real error survives only as
-`__cause__`, so log queries keyed on `OperationalError` miss it. The fix is to
-catch DB errors inside the stream and end it with an error event, which
-changes the stream's behaviour.
+`__cause__`, so log queries keyed on `OperationalError` miss it. Both SSE
+streams now catch DB errors, log the real one and end; see
+[2956](2956-timestamptz-and-sse-db-errors.md).
