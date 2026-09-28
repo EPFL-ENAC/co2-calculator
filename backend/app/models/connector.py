@@ -1,19 +1,17 @@
 """Connector connection + datasource models (API-connect credentials, #1552)."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import Column, DateTime, Index, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
+from app.models._field_defaults import default_aware_utcnow
+
 
 class ConnectorType(str, Enum):
     EPFL_TABLEAU = "EPFL_TABLEAU"
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 class ConnectorConnection(SQLModel, table=True):
@@ -42,15 +40,15 @@ class ConnectorConnection(SQLModel, table=True):
     secret_value_encrypted: str = Field(nullable=False)
     is_active: bool = Field(default=True, nullable=False)
     created_at: datetime = Field(
-        default_factory=_utcnow,
+        default_factory=default_aware_utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     updated_at: datetime = Field(
-        default_factory=_utcnow,
+        default_factory=default_aware_utcnow,
         sa_column=Column(
             DateTime(timezone=True),
-            default=_utcnow,
-            onupdate=_utcnow,
+            default=default_aware_utcnow,
+            onupdate=default_aware_utcnow,
             nullable=False,
         ),
     )
@@ -86,15 +84,15 @@ class ConnectorDatasource(SQLModel, table=True):
     label: str = Field(nullable=False)
     is_active: bool = Field(default=True, nullable=False)
     created_at: datetime = Field(
-        default_factory=_utcnow,
+        default_factory=default_aware_utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     updated_at: datetime = Field(
-        default_factory=_utcnow,
+        default_factory=default_aware_utcnow,
         sa_column=Column(
             DateTime(timezone=True),
-            default=_utcnow,
-            onupdate=_utcnow,
+            default=default_aware_utcnow,
+            onupdate=default_aware_utcnow,
             nullable=False,
         ),
     )
