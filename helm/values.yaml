@@ -38,8 +38,10 @@ backend:
     API_DOCS_PREFIX: "/api"
     LOG_LEVEL: "INFO"
     ALGORITHM: "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: "480"
-    REFRESH_TOKEN_EXPIRE_HOURS: "24"
+    # Session cookie (#2943): idle window, renewed past its half...
+    ACCESS_TOKEN_EXPIRE_MINUTES: "2880"
+    # ...and hard cap from login. Names kept from the refresh-token era.
+    REFRESH_TOKEN_EXPIRE_HOURS: "168"
     ROLE_PROVIDER_TYPE: "jwt" # Could be 'jwt', 'accred', or 'test'
     UNIT_PROVIDER_TYPE: "database" # Could be 'database', 'accred', or 'test'
     OAUTH_SCOPE: "openid profile email"
@@ -146,6 +148,10 @@ backend:
     timeoutSeconds: 5
     failureThreshold: 5
 
+  # /ready fails only before the first DB check succeeds since boot, or when
+  # the pod's health poller died. A DB outage after that stays 200
+  # ("degraded"), so the pods don't all leave the Service together; a pod
+  # that loses its own path to the DB stays in too, answering 503 JSON.
   readinessProbe:
     httpGet:
       path: /ready
@@ -306,8 +312,9 @@ worker:
   # #2049: no Service, so this never gates traffic — but it does gate
   # RollingUpdate progress. Without it a new worker counts as "ready" the
   # instant the container starts, so maxSurge:1/maxUnavailable:0 would
-  # swap in a worker that can't reach the DB. /ready reads the same
-  # background-poller cache as the API deployment. No startupProbe: the
+  # swap in a worker that has never reached the DB. /ready reads the same
+  # background-poller cache as the API deployment, with the same
+  # boot-gate-only rule for DB outages. No startupProbe: the
   # wait-for-postgres init container below already blocks the main
   # container from starting until Postgres is reachable.
   readinessProbe:
@@ -374,6 +381,10 @@ frontend:
     # No code default — unset leaves the year selects empty.
     APP_PLANNER_MIN_YEAR: "2016"
     APP_PLANNER_MAX_YEAR: "2050"
+    # Demo instance: "true" replaces the whole app with a notice linking to
+    # APP_PRODUCTION_URL. Enabled per-cluster in the ops repo only for the demo.
+    APP_DEMO_MODE: "false"
+    APP_PRODUCTION_URL: "https://go.epfl.ch/co2"
 
   podAnnotations: {}
 

@@ -225,6 +225,56 @@ perf-dev: ## Read-only load against dev, clef en main: make perf-dev [PERF_USERS
 	esac
 	@$(MAKE) --no-print-directory perf-load PERF_HOST=$(PERF_DEV_HOST) PERF_DB_URL= PERF_USERS_FILE=/dev/null PERF_TAG=dev_$(PERF_TAG)
 
+# One command per config under test: warm-up, then each PERF_LADDER stage,
+# PERF_LADDER_COOLDOWN s apart. The cooldown stays well under the HPA's
+# default 300 s scale-down stabilization so the fleet stays warm.
+PERF_LADDER ?= 100 600
+PERF_LADDER_TIME ?= 3m
+PERF_LADDER_TAG ?=
+PERF_LADDER_WARMUP_USERS ?= 50
+PERF_LADDER_WARMUP_TIME ?= 60s
+PERF_LADDER_COOLDOWN ?= 60
+PERF_LADDER_TARGET ?= perf-dev
+# perf-dev writes its reports as dev_<PERF_TAG>.
+PERF_LADDER_PREFIX ?= $(if $(filter perf-dev,$(PERF_LADDER_TARGET)),dev_,)
+
+.PHONY: perf-ladder
+perf-ladder: ## Warm-up + stages for one config, then perf-summary: make perf-ladder PERF_LADDER_TAG=pool70_base [PERF_LADDER="100 600"]
+	@test -n "$(PERF_LADDER_TAG)" || { echo "PERF_LADDER_TAG is required: name the config under test, e.g. PERF_LADDER_TAG=pool70_base"; exit 1; }
+	@$(MAKE) --no-print-directory $(PERF_LADDER_TARGET) PERF_USERS=$(PERF_LADDER_WARMUP_USERS) \
+		PERF_TIME=$(PERF_LADDER_WARMUP_TIME) PERF_TAG=$(PERF_LADDER_TAG)_warmup
+	@tags=""; \
+	for u in $(PERF_LADDER); do \
+		echo "perf-ladder: cooldown $(PERF_LADDER_COOLDOWN) s before $$u users"; \
+		sleep $(PERF_LADDER_COOLDOWN); \
+		$(MAKE) --no-print-directory $(PERF_LADDER_TARGET) PERF_USERS=$$u \
+			PERF_TIME=$(PERF_LADDER_TIME) PERF_TAG=$(PERF_LADDER_TAG)_$$u || exit 1; \
+		tags="$$tags $(PERF_LADDER_PREFIX)$(PERF_LADDER_TAG)_$$u"; \
+	done; \
+	tags="$${tags# }"; \
+	cmd="make perf-summary PERF_SUMMARY_TAGS=\"$$tags\""; \
+	if [ -z "$$GRAFANA_SESSION$$GRAFANA_TOKEN" ]; then \
+		echo "perf-ladder: no GRAFANA_SESSION/GRAFANA_TOKEN; run later from backend/: $$cmd"; exit 0; \
+	fi; \
+	echo "perf-ladder: waiting $(PERF_LADDER_COOLDOWN) s for the OTel export to catch up"; \
+	sleep $(PERF_LADDER_COOLDOWN); \
+	$(MAKE) --no-print-directory perf-summary PERF_SUMMARY_TAGS="$$tags" || \
+		{ echo "perf-ladder: summary failed, stage reports are saved; rerun: $$cmd"; exit 1; }
+
+# Prometheus through the dev Grafana's datasource proxy. Auth comes only from
+# the environment: GRAFANA_SESSION (browser cookie) or GRAFANA_TOKEN.
+GRAFANA_URL ?= https://grafana-dev-route-grafana-dev.apps.ocpitsd0001.xaas.epfl.ch
+GRAFANA_DATASOURCE_UID ?= 73a57e8b-7679-4a18-915c-292f143448c7
+PERF_NAMESPACE ?= svc1751d-co2-calculator-dev
+PERF_SUMMARY_TAGS ?=
+
+.PHONY: perf-summary
+perf-summary: ## Backend CPU ms/request per stage from Prometheus: make perf-summary PERF_SUMMARY_TAGS="dev_x_100 dev_x_600"
+	@test -n "$(PERF_SUMMARY_TAGS)" || { echo "PERF_SUMMARY_TAGS is required, e.g. PERF_SUMMARY_TAGS=\"dev_pool70_base_100 dev_pool70_base_600\""; exit 1; }
+	$(UV) run python -m tests.performance.infra_summary --reports $(PERF_REPORT_DIR) \
+		--grafana-url $(GRAFANA_URL) --datasource-uid $(GRAFANA_DATASOURCE_UID) \
+		--namespace $(PERF_NAMESPACE) $(PERF_SUMMARY_TAGS)
+
 .PHONY: perf-sweep
 perf-sweep: ## Full #2295 ladder: admin reads 50→1000, principal module reads/plans/explore, standard uploads
 	for u in 50 100 200 500 1000; do \

@@ -62,13 +62,11 @@ export function groupMissingSyncedUnitErrors(
  * number (got 'abc')"), capped at {@link MAX_DISPLAYED_ROW_ERRORS} with a
  * trailing "... and N more error(s)" summary when there are more.
  *
- * Shared between `ModuleTable.vue` (which reads `payload.meta.row_errors`
- * off the live SSE job stream) and `useUploadCard.ts` (which reads
- * `job.meta.stats.row_errors` off the persisted job record) so both CSV
- * upload surfaces render the same reasons instead of one of them dumping
- * the raw backend payload.
+ * Shared between `ModuleTable.vue` (live SSE job stream, via
+ * `formatJobRowErrors`) and `useUploadCard.ts` (persisted job record); both
+ * read `meta.stats.row_errors`, the only place every provider writes it.
  *
- * @param rowErrors - Row-level errors, e.g. `payload.meta.row_errors`.
+ * @param rowErrors - Row-level errors, e.g. `meta.stats.row_errors`.
  * @param rowErrorsCount - Total error count (may exceed `rowErrors.length`
  *   when the backend caps how many row errors it records); falls back to
  *   `rowErrors.length` when not provided.

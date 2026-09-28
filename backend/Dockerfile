@@ -28,6 +28,7 @@ RUN opentelemetry-bootstrap -a requirements | uv pip install --requirement -
 
 # Copy application source and config only
 COPY app/ app/
+COPY otel_sampler/ otel_sampler/
 COPY alembic/ alembic/
 COPY alembic.ini ./
 
@@ -59,6 +60,7 @@ USER appuser
 
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/app /app/app
+COPY --from=builder /app/otel_sampler /app/otel_sampler
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 

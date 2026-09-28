@@ -350,21 +350,21 @@ export default {
     fr: "Ratio de surface du local alloué à l'unité. Par défaut, 1 (100%).",
   },
   'module-buildings-submodule-building-table-heating_kwh_per_square_meter': {
-    en: 'Annual heating energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
-    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
+    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at EPFL (VPO)',
+    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations de l'EPFL (VPO)",
   },
   'module-buildings-submodule-building-table-cooling_kwh_per_square_meter': {
-    en: 'Annual cooling energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
-    fr: "Consommation annuelle d'énergie de refroidissement calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
+    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at EPFL (VPO)',
+    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations de l'EPFL (VPO)",
   },
   'module-buildings-submodule-building-table-ventilation_kwh_per_square_meter':
     {
-      en: 'Annual ventilation energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
-      fr: "Consommation annuelle d'énergie de ventilation calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
+      en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at EPFL (VPO)',
+      fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations de l'EPFL (VPO)",
     },
   'module-buildings-submodule-building-table-lighting_kwh_per_square_meter': {
-    en: 'Annual lighting energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
-    fr: "Consommation annuelle d'énergie d'éclairage calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
+    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at EPFL (VPO)',
+    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations de l'EPFL (VPO)",
   },
   'module-buildings-submodule-building-table-kg_co2eq': {
     en: 'Values appear in red when they exceed the threshold set for this specific module.',

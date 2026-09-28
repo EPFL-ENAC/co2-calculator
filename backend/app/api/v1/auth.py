@@ -8,22 +8,20 @@ Trust boundaries (see plan
    a session to a real identity. Nothing else on the ``/auth/callback``
    request (query params, headers, body) may influence the resolved
    ``institutional_id`` or ``provider``.
-2. backend -> cookie: ``/auth/callback`` sets ``auth_token`` /
-   ``refresh_token`` cookies directly on the 302 redirect response.
-   Frontend and backend share the same domain (``/api`` prefix), so the
-   browser accepts ``Set-Cookie`` on the redirect without ITP interference.
-   ``_set_auth_cookies`` emits JWTs signed with ``settings.JWT_HMAC_KEY``.
+2. backend -> cookie: ``/auth/callback`` sets the one ``auth_token``
+   cookie directly on the 302 redirect response. Frontend and backend
+   share the same domain (``/api`` prefix), so the browser accepts
+   ``Set-Cookie`` on the redirect without ITP interference.
+   ``issue_session_cookie`` emits a JWT signed with ``settings.JWT_HMAC_KEY``
+   carrying ``auth_time``, the login instant that caps the session.
 3. cookie -> backend: ``decode_jwt`` validates signature, algorithm and
-   ``exp``. Any identity in an ``auth_token`` / ``refresh_token`` cookie
-   is trusted only after that check passes AND the JWT ``type`` matches
-   the endpoint (access for ``GET /v1/session``, refresh for
-   ``POST /v1/session``).
+   ``exp``. Any identity in an ``auth_token`` cookie is trusted only after
+   that check passes AND the JWT ``type`` is ``access``. The cookie is
+   renewed server-side in ``get_optional_user`` once past half its idle
+   window (#2943); there is no refresh endpoint and no refresh cookie.
 
-The legacy session endpoints (``/v1/auth/me``, ``/v1/auth/refresh``,
-``/v1/auth/logout``) were removed and replaced by the RESTful
-``/v1/session`` resource (GET / POST / DELETE) — no deprecated aliases.
-Per project policy (pre-v1.x, DB drops between deploys) the frontend
-lands in lockstep with this change. The IdP-touching routes stayed at
+The ``/v1/session`` resource is GET (bootstrap, 200 with ``user: null``
+when anonymous) and DELETE (logout). The IdP-touching routes stayed at
 ``/v1/auth/{login,callback,login-test}`` to avoid an Entra
 ``redirect_uri`` reconfiguration; their trust-boundary semantics are
 unchanged.
@@ -33,15 +31,14 @@ a session from a query-string ``role``. Its only gate is
 ``settings.DEBUG``.
 """
 
+import time
 import traceback
-from datetime import timedelta
 from typing import Any
 
 from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Cookie,
     Depends,
     HTTPException,
@@ -57,22 +54,19 @@ from app.api.v1.year_configuration import list_configured_years
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import (
-    TOKEN_TYPE_ACCESS,
-    TOKEN_TYPE_REFRESH,
-    create_access_token,
-    create_refresh_token,
+    SESSION_COOKIE,
     decode_jwt,
-    resolve_user_by_jwt_payload,
+    get_optional_user,
+    issue_session_cookie,
 )
 from app.models.audit import AuditChangeTypeEnum
-from app.models.user import RoleName, UserProvider
+from app.models.user import RoleName, User, UserProvider
 from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
 from app.schemas.unit import UnitWithUserRole
 from app.schemas.user import SessionRead, UserRead
 from app.services.audit_service import AuditDocumentService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
-from app.tasks.role_sync_tasks import trigger_role_sync_for_user
 from app.utils.request_context import extract_ip_address, extract_route_payload
 
 logger = get_logger(__name__)
@@ -80,7 +74,7 @@ settings = get_settings()
 
 # Two routers share this module: ``oauth_router`` hosts the
 # browser-driven endpoints (/login, /callback, optional /login-test) and
-# ``session_router`` hosts the RESTful session resource (GET/POST/DELETE /session).
+# ``session_router`` hosts the RESTful session resource (GET/DELETE /session).
 oauth_router = APIRouter()
 session_router = APIRouter()
 
@@ -95,61 +89,6 @@ oauth.register(
         "scope": settings.OAUTH_SCOPE,
     },
 )
-
-
-def _set_auth_cookies(
-    response: Response,
-    sub: str,
-    email: str,
-    institutional_id: str,
-    provider: str,
-) -> None:
-    """Helper function to create and set authentication cookies.
-
-    Creates both access and refresh tokens and sets them as httpOnly cookies.
-    Uses stable identity fields (institutional_id, provider) instead of DB primary key.
-    """
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    refresh_token_expires = timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS)
-
-    token_data = {
-        "sub": sub,
-        "email": email,
-        "institutional_id": institutional_id,
-        "provider": provider,
-    }
-
-    access_token = create_access_token(
-        data={**token_data, "type": TOKEN_TYPE_ACCESS},
-        expires_delta=access_token_expires,
-    )
-
-    refresh_token = create_refresh_token(
-        data=token_data,
-        expires_delta=refresh_token_expires,
-    )
-
-    # Set access token cookie (short-lived)
-    response.set_cookie(
-        key="auth_token",
-        value=access_token,
-        httponly=True,
-        samesite="lax",
-        max_age=int(access_token_expires.total_seconds()),
-        path=settings.OAUTH_COOKIE_PATH,
-        secure=settings.COOKIE_SECURE,
-    )
-
-    # Set refresh token cookie (long-lived)
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        samesite="lax",
-        max_age=int(refresh_token_expires.total_seconds()),
-        path=settings.OAUTH_COOKIE_PATH,
-        secure=settings.COOKIE_SECURE,
-    )
 
 
 def _sanitize_route_payload(payload: dict | None) -> dict | None:
@@ -313,12 +252,13 @@ async def login_test(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User ID missing",
         )
-    _set_auth_cookies(
-        response=response,
+    issue_session_cookie(
+        response,
         sub=user_info.get("sub", ""),
         institutional_id=user.institutional_id or str(user.id),
         provider=str(UserProvider.TEST.value),
         email=user.email,
+        auth_time=int(time.time()),
     )
 
     await _log_auth_audit_event(
@@ -466,12 +406,13 @@ async def oauth_callback(
             url=settings.FRONTEND_URL + "/",
             status_code=status.HTTP_302_FOUND,
         )
-        _set_auth_cookies(
-            response=redirect,
+        issue_session_cookie(
+            redirect,
             sub=user_info.get("sub") or str(user.id),
             email=user.email,
             institutional_id=user.institutional_id or str(user.id),
             provider=str(user.provider.value),
+            auth_time=int(time.time()),
         )
         logger.info("Login successful, redirecting to app", extra={"user_id": user.id})
         return redirect
@@ -555,157 +496,50 @@ if settings.DEBUG:
 @session_router.get("", response_model=SessionRead, response_model_exclude_none=True)
 async def get_session(
     request: Request,
-    auth_token: str | None = Cookie(None),
+    user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
-):
-    """Return the current session bootstrap payload (whoami + workspace context).
+) -> SessionRead:
+    """Return the session bootstrap payload (whoami + workspace context).
 
-    Requires a valid ``auth_token`` cookie. Resolves user by stable
-    identity (institutional_id, provider) from JWT. Uses cached DB
-    roles — does not sync from the role provider synchronously.
+    Anonymous callers get 200 with ``user: null``: "what session do I have"
+    has "none" as a valid answer, and the SPA needs no retry to learn it
+    (#2943). A cookie that fails validation is still a 401 (see
+    ``get_optional_user``). Uses cached DB roles — does not sync from the
+    role provider synchronously.
 
     Beyond the user, the response bundles the units the caller can access and
     the globally-configured years, so the frontend hydrates its whole auth/
     workspace context in a single request instead of three.
     """
-    if not auth_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    try:
-        payload = decode_jwt(auth_token)
-        user = await resolve_user_by_jwt_payload(
-            payload, db, expected_token_type=TOKEN_TYPE_ACCESS
-        )
-
-        if not user.email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User email missing",
-            )
-
-        # get_user_units returns list[dict]; validate into the schema type
-        # explicitly (the /users/units route relies on FastAPI's response_model
-        # coercion, which isn't in play when we build SessionRead ourselves).
-        unit_rows = await UnitService(db).get_user_units(user)
-        units = [UnitWithUserRole.model_validate(row) for row in unit_rows]
-        configured_years = await list_configured_years(db, user)
-
+    # scope["client"], not the X-Forwarded-For header: uvicorn resolves it
+    # against FORWARDED_ALLOW_IPS by walking the chain from the right, so a
+    # client-supplied header cannot forge it. The browser cannot learn its
+    # own address any other way, and GlitchTip does not fill one in.
+    client_ip = request.client.host if request.client else None
+    if user is None:
         return SessionRead(
-            user=UserRead.model_validate(user),
-            units=units,
-            configured_years=configured_years,
+            user=None,
+            units=[],
+            configured_years=[],
             min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
-            # scope["client"], not the X-Forwarded-For header: uvicorn resolves
-            # it against FORWARDED_ALLOW_IPS by walking the chain from the
-            # right, so a client-supplied header cannot forge it. The browser
-            # cannot learn its own address any other way, and GlitchTip does
-            # not fill one in.
-            client_ip=request.client.host if request.client else None,
+            client_ip=client_ip,
         )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Failed to get user info", extra={"error": str(e)})
+    if not user.email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="User email missing",
         )
-
-
-@session_router.post("")
-async def refresh_session(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    refresh_token: str | None = Cookie(None),
-    response: Response = Response(),
-    db: AsyncSession = Depends(get_db),
-):
-    """Refresh access token using refresh token.
-
-    Client should call this when access token expires.
-    Returns new access token in cookie.
-    Resolves user by stable identity (institutional_id, provider) from JWT.
-    """
-    if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No refresh token provided",
-        )
-
-    try:
-        payload = decode_jwt(refresh_token)
-        user = await resolve_user_by_jwt_payload(
-            payload, db, expected_token_type=TOKEN_TYPE_REFRESH
-        )
-        sub = payload.get("sub")
-        if not sub:
-            # Every JWT we issue carries `sub`; missing it means the token
-            # was hand-crafted (signature would already have failed) or the
-            # issuance pipeline regressed. Refuse rather than silently
-            # passing an empty `sub` into the freshly minted cookies.
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload",
-            )
-
-        if not user.email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User email missing",
-            )
-        if user.id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User ID missing",
-            )
-
-        background_tasks.add_task(
-            trigger_role_sync_for_user,
-            user_id=user.id,
-            force=False,
-        )
-
-        # Set new tokens
-        _set_auth_cookies(
-            response=response,
-            sub=sub,
-            institutional_id=user.institutional_id or str(user.id),
-            provider=str(user.provider.value),
-            email=user.email,
-        )
-
-        logger.info("Token refreshed successfully", extra={"user_id": user.id})
-
-        await _log_auth_audit_event(
-            db=db,
-            request=request,
-            change_type=AuditChangeTypeEnum.UPDATE,
-            change_reason="Token refreshed",
-            handler_id=user.institutional_id or str(user.id),
-            changed_by=user.id,
-            handled_ids=[user.institutional_id] if user.institutional_id else [],
-            data_snapshot={
-                "event": "refresh",
-                "user_id": user.id,
-                "email": user.email,
-                "institutional_id": user.institutional_id,
-            },
-            entity_id=user.id or 0,
-        )
-        return {"message": "Token refreshed successfully"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Token refresh failed", extra={"error": str(e)})
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token",
-        )
+    # get_user_units returns list[dict]; validate into the schema type
+    # explicitly (the /users/units route relies on FastAPI's response_model
+    # coercion, which isn't in play when we build SessionRead ourselves).
+    unit_rows = await UnitService(db).get_user_units(user)
+    return SessionRead(
+        user=UserRead.model_validate(user),
+        units=[UnitWithUserRole.model_validate(row) for row in unit_rows],
+        configured_years=await list_configured_years(db, user),
+        min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
+        client_ip=client_ip,
+    )
 
 
 @session_router.delete("")
@@ -715,23 +549,12 @@ async def delete_session(
     auth_token: str | None = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Logout the current user.
+    """Logout the current user: clear the session cookie.
 
-    Clears both auth_token and refresh_token cookies.
     Note: This does not log out from Entra ID SSO session.
     """
-    # Clear access token
     response.set_cookie(
-        key="auth_token",
-        value="",
-        httponly=True,
-        max_age=0,
-        path=settings.OAUTH_COOKIE_PATH,
-    )
-
-    # Clear refresh token
-    response.set_cookie(
-        key="refresh_token",
+        key=SESSION_COOKIE,
         value="",
         httponly=True,
         max_age=0,

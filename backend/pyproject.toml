@@ -24,7 +24,7 @@ dependencies = [
     # "python-dateutil==2.8.2",
     "joserfc>=1.7.5",
     "types-passlib>=1.7.7.20250602",
-    "sqlmodel>=0.0.42",
+    "sqlmodel>=0.0.45",
     "enacit4r-files",
     "haversine==2.9.0",
     "opentelemetry-distro>=0.65b0",
@@ -38,12 +38,15 @@ dependencies = [
 [project.scripts]
 exchange-rates = "app.exchange_rates:main"
 
+[project.entry-points.opentelemetry_traces_sampler]
+sql_ratio = "otel_sampler:sql_ratio"
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "otel_sampler*"]
 
 [tool.pytest.ini_options]
 pythonpath = "src"
@@ -124,7 +127,7 @@ dev = [
     "pytest-benchmark>=5.1",
     "pytest-mock>=3.15",
     "pytest-elasticsearch>=5.0",
-    "ruff>=0.16.8",
+    "ruff>=0.16.9",
     "httpx>=0.28",
     "locust>=2.46.6",
     "pytest-env>=1.7.1",
@@ -132,7 +135,7 @@ dev = [
     "docker>=7.2.0",
     "asyncpg>=0.31.0",
     "types-pyyaml>=6.0.12.20260815",
-    "ty>=0.0.81",
+    "ty>=0.0.83",
     "opentelemetry-instrumentation-fastapi==0.65b0",
 ]
 

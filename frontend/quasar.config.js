@@ -164,6 +164,11 @@ export default defineConfig(function () {
         // comes from /injectEnv.js.
         APP_PLANNER_MIN_YEAR: process.env.APP_PLANNER_MIN_YEAR || '',
         APP_PLANNER_MAX_YEAR: process.env.APP_PLANNER_MAX_YEAR || '',
+        // Demo instance (see src/config/runtime.ts). APP_DEMO_MODE=true
+        // replaces the app with a notice linking to APP_PRODUCTION_URL; in
+        // production both come from /injectEnv.js.
+        APP_DEMO_MODE: process.env.APP_DEMO_MODE || '',
+        APP_PRODUCTION_URL: process.env.APP_PRODUCTION_URL || '',
       },
       // ignorePublicFolder: true,
       minify: true,

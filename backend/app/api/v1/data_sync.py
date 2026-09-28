@@ -1,6 +1,7 @@
 import asyncio
 import enum
 import json
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -16,12 +17,15 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_serializer
 from sqlalchemy import func
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.core.policy import (
     check_module_permission,
     check_module_permission_for_report,
@@ -65,6 +69,8 @@ from app.utils.scoping import (
     require_any_scope,
     require_module_or_config_view,
 )
+
+logger = get_logger(__name__)
 
 
 def _job_type_for(target_type: TargetType, ingestion_method: IngestionMethod) -> str:
@@ -1263,6 +1269,32 @@ async def list_workers(
     ]
 
 
+async def _end_stream_on_db_error(
+    events: AsyncIterator[str], request: Request, terminal_event: str | None
+) -> AsyncIterator[str]:
+    """Re-yield an SSE stream; on a DB error, log it and end the stream.
+
+    Once a response has started, Starlette re-raises an exception that has a
+    registered handler (``db_unavailable_handler``) as ``RuntimeError("Caught
+    handled exception, but response already started.")``, so the real DB
+    error only survived as ``__cause__`` (#2956).
+    """
+    try:
+        async for event in events:
+            yield event
+    except (DBAPIError, SQLAlchemyTimeoutError) as exc:
+        logger.error(
+            "Database error mid-stream, closing the SSE stream",
+            exc_info=exc,
+            extra={
+                "exception_type": type(exc).__name__,
+                "path": request.url.path,
+            },
+        )
+        if terminal_event is not None:
+            yield terminal_event
+
+
 # SSE endpoint to stream a single job by ID - MUST be before /jobs/{job_id}
 @router.get("/jobs/{job_id}/stream")
 async def job_stream_by_id(
@@ -1273,7 +1305,8 @@ async def job_stream_by_id(
     """Server-Sent Events endpoint to stream a single job update in real-time.
 
     Polls the database for status changes and sends updates to the client.
-    Stream ends when the job is completed, failed, or the client disconnects.
+    Stream ends when the job is completed, failed, the client disconnects,
+    or a poll hits a DB error (``_end_stream_on_db_error``).
 
     Session lifetime: no pooled connection is held anywhere on this path.
     ``get_current_user`` hands its connection back before the stream opens
@@ -1387,8 +1420,16 @@ async def job_stream_by_id(
                 yield "event: ping\ndata: {}\n\n"
                 seconds_since_heartbeat = 0
 
+    # Same shape as "Job not found": the frontend closes the stream and
+    # reports a lost connection, instead of a fake FINISHED/ERROR job row.
+    db_error_event = {
+        "job_id": job_id,
+        "status_message": "Job status unavailable: database error",
+    }
     return StreamingResponse(
-        event_generator(),
+        _end_stream_on_db_error(
+            event_generator(), request, f"data: {json.dumps(db_error_event)}\n\n"
+        ),
         media_type="text/event-stream",
         # #2049 T7: no-cache so an intermediary never serves a stale poll
         # from cache; X-Accel-Buffering:no so a buffering reverse proxy
@@ -1914,8 +1955,10 @@ async def pipeline_stream_by_id(
                 yield "event: ping\ndata: {}\n\n"
                 seconds_since_heartbeat = 0
 
+    # No terminal event: a ``stream_closed`` payload without jobs/progress
+    # would clobber the store; closing lets native EventSource retry.
     return StreamingResponse(
-        event_generator(),
+        _end_stream_on_db_error(event_generator(), request, None),
         media_type="text/event-stream",
         # #2049 T7: see job_stream_by_id's identical headers for why.
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

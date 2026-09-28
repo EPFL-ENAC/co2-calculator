@@ -65,6 +65,30 @@ async def test_check_permission_raises_403_when_denied(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_check_permission_logs_the_denial_and_uses_the_route_detail(
+    monkeypatch, caplog
+):
+    """#2934: the per-evaluation policy logs are gone, so a refused gate must
+    leave one line of its own, with user_id and path, next to its 403.
+    """
+    monkeypatch.setattr(
+        "app.core.security.query_policy",
+        AsyncMock(return_value={"allow": False}),
+    )
+    user = _user_with_paths(["backoffice.configuration"])
+    with caplog.at_level("WARNING", logger="app.core.security"):
+        with pytest.raises(HTTPException) as exc:
+            await check_permission(
+                user, "backoffice.configuration", "edit", detail="Only super admins"
+            )
+    assert exc.value.detail == "Only super admins"
+    denied = [r for r in caplog.records if r.getMessage() == "Permission check denied"]
+    assert len(denied) == 1
+    assert denied[0].path == "backoffice.configuration"
+    assert denied[0].action == "edit"
+
+
+@pytest.mark.asyncio
 async def test_check_permission_returns_none_when_allowed(monkeypatch):
     monkeypatch.setattr(
         "app.core.security.query_policy",

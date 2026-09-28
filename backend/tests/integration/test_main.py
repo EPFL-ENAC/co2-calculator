@@ -101,14 +101,34 @@ async def test_ready_db_slow_still_passes(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_ready_db_down(monkeypatch):
+async def test_ready_db_down_before_first_success_is_unhealthy(monkeypatch):
+    """Boot gate: a pod that has never reached the DB (e.g. a release with
+    broken DB config) must not take traffic.
+    """
     monkeypatch.setattr(
         "app.main.get_db_health_state",
         lambda: _state("down", error="connection refused"),
     )
+    monkeypatch.setattr("app.main.db_ever_healthy", lambda: False)
     resp = await main.ready()
     assert resp.status_code == 503
-    assert b"unhealthy" in resp.body
+    assert json.loads(resp.body)["status"] == "unhealthy"
+
+
+@pytest.mark.asyncio
+async def test_ready_db_down_after_success_is_degraded_not_unready(monkeypatch):
+    """The DB is shared: failing readiness on it pulls every pod from the
+    Service at once, and the router then serves its HTML 503 for the whole
+    API. The pod stays in and reports the outage in the body instead.
+    """
+    monkeypatch.setattr(
+        "app.main.get_db_health_state",
+        lambda: _state("down", error="connection refused"),
+    )
+    monkeypatch.setattr("app.main.db_ever_healthy", lambda: True)
+    resp = await main.ready()
+    assert resp.status_code == 200
+    assert json.loads(resp.body) == {"status": "degraded", "database": "unresponsive"}
 
 
 @pytest.mark.asyncio
@@ -124,7 +144,8 @@ async def test_ready_never_checked_is_unhealthy(monkeypatch):
 @pytest.mark.asyncio
 async def test_ready_stale_state_is_unhealthy(monkeypatch):
     """A poller that stopped ticking must not leave /ready trusting old
-    'ok' data forever (#2049).
+    'ok' data forever (#2049) -- a per-pod fault, so it fails even after
+    the DB was once reached.
     """
     monkeypatch.setattr(
         "app.main.get_db_health_state",
@@ -132,6 +153,7 @@ async def test_ready_stale_state_is_unhealthy(monkeypatch):
             "ok", age_seconds=main.settings.DB_HEALTH_CHECK_INTERVAL_SECONDS * 10
         ),
     )
+    monkeypatch.setattr("app.main.db_ever_healthy", lambda: True)
     resp = await main.ready()
     assert resp.status_code == 503
 

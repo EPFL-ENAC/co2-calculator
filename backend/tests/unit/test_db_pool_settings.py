@@ -13,10 +13,13 @@ from types import SimpleNamespace
 
 import psycopg
 import pytest
+from sqlalchemy import event
 from sqlalchemy.engine import ExceptionContext
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.pool import NullPool, QueuePool
 from sqlalchemy.util import greenlet_spawn
+from sqlmodel import create_engine
 
 from app import db
 from app.core.config import Settings
@@ -316,6 +319,7 @@ def test_connect_failure_counted_with_its_sqlstate_label(monkeypatch):
         original_exception=psycopg.OperationalError(
             "connection failed: FATAL:  sorry, too many clients already"
         ),
+        sqlalchemy_exception=None,
     )
 
     monkeypatch.setattr(db, "_connect_failures", counter)
@@ -366,6 +370,7 @@ def test_failed_pre_ping_is_not_a_connect_failure(monkeypatch):
         original_exception=psycopg.errors.AdminShutdown(
             "terminating connection due to administrator command"
         ),
+        sqlalchemy_exception=SimpleNamespace(connection_invalidated=False),
     )
 
     monkeypatch.setattr(db, "_connect_failures", counter)
@@ -373,6 +378,27 @@ def test_failed_pre_ping_is_not_a_connect_failure(monkeypatch):
     count_connect_failure(context)
 
     assert counter.calls == []
+    # Pre-ping reads the flag to choose reconnect vs raise; leave it alone.
+    assert context.sqlalchemy_exception.connection_invalidated is False
+
+
+def test_connect_failure_surfaces_as_connection_invalidated(monkeypatch):
+    """The 503 handler keys off ``connection_invalidated``; a connect failure
+    only carries it because ``count_connect_failure`` marks the error.
+    Real engine, no DB: the creator raises before any socket is opened.
+    """
+
+    def refuse():
+        raise psycopg.OperationalError("connection failed: Connection refused")
+
+    monkeypatch.setattr(db, "_connect_failures", _RecordingCounter())
+    engine = create_engine("postgresql+psycopg://", creator=refuse)
+    event.listen(engine, "handle_error", count_connect_failure)
+
+    with pytest.raises(OperationalError) as caught:
+        engine.connect()
+
+    assert caught.value.connection_invalidated
 
 
 def test_pool_logger_does_not_inherit_app_debug_level():

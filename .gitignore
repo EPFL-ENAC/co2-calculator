@@ -31,3 +31,5 @@ planner-*.png
 .msg
 .commitmsg
 logs
+# scripts/loki-dump.sh output: prod logs with client IPs, never committed
+loki-*.ndjson

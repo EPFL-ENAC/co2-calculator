@@ -10,6 +10,7 @@ mocked.
 
 import base64
 import json
+import time
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -21,7 +22,8 @@ from joserfc.jwk import OctKey
 
 import app.api.v1.auth as auth_module
 import app.core.config as config
-from app.core.security import create_access_token, create_refresh_token
+import app.core.security as security_module
+from app.core.security import create_access_token, decode_jwt
 from app.main import app
 from app.models.user import User, UserProvider
 from tests.browser import SAME_ORIGIN_HEADERS
@@ -199,25 +201,16 @@ def test_jwt_expired_rejected(client, override_db, mock_user_lookup):
 # ---------------------------------------------------------------------------
 
 
-def test_refresh_rejects_access_token_in_refresh_cookie(client, override_db):
-    """`POST /session` must check JWT `type == "refresh"`. An access token
-    submitted as the refresh cookie is a token-type confusion attack.
-    """
-    access = _valid_access_token()  # type == "access"
-
-    response = client.post(f"{API_PREFIX}/session", cookies={"refresh_token": access})
-    assert response.status_code == 401
-
-
 def test_me_rejects_refresh_token_in_auth_cookie(client, override_db):
-    """Symmetric to the /refresh case: `GET /session` must reject a refresh JWT
-    presented as `auth_token`. Closes the inverse type-confusion vector
-    flagged by Copilot — get_current_user (used by many protected
-    endpoints) also enforces `expected_token_type="access"`.
+    """A JWT of the retired ``refresh`` type still sits in browsers for up to
+    24 h after #2943 ships; presented as ``auth_token`` it must be refused,
+    on ``GET /session`` and on every protected route through
+    ``get_optional_user``'s ``expected_token_type="access"``.
     """
-    refresh = create_refresh_token(
+    refresh = create_access_token(
         data={
             "sub": "abc",
+            "type": "refresh",
             "institutional_id": "123456",
             "provider": str(UserProvider.TEST.value),
         },
@@ -228,41 +221,145 @@ def test_me_rejects_refresh_token_in_auth_cookie(client, override_db):
     assert response.status_code == 401
 
 
-def test_refresh_rotates_both_auth_and_refresh_cookies(
-    client, override_db, monkeypatch
-):
-    """Pin F5: a successful refresh re-issues BOTH the access cookie and
-    the refresh cookie. Without F6 (server-side denylist) the old refresh
-    token is still server-side valid until exp, but rotation at least keeps
-    the client side in sync with the freshest issued pair.
-    """
-    refresh = create_refresh_token(
+def _session_token(*, expires_in: timedelta, login_age: timedelta) -> str:
+    """A #2943 cookie: ``auth_time`` is the login instant, ``exp`` the idle end."""
+    return create_access_token(
         data={
             "sub": "abc",
+            "type": "access",
+            "email": "resolved@example.org",
             "institutional_id": "123456",
             "provider": str(UserProvider.TEST.value),
+            "auth_time": int(time.time() - login_age.total_seconds()),
         },
-        expires_delta=timedelta(hours=1),
+        expires_delta=expires_in,
     )
 
-    mock_user = MagicMock(
+
+@pytest.fixture
+def session_user(monkeypatch) -> User:
+    """A real ``User`` behind the cookie: ``SessionRead`` validates it, which
+    the MagicMock of ``mock_user_lookup`` cannot survive.
+    """
+    user = User(
         id=42,
         email="resolved@example.org",
         institutional_id="123456",
         provider=UserProvider.TEST,
+        display_name="Resolved User",
     )
     monkeypatch.setattr(
         auth_module.UserService,
         "get_by_institutional_id_and_provider",
-        AsyncMock(return_value=mock_user),
+        AsyncMock(return_value=user),
     )
-    monkeypatch.setattr(auth_module, "_log_auth_audit_event", AsyncMock())
+    return user
 
-    response = client.post(f"{API_PREFIX}/session", cookies={"refresh_token": refresh})
+
+@pytest.fixture
+def session_lengths(monkeypatch):
+    """Pin 8 h idle / 24 h cap so the renewal cases below do not depend on
+    whatever a developer's .env or the deployed default says.
+    """
+    monkeypatch.setattr(security_module.settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 480)
+    monkeypatch.setattr(security_module.settings, "REFRESH_TOKEN_EXPIRE_HOURS", 24)
+
+
+@pytest.fixture
+def stub_workspace(monkeypatch):
+    """GET /session bundles units + configured years; keep them off the mock db."""
+    monkeypatch.setattr(
+        auth_module.UnitService, "get_user_units", AsyncMock(return_value=[])
+    )
+    monkeypatch.setattr(
+        auth_module, "list_configured_years", AsyncMock(return_value=[])
+    )
+
+
+def _renewed_cookie(response) -> str | None:
+    return next(
+        (
+            c
+            for c in response.headers.get_list("set-cookie")
+            if c.startswith("auth_token=")
+        ),
+        None,
+    )
+
+
+def test_session_past_half_life_is_renewed_on_any_request(
+    client, override_db, session_user, stub_workspace, session_lengths, monkeypatch
+):
+    """#2943: the cookie slides server-side. Past half the idle window the
+    response re-issues it with the same ``auth_time`` and a later ``exp``, and
+    the renewal is audited and role-synced off-request.
+    """
+    audit = AsyncMock()
+    monkeypatch.setattr("app.core.security.audit_session_renewal", audit)
+    monkeypatch.setattr("app.core.security.trigger_role_sync_for_user", AsyncMock())
+    token = _session_token(expires_in=timedelta(hours=1), login_age=timedelta(hours=7))
+
+    response = client.get(f"{API_PREFIX}/session", cookies={"auth_token": token})
+
     assert response.status_code == 200
-    set_cookies = response.headers.get_list("set-cookie")
-    assert any(c.startswith("auth_token=") for c in set_cookies)
-    assert any(c.startswith("refresh_token=") for c in set_cookies)
+    cookie = _renewed_cookie(response)
+    assert cookie is not None
+    new_claims = decode_jwt(cookie.split(";")[0].split("=", 1)[1])
+    old_claims = decode_jwt(token)
+    assert new_claims["auth_time"] == old_claims["auth_time"]
+    assert new_claims["exp"] > old_claims["exp"]
+    assert audit.await_count == 1
+    assert audit.await_args.kwargs["user_id"] == 42
+    assert audit.await_args.kwargs["renewed_exp"] == old_claims["exp"]
+
+
+def test_session_younger_than_half_life_is_left_alone(
+    client, override_db, session_user, stub_workspace, session_lengths
+):
+    token = _session_token(expires_in=timedelta(hours=7), login_age=timedelta(hours=1))
+
+    response = client.get(f"{API_PREFIX}/session", cookies={"auth_token": token})
+
+    assert response.status_code == 200
+    assert _renewed_cookie(response) is None
+
+
+def test_session_at_hard_cap_is_not_renewed(
+    client, override_db, session_user, stub_workspace, session_lengths
+):
+    """The cap is ``auth_time + REFRESH_TOKEN_EXPIRE_HOURS``: a cookie that
+    already ends there gets no extension, and expires on its own.
+    """
+    token = _session_token(
+        expires_in=timedelta(minutes=30), login_age=timedelta(hours=24)
+    )
+
+    response = client.get(f"{API_PREFIX}/session", cookies={"auth_token": token})
+
+    assert response.status_code == 200
+    assert _renewed_cookie(response) is None
+
+
+def test_pre_2943_token_without_auth_time_is_never_renewed(
+    client, override_db, session_user, stub_workspace, session_lengths
+):
+    """Cookies minted before #2943 carry no ``auth_time``: accepted until their
+    own ``exp``, then the user logs in once.
+    """
+    token = _valid_access_token()  # 10 min left, no auth_time
+
+    response = client.get(f"{API_PREFIX}/session", cookies={"auth_token": token})
+
+    assert response.status_code == 200
+    assert _renewed_cookie(response) is None
+
+
+def test_anonymous_session_is_200_with_null_user_and_no_cookie(client, override_db):
+    response = client.get(f"{API_PREFIX}/session")
+
+    assert response.status_code == 200
+    assert "user" not in response.json()  # exclude_none drops the null
+    assert _renewed_cookie(response) is None
 
 
 def test_me_rejects_non_integer_provider(client, override_db):
@@ -304,16 +401,6 @@ def test_me_rejects_legacy_user_id_only_token(client, override_db):
         expires_delta=timedelta(minutes=10),
     )
     response = client.get(f"{API_PREFIX}/session", cookies={"auth_token": token})
-    assert response.status_code == 401
-
-
-def test_refresh_rejects_legacy_user_id_only_token(client, override_db):
-    """Same as above for `POST /session`."""
-    token = create_refresh_token(
-        data={"sub": "abc", "user_id": 7},
-        expires_delta=timedelta(hours=1),
-    )
-    response = client.post(f"{API_PREFIX}/session", cookies={"refresh_token": token})
     assert response.status_code == 401
 
 
@@ -410,7 +497,7 @@ def _patch_callback_chain(monkeypatch, *, user_id: int = 1):
 
 
 def test_auth_cookies_secure_when_cookie_secure_true(client, override_db, monkeypatch):
-    """COOKIE_SECURE=True ⇒ both cookies carry `Secure` on the callback 302."""
+    """COOKIE_SECURE=True ⇒ the session cookie carries `Secure` on the callback 302."""
     monkeypatch.setattr(auth_module.settings, "DEBUG", True)  # DEBUG must not matter
     monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
     _patch_callback_chain(monkeypatch, user_id=1)
@@ -420,11 +507,9 @@ def test_auth_cookies_secure_when_cookie_secure_true(client, override_db, monkey
     assert response.status_code in (302, 307), response.text
     set_cookies = response.headers.get_list("set-cookie")
     auth_cookie = next(c for c in set_cookies if c.startswith("auth_token="))
-    refresh_cookie = next(c for c in set_cookies if c.startswith("refresh_token="))
     assert "Secure" in auth_cookie
-    assert "Secure" in refresh_cookie
     assert "HttpOnly" in auth_cookie
-    assert "HttpOnly" in refresh_cookie
+    assert not any(c.startswith("refresh_token=") for c in set_cookies)
 
 
 def test_auth_cookies_not_secure_when_cookie_secure_false(
@@ -458,7 +543,7 @@ def test_callback_sets_cookies_and_redirects_to_frontend(
     assert response.status_code in (302, 307)
     set_cookies = response.headers.get_list("set-cookie")
     assert any(c.startswith("auth_token=") for c in set_cookies)
-    assert any(c.startswith("refresh_token=") for c in set_cookies)
+    assert not any(c.startswith("refresh_token=") for c in set_cookies)
     assert "auth/complete" not in response.headers["location"]
 
 
@@ -643,13 +728,12 @@ def test_callback_binds_session_to_idp_institutional_id(
 # ---------------------------------------------------------------------------
 
 
-def test_e2e_callback_session_refresh_logout_happy_path(client, monkeypatch):
+def test_e2e_callback_session_logout_happy_path(client, monkeypatch):
     """End-to-end happy path:
 
-    1. /auth/callback -> sets auth_token + refresh_token on the 302
-    2. GET /session reads the session
-    3. POST /session rotates cookies
-    4. DELETE /session clears them
+    1. /auth/callback -> sets the one auth_token cookie on the 302
+    2. GET /session reads the session; a fresh cookie is not renewed
+    3. DELETE /session clears it; the next GET /session is anonymous (200)
 
     Single TestClient session so cookies flow naturally between calls.
     """
@@ -724,7 +808,7 @@ def test_e2e_callback_session_refresh_logout_happy_path(client, monkeypatch):
         r_callback = client.get(f"{API_PREFIX}/auth/callback", follow_redirects=False)
         assert r_callback.status_code in (302, 307), r_callback.text
         assert client.cookies.get("auth_token"), "callback must set auth_token"
-        assert client.cookies.get("refresh_token"), "callback must set refresh_token"
+        assert not client.cookies.get("refresh_token")
 
         # 2. GET /session — uses the auth_token cookie.
         r_me = client.get(f"{API_PREFIX}/session")
@@ -733,23 +817,17 @@ def test_e2e_callback_session_refresh_logout_happy_path(client, monkeypatch):
         assert body["user"]["email"] == "e2e@example.org"
         assert body["user"]["institutional_id"] == "E2E-INST"
 
-        # 3. POST /session — rotates both cookies.
-        r_refresh = client.post(f"{API_PREFIX}/session")
-        assert r_refresh.status_code == 200, r_refresh.text
-        set_cookies = r_refresh.headers.get_list("set-cookie")
-        assert any(c.startswith("auth_token=") for c in set_cookies)
-        assert any(c.startswith("refresh_token=") for c in set_cookies)
-
-        # The rotated access cookie must still authenticate GET /session.
-        r_me_after = client.get(f"{API_PREFIX}/session")
-        assert r_me_after.status_code == 200, r_me_after.text
-
-        # 4. DELETE /session — clears both cookies.
+        # A cookie minted seconds ago is nowhere near half-life: no renewal.
+        assert not any(
+            c.startswith("auth_token=") for c in r_me.headers.get_list("set-cookie")
+        )
+        # 3. DELETE /session — clears the cookie.
         r_logout = client.delete(f"{API_PREFIX}/session")
         assert r_logout.status_code == 200, r_logout.text
         client.cookies.clear()
         r_me_logged_out = client.get(f"{API_PREFIX}/session")
-        assert r_me_logged_out.status_code == 401
+        assert r_me_logged_out.status_code == 200
+        assert "user" not in r_me_logged_out.json()
     finally:
         app.dependency_overrides.clear()
 

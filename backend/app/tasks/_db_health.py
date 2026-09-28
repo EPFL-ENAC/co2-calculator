@@ -3,10 +3,11 @@
 ``/ready`` used to run its own bounded ``SELECT 1`` per probe (#2050 A1) —
 correct, but every probe still paid a real DB round trip, and a saturated
 pool made every one of them queue for a connection. This loop runs the
-same check once a second in the background and caches the verdict in a
-module-global; ``/ready``/``/healthz`` then read memory, doing zero I/O of
-their own. Mirrors ``_pod_heartbeat.py``'s shape (first tick before sleep,
-per-iteration try/except so a transient DB hiccup can't kill the loop).
+same check every ``DB_HEALTH_CHECK_INTERVAL_SECONDS`` in the background
+and caches the verdict in a module-global; ``/ready``/``/healthz`` then
+read memory, doing zero I/O of their own. Mirrors ``_pod_heartbeat.py``'s
+shape (first tick before sleep, per-iteration try/except so a transient DB
+hiccup can't kill the loop).
 
 Single process per pod (no gunicorn workers — see plan 2050's Track A
 rejected alternatives), so a bare module-global needs no lock: only this
@@ -35,9 +36,16 @@ logger = get_logger(__name__)
 # failure.
 DB_HEALTH_CHECK_TIMEOUT_SECONDS = 1
 
-# A cached verdict older than this multiple of the check interval means
-# the loop stopped ticking (crashed, or RUN_DB_HEALTH_POLLER is off) —
-# treated as unknown rather than trusted stale data.
+# Until the first ok/slow check, retry this often instead of the (long)
+# interval: a pod booted during a DB blip then turns ready at the next
+# readiness probe (every 10 s) after the DB recovers. A healthy boot never
+# pays it — its first check already succeeds.
+DB_HEALTH_BOOT_RETRY_SECONDS = 5
+
+# A cached verdict older than this multiple of the check interval (plus
+# one check timeout) means the loop stopped ticking (crashed, or
+# RUN_DB_HEALTH_POLLER is off) — treated as unknown rather than trusted
+# stale data.
 _STALE_AFTER_INTERVALS = 3
 
 
@@ -50,6 +58,10 @@ class DBHealthState:
 
 
 _state: DBHealthState | None = None
+
+# Set by the first ok/slow check, never cleared: /ready's boot gate must not
+# re-arm when the shared DB later goes down, or every pod leaves together.
+_ever_healthy = False
 
 # The in-flight SELECT 1, kept as a module global so a hung probe is neither
 # garbage-collected nor duplicated: the next tick re-awaits it instead of
@@ -68,6 +80,13 @@ def get_db_health_state() -> DBHealthState | None:
     return _state
 
 
+def db_ever_healthy() -> bool:
+    """Whether any check since process start came back ok or slow. A getter
+    for the same reason as ``get_db_health_state``.
+    """
+    return _ever_healthy
+
+
 def is_fresh(state: DBHealthState, *, interval_seconds: int) -> bool:
     """False once the loop has stopped ticking for _STALE_AFTER_INTERVALS
     cycles — e.g. the task crashed, or RUN_DB_HEALTH_POLLER is off while
@@ -75,7 +94,12 @@ def is_fresh(state: DBHealthState, *, interval_seconds: int) -> bool:
     step must not false-trip this.
     """
     age = time.monotonic() - state.checked_at_monotonic
-    return age <= _STALE_AFTER_INTERVALS * interval_seconds
+    # A hung DB stretches each tick to interval + timeout; without the
+    # timeout term a short interval leaves almost no slack before a live
+    # loop reads as dead.
+    return age <= _STALE_AFTER_INTERVALS * interval_seconds + (
+        DB_HEALTH_CHECK_TIMEOUT_SECONDS
+    )
 
 
 async def _run_probe() -> tuple[float, str | None]:
@@ -115,7 +139,7 @@ async def _check_once(settings: Settings) -> None:
     Never raises (except CancelledError) — a failed or timed-out check is a
     valid, expected outcome (status "down"), not a bug.
     """
-    global _state
+    global _state, _ever_healthy
     probe = _current_probe()
     try:
         latency_ms, error = await asyncio.wait_for(
@@ -130,6 +154,8 @@ async def _check_once(settings: Settings) -> None:
         status = "down"
     if error is None and latency_ms >= settings.DB_HEALTH_SLOW_THRESHOLD_MS:
         status = "slow"
+    if error is None:
+        _ever_healthy = True
 
     _state = DBHealthState(
         status=status,
@@ -137,6 +163,16 @@ async def _check_once(settings: Settings) -> None:
         checked_at_monotonic=time.monotonic(),
         error=error,
     )
+
+
+def _next_delay_seconds(interval: int) -> int:
+    """The configured interval, or the short boot retry while the DB has
+    never answered (never longer than the interval itself).
+    """
+    delay = interval
+    if not _ever_healthy:
+        delay = min(interval, DB_HEALTH_BOOT_RETRY_SECONDS)
+    return delay
 
 
 async def db_health_check_loop() -> None:
@@ -157,7 +193,7 @@ async def db_health_check_loop() -> None:
         )
     while True:
         try:
-            await asyncio.sleep(interval)
+            await asyncio.sleep(_next_delay_seconds(interval))
             await _check_once(settings)
         except asyncio.CancelledError:
             if _probe is not None and not _probe.done():
