@@ -1,12 +1,15 @@
 ---
 status: in-progress
 issue: 2956
-last_updated: 2026-09-25
+last_updated: 2026-09-28
 title: "SSE streams end cleanly on DB errors"
 summary: "Follow-ups from #2946/#2954. A DB error in an SSE stream's poll loop surfaced as Starlette's 'response already started' RuntimeError, with the real error only in __cause__. Both SSE streams now log it and end: the job stream with its existing 'Job not found' event shape, the pipeline stream silently so native EventSource retry reconnects."
 ---
 
 # SSE streams end cleanly on DB errors
+
+The timestamptz half of #2956 (four naive columns, one migration) ships
+separately, so this fix merges without a database change.
 
 ## SSE streams: mid-stream DB errors
 
@@ -46,9 +49,10 @@ The DB error survived only as `__cause__`, so log queries keyed on
    `pipeline-update` with `stream_closed: true`, which needs real `jobs` and
    `progress`. Without them it would clobber the store entry.
    `usePipelineStream` relies on native `EventSource` retry. The reconnect
-   runs the pre-stream check, so a DB that is still down answers a real 503
-   there. Client behaviour matches the aborted connection of before; only
-   the log changes.
+   runs the pre-stream check, where a DB that is still down answers 503 when
+   `db_unavailable_handler` judges it unavailable, 500 otherwise. Either
+   non-200 closes the `EventSource` for good. Client behaviour matches the
+   aborted connection of before; only the log changes.
 5. **No frontend change.**
 
 ### Found, not fixed
@@ -60,6 +64,11 @@ The DB error survived only as `__cause__`, so log queries keyed on
   exports (`api/v1/audit.py`) and the backoffice exports
   (`api/v1/backoffice.py`) build the whole body before responding.
   `report_detailed`'s lazy generator only reads a temporary zip file.
+- **The pipeline badge freezes silently** when a DB outage outlasts the
+  browser's retry delay. `usePipelineStream.ts` has no `onerror`, and
+  `activeStreams.delete` only runs in `closeStream`, so the closed source
+  stays registered and a re-subscribe does not reopen it. Same as before
+  this PR.
 
 ### Tests
 
