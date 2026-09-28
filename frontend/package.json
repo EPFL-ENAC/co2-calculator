@@ -45,7 +45,7 @@
     "@vue/eslint-config-typescript": "=14.9.0",
     "autoprefixer": "=10.6.1",
     "chokidar": "=4.0.3",
-    "eslint": "=10.10.0",
+    "eslint": "=10.11.0",
     "eslint-config-prettier": "=10.1.8",
     "eslint-plugin-vue": "=10.11.0",
     "globals": "=17.12.0",
