@@ -381,6 +381,10 @@ frontend:
     # No code default — unset leaves the year selects empty.
     APP_PLANNER_MIN_YEAR: "2016"
     APP_PLANNER_MAX_YEAR: "2050"
+    # Demo instance: "true" replaces the whole app with a notice linking to
+    # APP_PRODUCTION_URL. Enabled per-cluster in the ops repo only for the demo.
+    APP_DEMO_MODE: "false"
+    APP_PRODUCTION_URL: "https://go.epfl.ch/co2"
 
   podAnnotations: {}
 
