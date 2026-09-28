@@ -4,7 +4,7 @@ export default {
     fr: 'Bienvenue dans le Calculateur de CO₂',
   },
   home_intro_1_part_1: {
-    en: 'The CO₂ Calculator allows to assess the carbon footprint of a unit, in accordance with the Greenhouse Gas Protocol (',
+    en: 'The CO₂ Calculator enables you to assess the carbon footprint of a unit, in accordance with the Greenhouse Gas Protocol (',
     fr: "Le Calculateur CO₂ permet d'estimer l'empreinte carbone d’une unité, en conformité avec le Protocole des gaz à effet de serre (",
   },
   home_intro_1_link_text: {
