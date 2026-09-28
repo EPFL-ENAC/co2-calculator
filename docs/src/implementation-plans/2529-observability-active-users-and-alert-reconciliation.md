@@ -88,8 +88,9 @@ alert: "no alerting on job-class routes at all". What is left:
   (`_enqueue_prefill` → `run_job`). They are ordinary API calls, so the
   `api` latency alerts are the right ones, and openshift-app-config#74 is
   not needed.
-- **Dev's `job_poll` / `job_trigger` split stays dev-only.** No alert
-  reads it since #38.
+- **Dev's `job_poll` / `job_trigger` split goes.** No alert reads it
+  since #38, so dev returns to the single `job` class of stage and prod
+  instead of both getting the split. No drift, fewer lines.
 - **Job durations:** #2854's `job_duration_seconds` and
   `job_queue_wait_seconds`, per `job_type`, cover single jobs such as
   prefill. Upload-to-ingested is a pipeline and needs 2049-C4's
@@ -113,3 +114,4 @@ alert: "no alerting on job-class routes at all". What is left:
 ### Item B
 
 - [ ] Close openshift-app-config#74.
+- [ ] Ops repo PR: remove dev's `job_poll` / `job_trigger` split.
