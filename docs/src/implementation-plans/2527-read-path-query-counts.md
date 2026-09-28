@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 2527
-last_updated: 2026-09-24
+last_updated: 2026-09-28
 summary: "Read-path items 4, 5, 6, 8 and 10 of #2527: collapse the per-report
   loops in the merged modules-stats trio and the workspace-home bundle into
   grouped queries, cache the year-configuration, and make the SQL-statement
@@ -16,19 +16,22 @@ slow write paths. This one covers **only** the read endpoints: items 4, 5, 6,
 
 ## The measurement that drives everything
 
-> **Correction, 2026-09-24.** The 14 ms below is the _laptop → DBaaS over VPN_
-> path, where the harness first ran. From a backend pod through the bouncer,
-> `SELECT 1` × 50 measures **1.0 ms median, 1.6 ms p95**. On dev the read path
-> is bound by **CPU per request (~30 ms)** on single-worker pods: at 600 users
-> the busiest pod sits at 0.93 core, 109 requests in flight each hold their
-> transaction, and the bouncer pool (70) overflows as a symptom. Part of that
-> CPU is dev-only instrumentation (always_on sampling, SQLAlchemy + psycopg SQL
-> spans, DEBUG logging). Tasks 4, 5, 6, 8 keep their order — each statement
-> costs ORM, driver and (on dev) two spans of CPU — but the millisecond gains
-> quoted below assume 14 ms/statement and are wrong; the ladder measures them
-> instead. Baseline, tag `pool70_before` (60 s, pool 70): 100 users 32 req/s,
-> p95 630 ms; 600 users 142 req/s, p50 1.1 s, p95 2.4 s, 0 failures. Evidence
-> and ranked fruit: the goal document linked from #2527 (24 Sep comment).
+> **Correction, 2026-09-28** (supersedes the 24 Sep note). The 14 ms below
+> is the _laptop → DBaaS over VPN_ path. From a backend pod through the
+> bouncer, `SELECT 1` measures **0.84 ms median wall, 0.08 ms CPU**. On dev
+> the read path is bound by **backend CPU per request** on single-worker pods,
+> and more than half of it was tracing: with `always_on` sampling and one
+> psycopg span per statement (dev and stage), a request costs **36.1 ms** of
+> CPU and 600 users saturate 6 pods at 140 req/s; with the sampler at
+> `always_off`, **16.2 ms**, and the same pods serve 197 req/s with a p95 of
+> 110 ms (ladder tags `pool70_spread` and `pool70_spread_traceoff`). Prod's
+> backend records one span per request and no SQL spans; its cost is not yet
+> measured. The remaining CPU is the app's own on slow nodes (about 3.7× a
+> laptop): a statement costs about 0.45 ms locally, 1.7 ms on dev, SQLAlchemy
+> and psycopg together over half of it (cProfile, 25 Sep). Tasks 4, 5, 6, 8
+> keep their order; the millisecond gains quoted below assume 14 ms per
+> statement and are wrong, the ladder measures them instead. Evidence,
+> projection and ranking: #2527, comment of 28 Sep.
 
 From #2529: the dev DB costs **~14 ms of network round-trip per query** (local
 is ~0.1 ms). So for these endpoints
