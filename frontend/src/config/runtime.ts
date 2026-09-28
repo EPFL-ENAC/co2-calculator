@@ -24,6 +24,8 @@
 // replaced with its literal value (or with `""`, which `||` treats the same
 // as absent) and the bare `import.meta.env` is always a truthy object.
 
+import { isDemoMode } from '@/utils/demoMode';
+
 declare global {
   interface Window {
     injectedEnvVariable?: Record<string, string | undefined>;
@@ -112,4 +114,15 @@ export const runtimeConfig = {
       (hasViteEnv && import.meta.env.APP_PLANNER_MAX_YEAR) ||
       NaN,
   ),
+  // Demo instance: APP_DEMO_MODE=true makes App.vue render only a notice
+  // pointing to the production app, so the demo can't be used by mistake.
+  // Only the literal "true" enables it (see utils/demoMode.ts). The target
+  // defaults to the EPFL instance; override per-pod for another institution.
+  demoMode: isDemoMode(
+    injected.APP_DEMO_MODE || (hasViteEnv && import.meta.env.APP_DEMO_MODE),
+  ),
+  productionUrl:
+    injected.APP_PRODUCTION_URL ||
+    (hasViteEnv && import.meta.env.APP_PRODUCTION_URL) ||
+    'https://go.epfl.ch/co2',
 } as const;

@@ -79,7 +79,7 @@ def _allow_permissions():
     async def _allow(*_args, **_kwargs):
         return True
 
-    with patch.object(files_module, "is_permitted", new=_allow):
+    with patch.object(files_module, "check_permission", new=_allow):
         yield
     app.dependency_overrides.clear()
 

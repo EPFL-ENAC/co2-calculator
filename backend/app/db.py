@@ -195,11 +195,17 @@ def count_connect_failure(context: ExceptionContext) -> None:
     would tick this counter all day on a healthy pod. When the reconnect
     *also* fails, that attempt fires its own event with ``is_pre_ping``
     false -- which is the one worth counting.
+
+    The error about to be raised is also marked ``connection_invalidated``
+    (no connection was ever made), which is what ``db_unavailable_handler``
+    keys its 503 on. Only the error changes: the pool is left alone.
     """
     if context.connection is not None or context.is_pre_ping:
         return
     label = connect_failure_sqlstate(context.original_exception)
     _connect_failures.add(1, {"sqlstate": label})
+    if context.sqlalchemy_exception is not None:
+        context.sqlalchemy_exception.connection_invalidated = True
 
 
 def _pool_kwargs(settings: Settings, is_sqlite: bool) -> dict:

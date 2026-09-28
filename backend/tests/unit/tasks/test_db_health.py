@@ -58,6 +58,7 @@ async def _drop_leftover_probe():
     probe = getattr(_db_health, "_probe", None)
     _db_health._probe = None
     _db_health._state = None
+    _db_health._ever_healthy = False
     if probe is not None and not probe.done():
         probe.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -161,20 +162,51 @@ async def test_stuck_probe_teardown_does_not_freeze_the_loop(monkeypatch):
     start = time.monotonic()
     await asyncio.wait_for(_db_health._check_once(settings), timeout=budget)
     assert time.monotonic() - start < budget
-    assert _db_health.get_db_health_state().status == "down"
-    assert _db_health.get_db_health_state().error == "TimeoutError"
+    first = _db_health.get_db_health_state()
+    assert first.status == "down"
+    assert first.error == "TimeoutError"
 
     # Second tick while the first probe is still hanging: still bounded,
     # still "down", and no second session was opened.
     await asyncio.wait_for(_db_health._check_once(settings), timeout=budget)
-    assert _db_health.get_db_health_state().status == "down"
+    second = _db_health.get_db_health_state()
+    assert second.status == "down"
     assert _StuckTeardownSession.created == 1
+    # A fresh verdict every tick: /ready reads a stale one as "this pod's
+    # poller died" and fails, which must not happen on a merely hung DB.
+    assert second.checked_at_monotonic > first.checked_at_monotonic
 
     # Once the stuck probe drains, the next tick starts a fresh one.
     await asyncio.wait_for(_db_health._probe, timeout=hang + 1)
     monkeypatch.setattr(_db_health, "SessionLocal", _Session)
     await _db_health._check_once(settings)
     assert _db_health.get_db_health_state().status == "ok"
+
+
+@pytest.mark.asyncio
+async def test_first_success_arms_ever_healthy_and_down_never_clears_it(
+    monkeypatch,
+):
+    """/ready's boot gate: "down" before any success keeps the pod out;
+    once armed, a later outage must not disarm it.
+    """
+    settings = get_settings()
+
+    def down():
+        return _Session(error=RuntimeError("connection refused"))
+
+    monkeypatch.setattr(_db_health, "SessionLocal", down)
+    await _db_health._check_once(settings)
+    assert not _db_health.db_ever_healthy()
+
+    monkeypatch.setattr(_db_health, "SessionLocal", _Session)
+    await _db_health._check_once(settings)
+    assert _db_health.db_ever_healthy()
+
+    monkeypatch.setattr(_db_health, "SessionLocal", down)
+    await _db_health._check_once(settings)
+    assert _db_health.get_db_health_state().status == "down"
+    assert _db_health.db_ever_healthy()
 
 
 def test_is_fresh_true_within_window():
@@ -189,6 +221,19 @@ def test_is_fresh_false_once_stale():
         status="ok", latency_ms=1.0, checked_at_monotonic=time.monotonic() - 10
     )
     assert not is_fresh(state, interval_seconds=1)
+
+
+def test_hung_db_tick_stays_fresh():
+    """A hung DB stretches a tick to interval + check timeout; with 1.5 s
+    of event-loop lag on top, a live loop must still read fresh, or every
+    pod drops out of readiness at once during the outage.
+    """
+    interval = 1
+    age = interval + _db_health.DB_HEALTH_CHECK_TIMEOUT_SECONDS + 1.5
+    state = DBHealthState(
+        status="down", latency_ms=1000.0, checked_at_monotonic=time.monotonic() - age
+    )
+    assert is_fresh(state, interval_seconds=interval)
 
 
 @pytest.mark.asyncio
@@ -217,3 +262,31 @@ async def test_loop_survives_iteration_exception():
             await _db_health.db_health_check_loop()
 
     assert call_count["n"] == 2, "loop must continue past the first exception"
+
+
+@pytest.mark.asyncio
+async def test_loop_retries_fast_until_first_success():
+    """A pod whose boot check fails retries every DB_HEALTH_BOOT_RETRY_SECONDS,
+    not the long interval, then settles on the interval once the DB answered.
+    """
+    sleeps: list[int] = []
+
+    async def fail_then_succeed(_settings):
+        if sleeps:
+            _db_health._ever_healthy = True
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) == 2:
+            raise asyncio.CancelledError()
+
+    with (
+        patch("app.tasks._db_health.get_settings") as gs,
+        patch("app.tasks._db_health._check_once", side_effect=fail_then_succeed),
+        patch("app.tasks._db_health.asyncio.sleep", side_effect=fake_sleep),
+    ):
+        gs.return_value = MagicMock(DB_HEALTH_CHECK_INTERVAL_SECONDS=30)
+        with pytest.raises(asyncio.CancelledError):
+            await _db_health.db_health_check_loop()
+
+    assert sleeps == [_db_health.DB_HEALTH_BOOT_RETRY_SECONDS, 30]

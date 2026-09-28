@@ -10,12 +10,17 @@ pydantic-settings machinery.
 from types import SimpleNamespace
 
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
 from app.main import (
     assert_poller_isolation,
     assert_proxy_trust_settings,
     assert_security_settings,
+    assert_trace_sampler,
 )
+from otel_sampler import SqlRatioSampler
 
 
 def _settings(**overrides) -> SimpleNamespace:
@@ -166,3 +171,33 @@ def test_a_zero_prefix_network_refuses_to_boot(monkeypatch, wildcard):
     monkeypatch.setenv("FORWARDED_ALLOW_IPS", wildcard)
     with pytest.raises(RuntimeError, match="FORWARDED_ALLOW_IPS"):
         assert_proxy_trust_settings()
+
+
+def _serve_provider(monkeypatch, provider) -> None:
+    monkeypatch.setenv("OTEL_TRACES_SAMPLER", "sql_ratio")
+    monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+
+
+def test_loaded_sql_ratio_sampler_boots(monkeypatch):
+    _serve_provider(monkeypatch, TracerProvider(sampler=SqlRatioSampler(0.1)))
+    assert_trace_sampler()  # must not raise
+
+
+def test_sampler_fallback_refuses_to_boot(monkeypatch):
+    """A sampler that fails to load only costs the SDK a warning; its fallback
+    records every SQL span again, the CPU the sampler exists to save (#2527).
+    """
+    _serve_provider(monkeypatch, TracerProvider(sampler=ParentBased(ALWAYS_ON)))
+    with pytest.raises(RuntimeError, match="sql_ratio"):
+        assert_trace_sampler()
+
+
+def test_sql_ratio_without_the_sdk_refuses_to_boot(monkeypatch):
+    _serve_provider(monkeypatch, trace.ProxyTracerProvider())
+    with pytest.raises(RuntimeError, match="no SDK sampler"):
+        assert_trace_sampler()
+
+
+def test_other_samplers_skip_the_trace_sampler_check(monkeypatch):
+    monkeypatch.setenv("OTEL_TRACES_SAMPLER", "always_on")
+    assert_trace_sampler()  # must not raise

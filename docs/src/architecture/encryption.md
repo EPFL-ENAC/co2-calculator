@@ -166,7 +166,7 @@ Every key is a separate variable — none is reused across purposes
 | ------------------------------------------------ | ----------------------------- | ----------------------------------------------- |
 | `FILES_ENCRYPTION_KEY` + `FILES_ENCRYPTION_SALT` | Uploaded file bodies in S3    | **Every existing object becomes undecryptable** |
 | `CREDENTIALS_ENCRYPTION_KEY` + `_SALT`           | Stored connector credentials  | **Every stored connector secret is orphaned**   |
-| `JWT_HMAC_KEY`                                   | Access and refresh JWTs       | All sessions invalidated                        |
+| `JWT_HMAC_KEY`                                   | Session cookie JWT            | All sessions invalidated                        |
 | `SESSION_HMAC_KEY`                               | 60-second mid-OAuth cookie    | In-flight logins fail, retry works              |
 | `S3_SECRET_ACCESS_KEY`                           | Object storage authentication | Storage unreachable until updated               |
 

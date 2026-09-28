@@ -34,7 +34,7 @@ UPLOAD_PATH = "/api/v1/year-configuration/2025/upload"
 def authorised_editor(monkeypatch):
     """Authenticate, and let the permission check pass.
 
-    ``is_permitted`` reaches OPA, so it is patched on the endpoint module
+    ``check_permission`` reaches OPA, so it is patched on the endpoint module
     where the name is bound — these tests are about the *ordering* of auth
     against body parsing, not the permission decision itself.
     """
@@ -45,7 +45,7 @@ def authorised_editor(monkeypatch):
     async def _allow(*_args, **_kwargs) -> bool:
         return True
 
-    monkeypatch.setattr(year_config_module, "is_permitted", _allow)
+    monkeypatch.setattr(year_config_module, "check_permission", _allow)
     yield TestClient(
         app,
         cookies={"auth_token": valid_access_token()},

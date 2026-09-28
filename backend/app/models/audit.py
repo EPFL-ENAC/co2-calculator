@@ -7,7 +7,7 @@ for Postgres, with dialect-aware fallback for SQLite in tests/local dev.
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, Index, text
+from sqlalchemy import Column, DateTime, Index, text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import JSON, Field, SQLModel
 
@@ -76,8 +76,12 @@ class AuditDocumentBase(SQLModel):
         nullable=True,
         description="Actor identifier (user_id or job_id)",
     )
+    # Naive timestamps, as migrated: sa_type pins them so a SQLModel bump
+    # can't swap in its timestamptz default (see test_datetime_column_types).
     changed_at: datetime = Field(
-        default_factory=default_utcnow, description="Timestamp of change (UTC)"
+        default_factory=default_utcnow,
+        sa_type=DateTime,
+        description="Timestamp of change (UTC)",
     )
 
     # Request context (mandatory audit fields)
@@ -119,6 +123,7 @@ class AuditDocumentBase(SQLModel):
     )
     synced_at: datetime | None = Field(
         default=None,
+        sa_type=DateTime,
         description="Timestamp when the audit record was successfully synced to ES",
     )
 

@@ -15,18 +15,14 @@ export type ApiOptions = Options;
 export const API_BASE_URL = '/api/v1/';
 export const API_LOGIN_URL = '/api/v1/auth/login';
 export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
-// All three session verbs hit the same path; the interceptor predicates
-// disambiguate by HTTP method (see isRefresh / isSessionCheck below).
+// Both session verbs hit the same path; isSessionCheck singles out the
+// bootstrap GET, the one 401 that must not bounce to the login page.
 export const API_ME_URL = 'session';
-export const API_REFRESH_URL = 'session';
 export const API_LOGOUT_URL = 'session';
 export const loginPageName = '/en/login';
 
-const endsWithSession = (u: string) => /\/session(?:\?.*)?$/.test(u);
-const isRefresh = (u: string, m: string) =>
-  endsWithSession(u) && m.toUpperCase() === 'POST';
 const isSessionCheck = (u: string, m: string) =>
-  endsWithSession(u) && m.toUpperCase() === 'GET';
+  /\/session(?:\?.*)?$/.test(u) && m.toUpperCase() === 'GET';
 
 /**
  * Request timeout for every call through this client.
@@ -61,15 +57,9 @@ export const api = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',
   timeout: REQUEST_TIMEOUT_MS,
-  // ky's default `methods` excludes POST/PATCH, so without overriding it the
-  // beforeRetry hook below would never fire on form submits — users mid-edit
-  // would get bounced to /login on a single 401 even though the refresh
-  // cookie was still valid (issue #949).
-  retry: {
-    limit: 1,
-    statusCodes: [401],
-    methods: ['get', 'put', 'post', 'patch', 'head', 'delete', 'options'],
-  },
+  // No retry and no refresh call: the backend renews the session cookie on
+  // its own responses (#2943), so a 401 is final and means "log in again".
+  retry: 0,
   hooks: {
     beforeRequest: [
       // Propagate the per-navigation trace id so backend OTel spans join the
@@ -78,26 +68,14 @@ export const api = ky.create({
         request.headers.set('traceparent', traceparent());
       },
     ],
-    beforeRetry: [
-      async ({ request }) => {
-        if (!isRefresh(request.url, request.method))
-          await api.post(API_REFRESH_URL, { retry: { limit: 0 } });
-      },
-    ],
     afterResponse: [
       async (req, options, res) => {
         if (res.status === 401) {
-          if (isRefresh(req.url, req.method)) {
-            // If refresh returns 401, let it pass through and be handled by
-            // next api call, which will trigger the login redirect. This prevents infinite
-            // loops in case the refresh token is also expired or invalid.
-            return;
-          }
-          // If still 401 after refresh, redirect to login
+          // The bootstrap GET answers 200 when anonymous; its 401 means the
+          // cookie the browser holds is expired or refused. bootstrap()
+          // reads that as "anonymous" and the router guard sends the user
+          // to the login page, so no notification and no redirect here.
           if (isSessionCheck(req.url, req.method)) {
-            // For session check, do not redirect, just return
-            // This prevents redirect loops during session validation
-            // vue Router guard will handle the redirection
             return;
           }
           // ⚠️ KNOWN ISSUE: On 401 (expired tokens), this hook used to

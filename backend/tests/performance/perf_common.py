@@ -48,7 +48,7 @@ def slug(module_type: ModuleTypeEnum) -> str:
 
 def mint_auth_cookie(institutional_id: str) -> str:
     """Access token for a seeded DEFAULT-provider user, identical in shape
-    to what _set_auth_cookies issues — resolution only needs the
+    to what issue_session_cookie issues — resolution only needs the
     (institutional_id, provider) pair and a valid signature.
     """
     return create_access_token(

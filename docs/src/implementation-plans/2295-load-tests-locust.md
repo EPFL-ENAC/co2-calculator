@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2295
-last_updated: 2026-09-23
+last_updated: 2026-09-24
 summary: "Locust load-test suite: staged concurrency (50→1000 readers,
   10→40 plan/explore creators, 5→20 parallel CSV uploads) against a
   COPY-seeded backdrop of N units × N years at #2161 ceiling density,
@@ -70,6 +70,21 @@ Against dev: `make perf-dev` (2026-09-23) — targets
 bare host is the SPA), logs VUs in via `login-test` (dev is a DEBUG build) and
 refuses write scenarios without `PERF_ALLOW_WRITES=1`. For a host without
 `login-test`, export `PERF_AUTH_COOKIE=<auth_token JWT>` and use `perf-load`.
+
+## Dev ladder, 2026-09-23/24
+
+`make perf-dev` (#2924, #2929, #2930, #2931) against dev on PgBouncer
+transaction mode, pool 70, backend HPA 2–6 pods × 1 core (osac #66):
+capacity ≈ 150 req/s for `ExplorerReadUser` (148 at 600 users, 138 at 800
+with the first 500s, 109 at 1000 with 11 % failures). Saturation is backend
+CPU on the busiest single-worker pod (0.93 core at 600 users), with the
+bouncer pool filling as a symptom of queued requests holding their
+transaction. Pod → Postgres round trip is 1.0 ms, not 14 ms (see the 2527
+plan correction). Baseline for before/after, tag `pool70_before`: 100 users
+32 req/s p95 630 ms; 600 users 142 req/s p50 1.1 s p95 2.4 s. Use 3-minute
+runs when Prometheus gauges matter (30 s scrape). Overload answers 500 where
+it should answer 503, and the shared-cookie session read can answer 401
+under DB pressure — both tracked in the goal document linked from #2295.
 
 ## What the first local run taught us (2026-08-29)
 

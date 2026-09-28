@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import { setGlitchTipUser } from '@/utils/glitchtip';
+import { HTTPError } from 'ky';
 import {
   api,
   API_LOGIN_URL,
@@ -90,9 +91,13 @@ export const useAuthStore = defineStore('auth', () => {
   const hasChecked = ref(false);
   let inflight: Promise<User | null> | null = null;
 
-  /** Enriched `GET /session` payload — user + workspace bootstrap context. */
+  /**
+   * Enriched `GET /session` payload — user + workspace bootstrap context.
+   * `user` is absent when anonymous: the backend answers 200 with
+   * `user: null` and `response_model_exclude_none` drops the key (#2943).
+   */
   interface SessionPayload {
-    user: User;
+    user?: User;
     units: Unit[];
     configured_years: YearConfigurationListItem[];
     min_configurable_year: number;
@@ -103,6 +108,11 @@ export const useAuthStore = defineStore('auth', () => {
    * Single app-init call: fetch the enriched session and hydrate the auth,
    * workspace (units) and year-config (configured years) stores in one go.
    * Deduped via `inflight` so concurrent guards share the same request.
+   *
+   * One request, no retry (#2943): 200 without `user` is "anonymous", and
+   * so is a 401, which the backend sends when the cookie the browser holds
+   * is expired or refused. Anything else is a real failure and propagates
+   * to the guard rather than being read as "logged out".
    */
   async function bootstrap(): Promise<User | null> {
     if (inflight) return inflight;
@@ -110,7 +120,11 @@ export const useAuthStore = defineStore('auth', () => {
     inflight = (async () => {
       try {
         loading.value = true;
-        const raw = await api.get(API_ME_URL).json<SessionPayload>();
+        const raw = await fetchSession();
+        if (!raw?.user) {
+          user.value = null;
+          return null;
+        }
         // Backend serializes roles as `[]` or omits the field under
         // `response_model_exclude_none=True`. Normalize once here so
         // every call site can treat `roles_raw` as a non-optional array.
@@ -128,9 +142,6 @@ export const useAuthStore = defineStore('auth', () => {
           yearConfigStore.setMinConfigurableYear(raw.min_configurable_year);
         }
         return u;
-      } catch {
-        user.value = null;
-        return null;
       } finally {
         loading.value = false;
         hasChecked.value = true;
@@ -139,6 +150,15 @@ export const useAuthStore = defineStore('auth', () => {
     })();
 
     return inflight;
+  }
+
+  async function fetchSession(): Promise<SessionPayload | null> {
+    try {
+      return await api.get(API_ME_URL).json<SessionPayload>();
+    } catch (e: unknown) {
+      if (e instanceof HTTPError && e.response.status === 401) return null;
+      throw e;
+    }
   }
 
   // #2050: a second click (or a stray duplicate handler) before the browser

@@ -2,8 +2,8 @@
 
 See ``docs/src/implementation-plans/89-security-in-depth.md``.
 
-All authentication in this app is cookie-based (``auth_token`` /
-``refresh_token``, ``SameSite=Lax``, host-only). ``SameSite`` is evaluated
+All authentication in this app is cookie-based (``auth_token``,
+``SameSite=Lax``, host-only). ``SameSite`` is evaluated
 against the *registrable domain*, so on a shared institutional domain like
 ``epfl.ch`` every sibling application is "same-site" to us and ``Lax`` will
 happily attach the auth cookie to their state-changing requests. This
@@ -38,7 +38,7 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # Presence of any of these is what makes a request carry ambient authority,
 # and therefore what makes it forgeable. `session` is Starlette's OAuth-flow
 # cookie — short-lived, but it authorizes the callback, so it counts.
-AUTH_COOKIE_NAMES = ("auth_token", "refresh_token", "session")
+AUTH_COOKIE_NAMES = ("auth_token", "session")
 
 # `Sec-Fetch-Site` values that identify the request as genuinely ours.
 # `none` is a user-initiated navigation (typed URL, bookmark); `same-site` is

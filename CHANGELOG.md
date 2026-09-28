@@ -1,3 +1,71 @@
+## [1.4.19](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.18...v1.4.19) (2026-09-28)
+
+A sign-in, resilience and logging release. No data migration, no change to how footprints are calculated.
+
+### Sign-in
+
+- **One session cookie that slides with activity.** You stay signed in while you use the app, and for up to 48 h without using it. A session now ends 7 days after login at the latest; before, an active session could roll on with no end. The separate refresh cookie and the refresh call are gone. (#2943)
+- **Everyone signs in once after the deploy.** Sessions opened before this release are not renewed: they end within 8 h, and the next visit asks for a login.
+- Opening the app while signed out no longer counts as an error: the session check answers "no user" instead of 401.
+
+### Database outages
+
+- **A database outage now answers "temporarily unavailable" instead of taking the whole API down.** API calls get a 503 response and the pods stay in service. Before, every pod left the service at once and the router answered with its own error page. A pod that has never reached the database since it started still takes no traffic.
+- The database health check runs every 30 s (it was every second), and every 5 s while a pod starts.
+- Live job and pipeline progress streams close cleanly on a database error instead of failing mid-stream. (#2956)
+
+### Back office
+
+- Upload cards read row errors from the same place for every import type, reduction objectives included. (#2464)
+- Updated wording on the home page and in the buildings energy tooltips.
+
+### Demo instance
+
+- A demo deployment can show a notice that sends users to the production calculator, with a discreet "continue to the demo" link. Off by default, enabled per cluster with `APP_DEMO_MODE`.
+
+### Operations
+
+- Logs are quieter: successful Kubernetes probe calls (`/healthz`, `/ready`) are no longer logged, per-check permission lines are gone, and a refused back-office action logs a single warning naming the user and the permission. (#2934)
+- Tracing keeps every request span but records SQL spans for only 10 % of requests, which cuts the backend CPU tracing used to take. On for dev and stage (`OTEL_TRACES_SAMPLER=sql_ratio`); prod follows with its own ops change. With that setting, a backend refuses to start if the sampler did not load. (#2527)
+- Four date columns are pinned to the type they were migrated with, so a SQLModel upgrade can no longer switch them to timezone-aware (the dev breakage of 2026-09-25).
+- Performance tooling: `make perf-ladder`, a local CPU-per-request profile harness and an infrastructure summary. (#2295)
+- Docs: prod behind PgBouncer, the session cookie lifecycle, and the latency panel names.
+
+### Known issues
+
+- A database blip while the app starts can send a signed-in user to the login page until they reload. A fix is planned before this release reaches prod. (#2983)
+- Reduction-objective uploads made before this release show their error count but not the row details. (#2983)
+
+- Left out: the active-users gauge (#2529), which was added and then abandoned in this window. Its code is no longer on dev. The dependency bumps are left to the generated list.
+- Assumed: "48 h / 7 days" are the helm defaults, which the ops PR #73 applied to the clusters. "End within 8 h" comes from the old 8-hour access token.
+
+
+### Bug Fixes
+
+* **auth:** log a refused backoffice gate once, in check_permission ([#2934](https://github.com/EPFL-ENAC/co2-calculator/issues/2934)) ([d235e47](https://github.com/EPFL-ENAC/co2-calculator/commit/d235e476d1819771716b1cd368305e8c335d9aa8))
+* **backend:** end sse streams cleanly on mid-stream db errors ([#2956](https://github.com/EPFL-ENAC/co2-calculator/issues/2956)) ([797d61d](https://github.com/EPFL-ENAC/co2-calculator/commit/797d61dfe60ed0215ea93570e9329e3e9c66f68f))
+* **backend:** keep pods ready through shared DB outages, 503 on DB loss ([ee9f6c9](https://github.com/EPFL-ENAC/co2-calculator/commit/ee9f6c9c14b7f4b9210dced71668b3abc0f339ad))
+* **backend:** pin four datetime columns to the migrated naive type ([eef00a4](https://github.com/EPFL-ENAC/co2-calculator/commit/eef00a4e6ebf533c4417abf84b26ca9c80af6d9f))
+* **backend:** poll DB health every 30 s, retry every 5 s at boot ([1ab5e28](https://github.com/EPFL-ENAC/co2-calculator/commit/1ab5e28f61580b338078c190d130d2d2f906bcaa))
+* **backend:** poll the DB every 10 s, widen the stale window ([44e3d46](https://github.com/EPFL-ENAC/co2-calculator/commit/44e3d46e1d136eed2546ada5b75e140f7b8a1367))
+* **logging:** drop probe access lines, collector conflict, policy chatter ([#2934](https://github.com/EPFL-ENAC/co2-calculator/issues/2934)) ([d15c316](https://github.com/EPFL-ENAC/co2-calculator/commit/d15c316ff9ea092fac24d8f714b0c0d05baf12f0))
+* **logging:** review fixes, keep the collector change out of this PR ([#2934](https://github.com/EPFL-ENAC/co2-calculator/issues/2934)) ([7b5d201](https://github.com/EPFL-ENAC/co2-calculator/commit/7b5d201b52554aa3e67526467549b7c1b5ce3949)), closes [#2943](https://github.com/EPFL-ENAC/co2-calculator/issues/2943)
+* **perf:** check ratio levels for spans after the run ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([1c4e780](https://github.com/EPFL-ENAC/co2-calculator/commit/1c4e7804848564b7525ef9cfeed207b75493b581))
+
+
+### Features
+
+* add demo banner ([b21383a](https://github.com/EPFL-ENAC/co2-calculator/commit/b21383a4f0b8d93fd43c234517af2f4a40e6562e))
+* **auth:** single sliding session cookie, GET /session answers 200 ([#2943](https://github.com/EPFL-ENAC/co2-calculator/issues/2943)) ([#2944](https://github.com/EPFL-ENAC/co2-calculator/issues/2944)) ([6a2527d](https://github.com/EPFL-ENAC/co2-calculator/commit/6a2527d0e7a05f66c8572b7c92a1fd54d3dec84b))
+* **backend:** co2_active_users_5m gauge of distinct users per pod ([#2529](https://github.com/EPFL-ENAC/co2-calculator/issues/2529)) ([ba57fe1](https://github.com/EPFL-ENAC/co2-calculator/commit/ba57fe134f6ccfa436eaebbfd3f35b65fb4f2748))
+* **perf:** local CPU-per-request profile harness ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([#2960](https://github.com/EPFL-ENAC/co2-calculator/issues/2960)) ([074e36a](https://github.com/EPFL-ENAC/co2-calculator/commit/074e36a4b16a7626ad20c1d89c2b2c434ab77b5a))
+* **perf:** make perf-ladder and CPU-per-request infra summary ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([c4d246f](https://github.com/EPFL-ENAC/co2-calculator/commit/c4d246fd49e2d24f067eb6f05e9d8e9babbb5ca4))
+* **perf:** sampling levels for the CPU profile harness ([#2295](https://github.com/EPFL-ENAC/co2-calculator/issues/2295)) ([#2961](https://github.com/EPFL-ENAC/co2-calculator/issues/2961)) ([d71049c](https://github.com/EPFL-ENAC/co2-calculator/commit/d71049c9f6d146c578695f9f25687ebb2e23bb93))
+
+
+### Performance Improvements
+
+* **tracing:** keep request spans, sample SQL spans at 10 % ([#2527](https://github.com/EPFL-ENAC/co2-calculator/issues/2527)) ([7844955](https://github.com/EPFL-ENAC/co2-calculator/commit/78449559812c757c0848f4995eee43ca6ca160f0))
 ## [1.4.18](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.16...v1.4.18) (2026-09-24)
 
 A bug-fix and documentation release. No data migration, no change to how footprints are calculated.
