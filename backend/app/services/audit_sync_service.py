@@ -6,7 +6,7 @@ with Elasticsearch:
 """
 
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlmodel import col, select
@@ -112,7 +112,7 @@ class AuditSyncService:
             if success:
                 # Update status to synced
                 audit_record.sync_status = SyncStatusEnum.SYNCED
-                audit_record.synced_at = datetime.utcnow()
+                audit_record.synced_at = datetime.now(UTC)
                 audit_record.sync_error = None
                 logger.info(
                     f"Audit record {audit_id} successfully synced to Elasticsearch"
@@ -201,7 +201,7 @@ class AuditSyncService:
             skipped_count = 0
             for record in records_to_skip:
                 record.sync_status = SyncStatusEnum.SKIPPED
-                record.synced_at = datetime.utcnow()
+                record.synced_at = datetime.now(UTC)
                 record.sync_error = None
                 self.session.add(record)
                 skipped_count += 1
@@ -263,7 +263,7 @@ class AuditSyncService:
                     # This record had a version conflict - document already exists in ES
                     # Treat as successful sync
                     record.sync_status = SyncStatusEnum.SYNCED
-                    record.synced_at = datetime.utcnow()
+                    record.synced_at = datetime.now(UTC)
                     record.sync_error = None
                     conflict_count += 1
                 elif record.id in error_ids:
@@ -274,7 +274,7 @@ class AuditSyncService:
                 else:
                     # This record succeeded
                     record.sync_status = SyncStatusEnum.SYNCED
-                    record.synced_at = datetime.utcnow()
+                    record.synced_at = datetime.now(UTC)
                     record.sync_error = None
                     success_count += 1
 

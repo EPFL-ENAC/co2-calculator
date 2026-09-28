@@ -26,11 +26,7 @@ async def get_connection():
 
 
 async def insert_year_configurations(conn):
-    now_tz = datetime.now(UTC)
-    # `updated_at` is TIMESTAMP (no tz) per the SQLModel column default;
-    # `configuration_completed` is TIMESTAMPTZ. Pass them as distinct
-    # parameters so asyncpg can deduce each type unambiguously.
-    now_naive = now_tz.replace(tzinfo=None)
+    now = datetime.now(UTC)
     # Year listings are scoped to the caller's provider; TEST covers the
     # login-test users the locust suite (#2295) authenticates as.
     providers = [UserProvider.DEFAULT.name, UserProvider.TEST.name]
@@ -53,14 +49,13 @@ async def insert_year_configurations(conn):
                     TRUE,
                     $3::timestamptz,
                     '{}'::jsonb,
-                    $4::timestamp
+                    $3::timestamptz
                 )
                 ON CONFLICT (year, provider) DO NOTHING
                 """,
                 year,
                 provider,
-                now_tz,
-                now_naive,
+                now,
             )
 
     print(f"✓ Year configurations ready for {YEARS} (providers={providers})")

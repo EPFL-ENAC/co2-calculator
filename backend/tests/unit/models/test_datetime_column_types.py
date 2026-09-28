@@ -4,7 +4,7 @@ SQLModel's default for a bare ``datetime`` field.
 SQLModel 0.0.47 turned that default into ``UTCDateTime`` (timestamptz that
 raises on naive values). Four columns inherited it silently: year
 configuration writes broke, and the models drifted from the migrations,
-which declare them ``timestamp``. A library bump must never change a
+which declared them ``timestamp`` until #2956. A library bump must never change a
 column's type or write contract behind the migrations' back.
 """
 

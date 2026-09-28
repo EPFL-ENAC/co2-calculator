@@ -350,8 +350,9 @@ class UserBase(SQLModel):
             for r in value
         ]
 
-    # Naive timestamp, as migrated (see test_datetime_column_types).
-    last_login: datetime | None = Field(default=None, nullable=True, sa_type=DateTime)
+    last_login: datetime | None = Field(
+        default=None, nullable=True, sa_type=DateTime(timezone=True)
+    )
 
     def calculate_permissions(self) -> dict:
         return calculate_user_permissions(self.roles)
