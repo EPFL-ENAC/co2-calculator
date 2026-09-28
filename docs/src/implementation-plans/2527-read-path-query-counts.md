@@ -5,7 +5,9 @@ last_updated: 2026-09-28
 summary: "Read-path items 4, 5, 6, 8 and 10 of #2527: collapse the per-report
   loops in the merged modules-stats trio and the workspace-home bundle into
   grouped queries, cache the year-configuration, and make the SQL-statement
-  budget a per-PR CI gate so the next N+1 fails at review time."
+  budget a per-PR CI gate so the next N+1 fails at review time. Tracing now
+  keeps every request span and SQL spans for 10 % of traces: 36 → 21 ms of
+  CPU per request on dev."
 ---
 
 # 2527 — read-path query counts (items 4, 5, 6, 8, 10)
@@ -64,6 +66,37 @@ noise.
 
 Statement counts include the `get_current_user` user lookup
 (`app/core/security.py:183`), which every authenticated route pays.
+
+## Tracing policy — every request span, SQL spans for 10 % of traces
+
+Delivered 2026-09-28. The largest lever measured, and config rather than a
+query change. Backend CPU per request on dev (ladder tags `pool70_spread_*`,
+6 pods):
+
+| Backend tracing                                         |   100 users |   600 users |
+| ------------------------------------------------------- | ----------: | ----------: |
+| `always_on`, a psycopg span per statement (all envs)    |     34.1 ms |     36.1 ms |
+| **`sql_ratio` 0.1: every request span, 10 % SQL spans** | **25.9 ms** | **20.7 ms** |
+| `always_on`, no SQL spans (chart default)               |     21.4 ms |           — |
+| sampler off                                             |      ~19 ms |      ~16 ms |
+
+- `otel_sampler/` holds `SqlRatioSampler`: server and internal spans always,
+  client spans (SQL, outbound HTTP) by trace-id ratio, so a request keeps all
+  its SQL spans or none. It is the `sql_ratio` entry point in
+  `pyproject.toml`; `opentelemetry-instrument` loads it before the app, so it
+  lives outside `app/`, whose `__init__` imports every module.
+- Same env on dev, stage and prod: `OTEL_TRACES_SAMPLER=sql_ratio`,
+  `OTEL_TRACES_SAMPLER_ARG=0.1`, `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS=sqlalchemy`.
+  Set it only once the image carries `otel_sampler/`, then check the
+  `Trace sampler active` log line. Lower the ratio as traffic grows; the
+  psycopg wrapper and the sampler call still run on every statement.
+- A sampler that fails to load only costs the SDK a warning, and its
+  `parentbased_always_on` fallback records every SQL span again.
+  `assert_trace_sampler` refuses to boot instead.
+- Head sampling cannot pick the slow requests: the SQL breakdown is a random
+  10 %. Collector tail sampling keeps whole traces but saves no app CPU.
+- Open: the worker (dev and stage record SQL spans, prod does not); the chart
+  default at 600 users; the 100-user rows are 3.5 h apart, so drift is in them.
 
 ---
 

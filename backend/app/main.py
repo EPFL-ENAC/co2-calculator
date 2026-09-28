@@ -9,6 +9,7 @@ import httpx
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider as SdkTracerProvider
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
@@ -37,6 +38,7 @@ from app.tasks._db_health import (
     get_db_health_state,
     is_fresh,
 )
+from otel_sampler import SqlRatioSampler
 
 # Setup logging
 setup_logging()
@@ -153,6 +155,29 @@ def assert_poller_isolation(settings) -> None:
     )
 
 
+def assert_trace_sampler() -> None:
+    """Fail closed at boot when OTEL_TRACES_SAMPLER=sql_ratio did not load (#2527).
+
+    A named sampler that fails to load only costs a warning: the SDK falls
+    back to ``parentbased_always_on``, which records every SQL span again,
+    the CPU this sampler exists to save.
+    """
+    if os.environ.get("OTEL_TRACES_SAMPLER") != "sql_ratio":
+        return
+    provider = trace.get_tracer_provider()
+    active = f"{type(provider).__name__}, no SDK sampler"
+    if isinstance(provider, SdkTracerProvider):
+        active = provider.sampler.get_description()
+        if isinstance(provider.sampler, SqlRatioSampler):
+            logger.info("Trace sampler active", extra={"sampler": active})
+            return
+    raise RuntimeError(
+        f"OTEL_TRACES_SAMPLER=sql_ratio but the active sampler is {active}: "
+        "the SDK fell back and records every SQL span (#2527). Check "
+        "OTEL_TRACES_SAMPLER_ARG and that otel_sampler/ is in the image."
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run on application startup."""
@@ -160,6 +185,7 @@ async def lifespan(app: FastAPI):
     assert_proxy_trust_settings()
     assert_accred_settings(settings)
     assert_poller_isolation(settings)
+    assert_trace_sampler()
 
     logger.info(
         "Starting application",
