@@ -1,5 +1,44 @@
 ## [1.4.19](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.18...v1.4.19) (2026-09-28)
 
+A sign-in, resilience and logging release. No data migration, no change to how footprints are calculated.
+
+### Sign-in
+
+- **One session cookie that slides with activity.** You stay signed in while you use the app, and for up to 48 h without using it. A session now ends 7 days after login at the latest; before, an active session could roll on with no end. The separate refresh cookie and the refresh call are gone. (#2943)
+- **Everyone signs in once after the deploy.** Sessions opened before this release are not renewed: they end within 8 h, and the next visit asks for a login.
+- Opening the app while signed out no longer counts as an error: the session check answers "no user" instead of 401.
+
+### Database outages
+
+- **A database outage now answers "temporarily unavailable" instead of taking the whole API down.** API calls get a 503 response and the pods stay in service. Before, every pod left the service at once and the router answered with its own error page. A pod that has never reached the database since it started still takes no traffic.
+- The database health check runs every 30 s (it was every second), and every 5 s while a pod starts.
+- Live job and pipeline progress streams close cleanly on a database error instead of failing mid-stream. (#2956)
+
+### Back office
+
+- Upload cards read row errors from the same place for every import type, reduction objectives included. (#2464)
+- Updated wording on the home page and in the buildings energy tooltips.
+
+### Demo instance
+
+- A demo deployment can show a notice that sends users to the production calculator, with a discreet "continue to the demo" link. Off by default, enabled per cluster with `APP_DEMO_MODE`.
+
+### Operations
+
+- Logs are quieter: successful Kubernetes probe calls (`/healthz`, `/ready`) are no longer logged, per-check permission lines are gone, and a refused back-office action logs a single warning naming the user and the permission. (#2934)
+- Tracing keeps every request span but records SQL spans for only 10 % of requests, which cuts the backend CPU tracing used to take. On for dev and stage (`OTEL_TRACES_SAMPLER=sql_ratio`); prod follows with its own ops change. With that setting, a backend refuses to start if the sampler did not load. (#2527)
+- Four date columns are pinned to the type they were migrated with, so a SQLModel upgrade can no longer switch them to timezone-aware (the dev breakage of 2026-09-25).
+- Performance tooling: `make perf-ladder`, a local CPU-per-request profile harness and an infrastructure summary. (#2295)
+- Docs: prod behind PgBouncer, the session cookie lifecycle, and the latency panel names.
+
+### Known issues
+
+- A database blip while the app starts can send a signed-in user to the login page until they reload. A fix is planned before this release reaches prod. (#2983)
+- Reduction-objective uploads made before this release show their error count but not the row details. (#2983)
+
+- Left out: the active-users gauge (#2529), which was added and then abandoned in this window. Its code is no longer on dev. The dependency bumps are left to the generated list.
+- Assumed: "48 h / 7 days" are the helm defaults, which the ops PR #73 applied to the clusters. "End within 8 h" comes from the old 8-hour access token.
+
 
 ### Bug Fixes
 
