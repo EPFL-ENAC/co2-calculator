@@ -24,9 +24,8 @@ slow write paths. This one covers **only** the read endpoints: items 4, 5, 6,
 > psycopg span per statement (dev and stage), a request costs **36.1 ms** of
 > CPU and 600 users saturate 6 pods at 140 req/s; with the sampler at
 > `always_off`, **16.2 ms**, and the same pods serve 197 req/s with a p95 of
-> 110 ms (ladder tags `pool70_spread` and `pool70_spread_traceoff`). Prod's
-> backend records one span per request and no SQL spans; its cost is not yet
-> measured. The remaining CPU is the app's own on slow nodes (about 3.7× a
+> 110 ms (ladder tags `pool70_spread` and `pool70_spread_traceoff`). Stage's and
+> prod's backends run the same tracing as dev, so all three pay this cost. The remaining CPU is the app's own on slow nodes (about 3.7× a
 > laptop): a statement costs about 0.45 ms locally, 1.7 ms on dev, SQLAlchemy
 > and psycopg together over half of it (cProfile, 25 Sep). Tasks 4, 5, 6, 8
 > keep their order; the millisecond gains quoted below assume 14 ms per
