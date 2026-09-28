@@ -17,5 +17,5 @@ dependencies = [
     "python-frontmatter>=1.2.0",
     # explicit transitive overrides
     "pillow>=12.3.0",
-    "urllib3>=2.7.0",
+    "urllib3>=2.8.0",
 ]
