@@ -49,6 +49,16 @@ jobs:
         run: |
           conventional-changelog -p angular -i CHANGELOG.md -s
 
+      - name: Curate the changelog for humans
+        # Rewrites the raw commit-message dump under the three headings
+        # docs/src/architecture/release-runbook.md step 2 documents, via
+        # Claude. Fails soft (see the script header): no ANTHROPIC_API_KEY,
+        # an API error, or a malformed reply all leave the raw
+        # conventional-changelog output in place instead of blocking here.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: .github/scripts/curate-changelog.sh CHANGELOG.md
+
       - name: Commit and push updated CHANGELOG.md
         run: |
           git config user.name "github-actions[bot]"
