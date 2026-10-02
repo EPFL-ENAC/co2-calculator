@@ -52,6 +52,10 @@ no 404 page, no per-page table of contents, no Material theme, no
 admonitions, footnotes or `attr_list` (one page each), and no syntax
 highlighting (Zensical runs Pygments on 197 pages).
 
+No live reload for Markdown: `npm run dev` converts once at start, and
+the plugin watches `src/pages/`, not `docs/src/`, so an edited page needs
+a restart. Zensical's `serve` rebuilds on save.
+
 ## Verification
 
 - Same pages at the same paths as Zensical, under `/docs/`, minus
