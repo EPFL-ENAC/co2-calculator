@@ -57,7 +57,7 @@ pages.
 - **docker**: `docker buildx build --no-cache --load` on a dedicated
   builder: no layer reuse, warm uv/npm download caches.
 
-#### Local build (site generation from clean)
+### Local build (site generation from clean)
 
 ```mermaid
 xychart-beta
@@ -73,7 +73,7 @@ xychart-beta
 | Zensical   |  30 | 5.38 s | 5.38 s | 0.11 s | 5.13 s | 5.65 s |            0.8× |
 | Vite + Eta |  30 | 0.79 s | 0.80 s | 0.05 s | 0.72 s | 0.92 s |            5.6× |
 
-#### Dev server start (process start → /glossary.html served)
+### Dev server start (process start → /glossary.html served)
 
 ```mermaid
 xychart-beta
@@ -89,7 +89,7 @@ xychart-beta
 | Zensical   |  30 | 5.30 s | 5.29 s | 0.09 s | 5.13 s | 5.47 s |            0.8× |
 | Vite + Eta |  30 | 0.86 s | 0.86 s | 0.05 s | 0.79 s | 1.01 s |            5.1× |
 
-#### Docker image (--no-cache build, warm package cache)
+### Docker image (--no-cache build, warm package cache)
 
 ```mermaid
 xychart-beta
