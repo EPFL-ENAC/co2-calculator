@@ -53,7 +53,7 @@ The CI/CD pipeline will build both Docker images: the main frontend app and the 
 
 #### 1. Install Dependencies
 
-Add to [package.json](frontend/package.json):
+Add to [package.json](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/package.json):
 
 **Dev Dependencies:**
 
@@ -85,7 +85,7 @@ npm install --save-dev \
 
 #### 2. Storybook Main Configuration
 
-**File:** [storybook/.storybook/main.ts](frontend/storybook/.storybook/main.ts) _(create new)_
+**File:** [storybook/.storybook/main.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/main.ts) _(create new)_
 
 - Configure stories glob pattern: `../../src/components/**/*.stories.@(js|jsx|mjs|ts|tsx)`
 - Configure optional stories directory: `../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)` (for additional standalone stories)
@@ -98,16 +98,16 @@ npm install --save-dev \
 
 #### 3. Storybook Preview Configuration
 
-**File:** [storybook/.storybook/preview.ts](frontend/storybook/.storybook/preview.ts) _(create new)_
+**File:** [storybook/.storybook/preview.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/preview.ts) _(create new)_
 
-- Import [../../src/css/app.scss](frontend/src/css/app.scss) for CSS Cascade Layers
+- Import [../../src/css/app.scss](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/css/app.scss) for CSS Cascade Layers
 - Import Quasar icon libraries (Material Icons)
 - Setup global app configuration:
   - **Pinia:** Fresh instance per story
-  - **Vue I18n:** Composition API with messages from [../../src/i18n](frontend/src/i18n)
+  - **Vue I18n:** Composition API with messages from [../../src/i18n](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/i18n)
   - **Vue Router:** Memory history with basic routes
   - **Quasar:** Install plugins (Dialog, Loading, Notify)
-  - **Icon Plugin:** Register custom SVG icons from [../../src/plugin/module-icon.ts](frontend/src/plugin/module-icon.ts)
+  - **Icon Plugin:** Register custom SVG icons from [../../src/plugin/module-icon.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/plugin/module-icon.ts)
 - Configure locale switcher in toolbar (EN/FR)
 - Add i18n decorator for global locale switching
 - Configure backgrounds and viewport presets
@@ -118,7 +118,7 @@ npm install --save-dev \
 
 #### 4. Pinia Store Utilities
 
-**File:** [storybook/.storybook/decorators/pinia.ts](frontend/storybook/.storybook/decorators/pinia.ts) _(create new)_
+**File:** [storybook/.storybook/decorators/pinia.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/decorators/pinia.ts) _(create new)_
 
 - Create `withPinia` decorator for fresh store instances
 - Create `withMockStore` helper for overriding initial state
@@ -126,21 +126,21 @@ npm install --save-dev \
 
 #### 5. Timeline Mock Data
 
-**File:** [storybook/.storybook/fixtures/timeline.ts](frontend/storybook/.storybook/fixtures/timeline.ts) _(create new)_
+**File:** [storybook/.storybook/fixtures/timeline.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/fixtures/timeline.ts) _(create new)_
 
 - Export `defaultTimelineState` with module states
 - Reference MODULE_STATES and MODULES constants from `../../src`
 
-**File:** [storybook/.storybook/fixtures/timelineItems.ts](frontend/storybook/.storybook/fixtures/timelineItems.ts) _(create new)_
+**File:** [storybook/.storybook/fixtures/timelineItems.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/fixtures/timelineItems.ts) _(create new)_
 
-- Re-export timelineItems from [../../src/constant/timelineItems](frontend/src/constant/timelineItems.ts)
+- Re-export timelineItems from [../../src/constant/timelineItems](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/constant/timelineItems.ts)
 - Export `mockTimelineItem` for stories
 
 ### Phase 3: Atom Stories (3 files)
 
 #### 6. ModuleIcon Stories
 
-**File:** [src/components/atoms/ModuleIcon.stories.ts](frontend/src/components/atoms/ModuleIcon.stories.ts) _(create new)_
+**File:** [src/components/atoms/ModuleIcon.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/atoms/ModuleIcon.stories.ts) _(create new)_
 
 - **Stories:** Default, Small, Large, AllIcons, ColorVariants
 - **argTypes:** name (select), size (select), color (text)
@@ -149,7 +149,7 @@ npm install --save-dev \
 
 #### 7. CO2Container Stories
 
-**File:** [src/components/atoms/CO2Container.stories.ts](frontend/src/components/atoms/CO2Container.stories.ts) _(create new)_
+**File:** [src/components/atoms/CO2Container.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/atoms/CO2Container.stories.ts) _(create new)_
 
 - **Stories:** Default, WithMultipleElements
 - **Description:** Simple slot wrapper with container styling
@@ -157,7 +157,7 @@ npm install --save-dev \
 
 #### 8. CO2LanguageSelector Stories
 
-**File:** [src/components/atoms/CO2LanguageSelector.stories.ts](frontend/src/components/atoms/CO2LanguageSelector.stories.ts) _(create new)_
+**File:** [src/components/atoms/CO2LanguageSelector.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/atoms/CO2LanguageSelector.stories.ts) _(create new)_
 
 - **Stories:** Default, WithMockRoute
 - **Description:** Language switcher using Vue Router
@@ -169,7 +169,7 @@ npm install --save-dev \
 
 #### 9. BigNumber Stories
 
-**File:** [src/components/molecules/BigNumber.stories.ts](frontend/src/components/molecules/BigNumber.stories.ts) _(create new)_
+**File:** [src/components/molecules/BigNumber.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/molecules/BigNumber.stories.ts) _(create new)_
 
 - **Stories:** Default, WithComparison, WithColor, WithTooltip, LargeNumber
 - **argTypes:** title, number, unit, comparison, comparisonHighlight, color
@@ -179,7 +179,7 @@ npm install --save-dev \
 
 #### 10. ChartContainer Stories
 
-**File:** [src/components/molecules/ChartContainer.stories.ts](frontend/src/components/molecules/ChartContainer.stories.ts) _(create new)_
+**File:** [src/components/molecules/ChartContainer.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/molecules/ChartContainer.stories.ts) _(create new)_
 
 - **Stories:** Default, WithTooltip, MultipleCharts
 - **argTypes:** title
@@ -188,7 +188,7 @@ npm install --save-dev \
 
 #### 11. Co2TimelineItem Stories
 
-**File:** [src/components/molecules/Co2TimelineItem.stories.ts](frontend/src/components/molecules/Co2TimelineItem.stories.ts) _(create new)_
+**File:** [src/components/molecules/Co2TimelineItem.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/molecules/Co2TimelineItem.stories.ts) _(create new)_
 
 - **Stories:** Default, InProgress, Validated, Selected, AllStates, Timeline
 - **argTypes:** currentState (select), selected (boolean)
@@ -221,13 +221,13 @@ npm install --save-dev \
 
 #### 13. Layout Component Stories
 
-**File:** [src/components/layout/Co2Header.stories.ts](frontend/src/components/layout/Co2Header.stories.ts) _(create new)_
+**File:** [src/components/layout/Co2Header.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/layout/Co2Header.stories.ts) _(create new)_
 
 - **Stories:** Default, WithNavigation, WithUser, MobileView
 - **Description:** Main application header component
 - **Features:** Navigation links, user menu, responsive layout
 
-**File:** [src/components/layout/Co2Sidebar.stories.ts](frontend/src/components/layout/Co2Sidebar.stories.ts) _(create new)_
+**File:** [src/components/layout/Co2Sidebar.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/layout/Co2Sidebar.stories.ts) _(create new)_
 
 - **Stories:** Default, Collapsed, WithActiveRoute, MobileView
 - **Description:** Application sidebar navigation
@@ -254,7 +254,7 @@ npm install --save-dev \
 
 #### 15. Storybook Documentation
 
-**File:** [storybook/.storybook/README.md](frontend/storybook/.storybook/README.md) _(create new)_
+**File:** [storybook/.storybook/README.md](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/README.md) _(create new)_
 
 - **Running Storybook:** npm scripts reference
 - **Project Structure:** File organization diagram
@@ -273,7 +273,7 @@ npm install --save-dev \
 
 #### 16. Create Dockerfile.storybook
 
-**File:** [Dockerfile.storybook](frontend/Dockerfile.storybook) _(create new)_
+**File:** [Dockerfile.storybook](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/Dockerfile.storybook) _(create new)_
 
 - Multi-stage build similar to main Dockerfile
 - Use `node:24-alpine` as builder
@@ -305,7 +305,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 #### 17. Update CI/CD Pipeline
 
-**File:** [.github/workflows/deploy.yml](.github/workflows/deploy.yml) _(modify)_
+**File:** [.github/workflows/deploy.yml](https://github.com/epfl-enac/co2-calculator/blob/HEAD/.github/workflows/deploy.yml) _(modify)_
 
 - Update `build_context` to include Storybook Docker build
 - Add Storybook image build step
@@ -320,7 +320,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 #### 18. Add Storybook Commands to Makefile
 
-**File:** [Makefile](frontend/Makefile) _(modify)_
+**File:** [Makefile](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/Makefile) _(modify)_
 
 Add the following commands:
 
@@ -352,7 +352,7 @@ storybook-docker-run: ## Run Storybook Docker container
 
 #### 19. Update .gitignore
 
-**File:** [.gitignore](frontend/.gitignore) _(modify)_
+**File:** [.gitignore](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/.gitignore) _(modify)_
 
 Add:
 
@@ -390,31 +390,31 @@ CI/CD Pipeline → Build frontend Dockerfile (main app)
 
 **Configuration Files:**
 
-1. [storybook/.storybook/main.ts](frontend/storybook/.storybook/main.ts) - Core configuration
-2. [storybook/.storybook/preview.ts](frontend/storybook/.storybook/preview.ts) - Global setup
-3. [storybook/.storybook/test-runner.ts](frontend/storybook/.storybook/test-runner.ts) - Test config
-4. [storybook/.storybook/decorators/pinia.ts](frontend/storybook/.storybook/decorators/pinia.ts) - Store utilities
-5. [storybook/.storybook/fixtures/timeline.ts](frontend/storybook/.storybook/fixtures/timeline.ts) - Mock data
-6. [storybook/.storybook/fixtures/timelineItems.ts](frontend/storybook/.storybook/fixtures/timelineItems.ts) - Mock data
+1. [storybook/.storybook/main.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/main.ts) - Core configuration
+2. [storybook/.storybook/preview.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/preview.ts) - Global setup
+3. [storybook/.storybook/test-runner.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/test-runner.ts) - Test config
+4. [storybook/.storybook/decorators/pinia.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/decorators/pinia.ts) - Store utilities
+5. [storybook/.storybook/fixtures/timeline.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/fixtures/timeline.ts) - Mock data
+6. [storybook/.storybook/fixtures/timelineItems.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/fixtures/timelineItems.ts) - Mock data
 
-**Atom Stories:** 7. [src/components/atoms/ModuleIcon.stories.ts](frontend/src/components/atoms/ModuleIcon.stories.ts) 8. [src/components/atoms/CO2Container.stories.ts](frontend/src/components/atoms/CO2Container.stories.ts) 9. [src/components/atoms/CO2LanguageSelector.stories.ts](frontend/src/components/atoms/CO2LanguageSelector.stories.ts)
+**Atom Stories:** 7. [src/components/atoms/ModuleIcon.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/atoms/ModuleIcon.stories.ts) 8. [src/components/atoms/CO2Container.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/atoms/CO2Container.stories.ts) 9. [src/components/atoms/CO2LanguageSelector.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/atoms/CO2LanguageSelector.stories.ts)
 
-**Molecule Stories:** 10. [src/components/molecules/BigNumber.stories.ts](frontend/src/components/molecules/BigNumber.stories.ts) 11. [src/components/molecules/ChartContainer.stories.ts](frontend/src/components/molecules/ChartContainer.stories.ts) 12. [src/components/molecules/Co2TimelineItem.stories.ts](frontend/src/components/molecules/Co2TimelineItem.stories.ts)
+**Molecule Stories:** 10. [src/components/molecules/BigNumber.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/molecules/BigNumber.stories.ts) 11. [src/components/molecules/ChartContainer.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/molecules/ChartContainer.stories.ts) 12. [src/components/molecules/Co2TimelineItem.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/molecules/Co2TimelineItem.stories.ts)
 
-**Chart Stories (to be determined during implementation):** 13. [src/components/charts/results/ModuleCarbonFootprintChart.stories.ts](frontend/src/components/charts/results/ModuleCarbonFootprintChart.stories.ts) _(required)_ 14. Additional chart stories as needed (optional)
+**Chart Stories (to be determined during implementation):** 13. [src/components/charts/results/ModuleCarbonFootprintChart.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/charts/results/ModuleCarbonFootprintChart.stories.ts) _(required)_ 14. Additional chart stories as needed (optional)
 
-**Layout Stories:** 15. [src/components/layout/Co2Header.stories.ts](frontend/src/components/layout/Co2Header.stories.ts) 16. [src/components/layout/Co2Sidebar.stories.ts](frontend/src/components/layout/Co2Sidebar.stories.ts)
+**Layout Stories:** 15. [src/components/layout/Co2Header.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/layout/Co2Header.stories.ts) 16. [src/components/layout/Co2Sidebar.stories.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/layout/Co2Sidebar.stories.ts)
 
-**Documentation:** 17. [storybook/.storybook/README.md](frontend/storybook/.storybook/README.md) - User documentation 18. [storybook/.storybook/ARCHITECTURE_REVIEW.md](frontend/storybook/.storybook/ARCHITECTURE_REVIEW.md) - Architecture review findings
+**Documentation:** 17. [storybook/.storybook/README.md](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/README.md) - User documentation 18. [storybook/.storybook/ARCHITECTURE_REVIEW.md](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/storybook/.storybook/ARCHITECTURE_REVIEW.md) - Architecture review findings
 
-**Docker:** 19. [Dockerfile.storybook](frontend/Dockerfile.storybook) - Storybook Docker image
+**Docker:** 19. [Dockerfile.storybook](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/Dockerfile.storybook) - Storybook Docker image
 
 ### Modify (3 files)
 
-1. [package.json](frontend/package.json) - Add dependencies and scripts
-2. [.gitignore](frontend/.gitignore) - Add storybook-static/
-3. [Makefile](frontend/Makefile) - Add Storybook command helpers
-4. [.github/workflows/deploy.yml](.github/workflows/deploy.yml) - Add Storybook Docker build (or separate workflow)
+1. [package.json](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/package.json) - Add dependencies and scripts
+2. [.gitignore](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/.gitignore) - Add storybook-static/
+3. [Makefile](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/Makefile) - Add Storybook command helpers
+4. [.github/workflows/deploy.yml](https://github.com/epfl-enac/co2-calculator/blob/HEAD/.github/workflows/deploy.yml) - Add Storybook Docker build (or separate workflow)
 
 ---
 

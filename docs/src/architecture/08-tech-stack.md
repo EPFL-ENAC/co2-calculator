@@ -177,8 +177,9 @@ For security scanning details, see
 
 ## Documentation
 
-MkDocs with Material theme at `docs/`. Deployed to GitHub Pages via
-workflow. Supports Markdown, Mermaid diagrams, search, and git metadata.
+[Zensical](https://zensical.org) (from the Material for MkDocs team) at
+`docs/`, configured in `docs/zensical.toml`. Supports Markdown, Mermaid
+diagrams and search.
 
 ---
 

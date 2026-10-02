@@ -65,5 +65,6 @@ Thumbs.db
 venv/
 yarn.lock
 
-# mkdocs build output (gitignored, but prettier scans it otherwise)
+# docs build output (gitignored, but prettier scans it otherwise)
 site/
+src/**/_index.md

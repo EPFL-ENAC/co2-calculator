@@ -308,12 +308,12 @@ one ~10-minute sitting:
 - Active voice, imperative mood; sentences under 20 words; wrap text at 72 characters
 - Examples after concepts; cross-reference related docs; never duplicate content across files
 - Use blockquote callouts, **not** `!!!` admonitions — the Prettier hook breaks admonition indentation
-- Add every new page to `mkdocs.yml` `nav:`; a cross-link-only page is orphaned
+- Add every new page to the `nav` in `docs/zensical.toml`; a cross-link-only page is orphaned
 - No agent-only tooling (e.g. `rtk`) in human-facing docs — use plain `git`/`gh`
-- Verify with `npx prettier --check` and `uv run mkdocs build --strict` before commit
+- Verify with `npx prettier --check` and `make build-docs` (from `docs/`) before commit
 - Update documentation in the same PR as the code it describes
 
 For the full guideline, length targets by document type, and the
-MkDocs-specific conventions, see
+docs-site conventions, see
 [Documentation Standards](documentation-standards.md). For coding
 conventions, see [Code Standards](code-standards.md).

@@ -7,7 +7,7 @@ See [`docs/src/contributing/guardrails.md`](docs/src/contributing/guardrails.md)
 ```
 backend/      FastAPI + SQLAlchemy + Alembic (Python 3.14, uv package manager)
 frontend/     Quasar SPA + Vue 3 + TypeScript
-docs/         MkDocs site
+docs/         Zensical docs site
 helm/         Kubernetes deployment charts
 otel/         OpenTelemetry collector config
 ```

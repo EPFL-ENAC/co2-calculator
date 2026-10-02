@@ -2,7 +2,6 @@
 status: delivered
 issue: 2261
 summary: Close auth-after-body-ingestion (a DoS surface) on both upload routes — POST /v1/files/temp-upload and POST /v1/year-configuration/{year}/upload — with an AuthFirstRoute custom APIRoute that authenticates and bounds Content-Length before FastAPI reads the body, letting the endpoints keep ordinary File/Form signatures. Adds the per-file size cap the year-configuration route never had. The double PutObject/HeadObject write lives in the vendored enacit4r-files package and is filed upstream, not patched here.
-summary: Fix auth-after-body-ingestion on POST /v1/files/temp-upload (a DoS surface) by parsing the multipart body only after the permission check; add a request-content-length span attribute. The double PutObject/HeadObject write is investigated and left alone — it lives in the vendored enacit4r-files package, not this repo.
 ---
 
 # Upload path fixes: auth ordering, size limit, tracing (#2261)

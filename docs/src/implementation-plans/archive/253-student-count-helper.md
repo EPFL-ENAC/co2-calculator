@@ -29,7 +29,7 @@ Add calculator helper to student headcount form. Formula: `(students × duration
 
 #### 1. Create Calculator Component
 
-**File**: [frontend/src/components/organisms/module/StudentFTECalculator.vue](frontend/src/components/organisms/module/StudentFTECalculator.vue) (new)
+**File**: [frontend/src/components/organisms/module/StudentFTECalculator.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/organisms/module/StudentFTECalculator.vue) (new)
 
 **Template**:
 
@@ -45,7 +45,7 @@ Add calculator helper to student headcount form. Formula: `(students × duration
 
 #### 2. Update Form Component
 
-**File**: [frontend/src/components/organisms/module/ModuleForm.vue:18-26](frontend/src/components/organisms/module/ModuleForm.vue#L18-L26)
+**File**: [frontend/src/components/organisms/module/ModuleForm.vue:18-26](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/organisms/module/ModuleForm.vue#L18-L26)
 **Add method**:
 
 ```ts
@@ -58,7 +58,7 @@ function onUseCalculatedFTE(value: number) {
 
 ## i18n Strings
 
-**File**: [frontend/src/i18n/mylab.ts](frontend/src/i18n/mylab.ts)
+**File**: [frontend/src/i18n/mylab.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/i18n/mylab.ts)
 
 Add keys:
 
@@ -81,9 +81,9 @@ Add keys:
 
 ## Critical Files (3 total)
 
-1. [frontend/src/components/organisms/module/StudentFTECalculator.vue](frontend/src/components/organisms/module/StudentFTECalculator.vue) (new)
-2. [frontend/src/components/organisms/module/ModuleForm.vue](frontend/src/components/organisms/module/ModuleForm.vue)
-3. [frontend/src/i18n/mylab.ts](frontend/src/i18n/mylab.ts)
+1. [frontend/src/components/organisms/module/StudentFTECalculator.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/organisms/module/StudentFTECalculator.vue) (new)
+2. [frontend/src/components/organisms/module/ModuleForm.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/organisms/module/ModuleForm.vue)
+3. [frontend/src/i18n/mylab.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/i18n/mylab.ts)
 
 ---
 

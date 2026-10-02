@@ -24,22 +24,23 @@ install: ## Install documentation dependencies
 	@echo "Documentation dependencies installed!"
 
 
-.PHONY: pdf
-pdf: ## Build documentation with PDF export enabled
-	cd docs && $(MAKE) pdf
-	UV_NO_ISOLATION=1 ENABLE_PDF_EXPORT=1 uv run mkdocs build
-
 .PHONY: docker-build-run
 docker-build-run: ## Build and run documentation in Docker (convenience target)
 	docker build -t docs:test . && docker run --rm -p 8080:8080 docs:test
 
+# Zensical has no plugin API: the section and plan indexes are written to
+# disk first. --strict fails on dead page links and anchors, check_links.py
+# on dead image and repository-file links.
 .PHONY: build-docs
-build-docs: ## Build documentation
-	UV_NO_ISOLATION=1 uv run mkdocs build
+build-docs: ## Build documentation, failing on any dead link
+	UV_NO_ISOLATION=1 uv run python gen_indexes.py
+	UV_NO_ISOLATION=1 uv run zensical build --clean --strict
+	UV_NO_ISOLATION=1 uv run python check_links.py site
 
 .PHONY: serve-docs
-serve-docs: ## Serve documentation with live reload
-	UV_NO_ISOLATION=1 uv run mkdocs serve --dirtyreload --watch src --watch mkdocs.yml
+serve-docs: ## Serve documentation with live reload (rerun to refresh the plan index)
+	UV_NO_ISOLATION=1 uv run python gen_indexes.py
+	UV_NO_ISOLATION=1 uv run zensical serve
 
 .PHONY: clean
 clean: ## Clean built documentation

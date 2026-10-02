@@ -1,5 +1,7 @@
 node_modules
 site
+# written by docs/gen_indexes.py before each docs build
+docs/src/**/_index.md
 __pycache__/
 .DS_Store
 *local*.md
