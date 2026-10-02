@@ -42,11 +42,11 @@ RUN npm run build
 # ==============================================================================
 FROM nginxinc/nginx-unprivileged:stable-alpine-slim
 
-# CVE-2026-14456: openssl < 3.5.8-r0 in the alpine base; drop once the base
-# image ships the fix (apk upgrade becomes a no-op then). Base runs as
-# uid 101 (nginx) — apk needs root.
+# The alpine base lags Alpine's package repo and Trivy blocks the deploy on
+# every HIGH it finds there: take every fixed package at build time (#3000).
+# Base runs as uid 101 (nginx) — apk needs root.
 USER root
-RUN apk upgrade --no-cache libcrypto3 libssl3
+RUN apk upgrade --no-cache
 USER 101
 
 # Remove default nginx config
