@@ -16,20 +16,22 @@ This variant tries a Node pipeline instead: `marked` for Markdown and the
 
 ## What it is
 
-Everything lives in `docs/eta/`; the MkDocs-replacement build in `docs/`
-is untouched.
+Everything lives in `docs/eta/`; the build in `docs/` is untouched.
 
-- `scripts/build-pages.mjs` turns `docs/src/**/*.md` into
-  `src/pages/**/*.eta`, after pierreguilbert.com's `build-blog.mjs`. It
-  also writes the section and plan indexes (a port of `gen_indexes.py`,
-  byte-identical output, same non-zero exit on an unknown status), the
-  sidebar nav from `zensical.toml`, and `routes.config.json`.
-- Heading ids use Python-Markdown's slug rules, so `page.md#anchor` links
-  keep working.
-- `vite build` renders the pages with the plugin into `dist/`, with
-  `minifyHtml: false`. Both options it relies on come from the unreleased
-  [plugin PR #4](https://github.com/guilbep/vite-ssr-i18n-basic/pull/4),
+- The plugin renders `docs/src/**/*.md` directly (`pagesDir: "../src"`),
+  with the Markdown pages from the unreleased
+  [plugin PR #5](https://github.com/guilbep/vite-ssr-i18n-basic/pull/5)
+  (stacked on [#4](https://github.com/guilbep/vite-ssr-i18n-basic/pull/4)),
   pinned as a GitHub tarball of its head commit.
+- `scripts/prepare.mjs` writes what the plugin cannot know: the section
+  and plan indexes (a port of `gen_indexes.py`, byte-identical output,
+  same non-zero exit on an unknown status), the sidebar nav from
+  `zensical.toml` as `src/data/meta.json`, `routes.config.json`, and page
+  images.
+- `scripts/marked-extensions.mjs`: Python-Markdown heading ids, so
+  `page.md#anchor` links keep working, and Mermaid blocks.
+- The layout renders the nav from data with a recursive partial;
+  `minifyHtml: false`.
 - `Dockerfile` builds from the `docs/` context:
   `docker build -f docs/eta/Dockerfile docs/`.
 
@@ -40,10 +42,10 @@ About 380 source pages plus 4 generated indexes, Apple Silicon.
 | Build                         | MkDocs | Zensical  | Vite + Eta |
 | ----------------------------- | ------ | --------- | ---------- |
 | Local, cold (no git plugins)  | 4.8 s  | 6.0–6.3 s | 0.7 s      |
-| ↳ converter                   | n/a    | n/a       | 0.4 s      |
-| ↳ `vite build`                | n/a    | n/a       | 0.3 s      |
+| ↳ `prepare.mjs`               | n/a    | n/a       | 0.07 s     |
+| ↳ `vite build`                | n/a    | n/a       | 0.6 s      |
 | Local, cold, with HTML minify | n/a    | n/a       | 2.2 s      |
-| Docker image, `--no-cache`    | 14.5 s | 14.2 s    | 6.1 s      |
+| Docker image, `--no-cache`    | 14.5 s | 14.2 s    | 6.1–6.8 s  |
 | Docker, with HTML minify      | n/a    | n/a       | 8.8 s      |
 | Image size                    | 74 MB  | 71 MB     | 44 MB      |
 | Site size                     | 34 MB  | 33 MB     | 9.8 MB     |
@@ -57,11 +59,10 @@ no 404 page, no per-page table of contents, no Material theme, no
 admonitions, footnotes or `attr_list` (one page each), and no syntax
 highlighting (Zensical runs Pygments on 197 pages).
 
-No live reload for Markdown: `npm run dev` converts once at start, and
-the plugin watches `src/pages/`, not `docs/src/`, so an edited page needs
-a restart. Zensical's `serve` rebuilds on save. With the plugin's
-directory check moved to build start, a small Vite plugin here could run
-the converter and watch `docs/src/` (follow-up).
+Markdown live reload works: under `npm run dev`, an edit to a page in
+`docs/src/` is served on the next request, about a second later. The
+indexes and nav are written once at start; restart for a new plan or a
+nav change.
 
 ## Verification
 
@@ -74,16 +75,18 @@ the converter and watch `docs/src/` (follow-up).
 
 ## Plugin feedback
 
-Filed as [guilbep/vite-ssr-i18n-basic#3](https://github.com/guilbep/vite-ssr-i18n-basic/issues/3);
-fixed in [#4](https://github.com/guilbep/vite-ssr-i18n-basic/pull/4)
-(unreleased): `emitRootRedirect` (off for one locale), `minifyHtml`,
-render failures fail the build, directory check at build start, no
-hardcoded `en`/`fr`, no debug logs. Still open: `sharp` (libvips CVEs,
-build stage only, not in the image) and copying images next to pages,
-which the converter does here.
+Filed as [guilbep/vite-ssr-i18n-basic#3](https://github.com/guilbep/vite-ssr-i18n-basic/issues/3).
+[#4](https://github.com/guilbep/vite-ssr-i18n-basic/pull/4) (3.1.0):
+`emitRootRedirect` (off for one locale), `minifyHtml`, render failures
+fail the build, directory check at build start, no hardcoded `en`/`fr`,
+no debug logs, `sharp` 0.35.5.
+[#5](https://github.com/guilbep/vite-ssr-i18n-basic/pull/5): Markdown
+pages. Still open: copying images next to pages, which `prepare.mjs`
+does here.
 
 ## Decision
 
 Open. Fastest of the three, but it trades features for speed. Adopting
-it means a plugin release with #4, rebuilding search, highlighting, the
-404 page and admonitions, and deleting `gen_indexes.py` for the port.
+it means plugin releases with #4 and #5, rebuilding search,
+highlighting, the 404 page and admonitions, and deleting `gen_indexes.py`
+for the port.

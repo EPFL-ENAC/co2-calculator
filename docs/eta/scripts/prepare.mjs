@@ -1,25 +1,16 @@
 #!/usr/bin/env node
-// Convert ../src/**/*.md into src/pages/**/*.eta so vite-ssr-i18n-basic can
-// render them, after pierreguilbert.com's build-blog.mjs. It also does what
-// the Python side does for MkDocs and Zensical: the section and plan indexes
-// (a port of ../gen_indexes.py, written to the same gitignored _index.md
-// files), the sidebar nav from ../zensical.toml, and routes.config.json.
+// Prepare what vite-ssr-i18n-basic cannot know about this docs site, before
+// `vite`: the section and plan indexes (a port of ../gen_indexes.py, written
+// to the same gitignored _index.md files), the sidebar nav from
+// ../zensical.toml (src/data/meta.json), routes.config.json, and the page
+// images. The plugin renders ../src/**/*.md itself.
 
-import {
-  cpSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import matter from "gray-matter";
-import { Marked } from "marked";
 import { parse as parseToml } from "smol-toml";
 
 const SRC = "../src";
-const PAGES = "src/pages";
 const INDEX = "_index.md";
 const PLANS = "implementation-plans";
 const ASSET_RE = /\.(png|jpe?g|gif|svg|webp)$/i;
@@ -143,130 +134,40 @@ if (statusErrors.length) {
   process.exit(1);
 }
 
-// --- Markdown → HTML --------------------------------------------------------
+// --- Nav, routes, images ---------------------------------------------------
 
-const escapeHtml = (s) =>
-  s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-
-const plainText = (html) =>
-  html
-    .replace(/<[^>]+>/g, "")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replaceAll("&amp;", "&");
-
-// Python-Markdown's toc slugify + unique(), so cross-page #anchors keep working.
-const slugify = (s) =>
-  s
-    .normalize("NFKD")
-    .replace(/[^\x00-\x7f]/g, "")
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/[-\s]+/g, "-");
-
-function uniqueId(id, ids) {
-  while (ids.has(id) || !id) {
-    const m = id.match(/^(.*)_([0-9]+)$/);
-    id = m ? `${m[1]}_${Number(m[2]) + 1}` : `${id}_1`;
-  }
-  ids.add(id);
-  return id;
-}
-
-// Per-page state the renderer hooks read; reset before each page.
-let ids = new Set();
-let hasMermaid = false;
-
-const marked = new Marked({ gfm: true });
-marked.use({
-  renderer: {
-    heading({ tokens, depth }) {
-      const inner = this.parser.parseInline(tokens);
-      const id = uniqueId(slugify(plainText(inner)), ids);
-      return `<h${depth} id="${id}">${inner}<a class="headerlink" href="#${id}">¶</a></h${depth}>\n`;
-    },
-    code({ text: code, lang }) {
-      if (lang !== "mermaid") return false;
-      hasMermaid = true;
-      return `<pre class="mermaid">${escapeHtml(code)}</pre>\n`;
-    },
-  },
-  walkTokens(token) {
-    if (token.type !== "link" || /^(https?:|mailto:|#)/.test(token.href))
-      return;
-    token.href = token.href.replace(/\.md(#|$)/, ".html$1");
-  },
-});
-
-// --- Nav --------------------------------------------------------------------
-
-function navHtml(items, current, root) {
-  const lis = items.map((item) => {
+// zensical.toml nav → { title, key } leaves and { title, children } sections;
+// `keys` lists every page under an entry so the layout can open its section.
+function navItems(items) {
+  return items.map((item) => {
     const [[title, target]] = Object.entries(item);
     if (Array.isArray(target)) {
-      const inner = navHtml(target, current, root);
-      const open = inner.includes('aria-current="page"') ? " open" : "";
-      return `<li><details${open}><summary>${escapeHtml(title)}</summary>${inner}</details></li>`;
+      const children = navItems(target);
+      return { title, children, keys: children.flatMap((c) => c.keys) };
     }
-    const here = target === current ? ' aria-current="page"' : "";
-    const href = root + target.replace(/\.md$/, ".html");
-    return `<li><a href="${href}"${here}>${escapeHtml(title)}</a></li>`;
+    const key = target.replace(/\.md$/, "");
+    return { title, key, keys: [key] };
   });
-  return `<ul>${lis.join("")}</ul>`;
 }
 
-// --- Pages, routes, assets --------------------------------------------------
-
-rmSync(PAGES, { recursive: true, force: true });
-const routes = [];
-const pages = readdirSync(SRC, { recursive: true }).filter((f) =>
-  f.endsWith(".md"),
+writeFileSync(
+  "src/data/meta.json",
+  JSON.stringify({ siteName, repoUrl, nav: navItems(project.nav) }, null, 2) +
+    "\n",
 );
 
-for (const f of pages) {
-  const { data, content } = read(f);
-  const key = f.replace(/\.md$/, "");
-  const title = titleOf(data, content, basename(key));
-  const root = "../".repeat(key.split("/").length - 1);
-  ids = new Set();
-  hasMermaid = false;
-  // A literal `<%` in a page would open an Eta tag; `&lt;%` renders the same.
-  const html = marked.parse(content).replaceAll("<%", "&lt;%");
-  const layoutData = JSON.stringify({
-    title,
-    root,
-    mermaid: hasMermaid,
-    siteName,
-    repoUrl,
-  });
-  const eta = [
-    `<% layout('/layouts/main', ${layoutData}) %>`,
-    `<nav class="sidebar">${navHtml(project.nav, f, root)}</nav>`,
-    `<main><article class="md">\n${html}\n</article></main>`,
-    "",
-  ].join("\n");
-  mkdirSync(join(PAGES, dirname(f)), { recursive: true });
-  writeFileSync(join(PAGES, `${key}.eta`), eta);
-  routes.push({ key, path: `/${key}.html`, title, hidden: true });
-}
-
-// One locale with no URL prefix: pages land where MkDocs put them.
+// One locale, no URL prefix: pages land where MkDocs put them. Every page is
+// Markdown, so the plugin derives the routes.
 writeFileSync(
   "routes.config.json",
-  JSON.stringify({ locales: ["en"], basePath: { en: "" }, routes }, null, 2) +
-    "\n",
+  JSON.stringify(
+    { locales: ["en"], basePath: { en: "" }, routes: [] },
+    null,
+    2,
+  ) + "\n",
 );
 
 // The plugin only processes src/assets/**; page images keep their paths.
 for (const f of files.filter((f) => ASSET_RE.test(f))) {
   cpSync(join(SRC, f), join("dist", f));
 }
-
-console.log(`build-pages: ${pages.length} pages, ${routes.length} routes`);

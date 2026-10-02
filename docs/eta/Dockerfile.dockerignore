@@ -4,5 +4,5 @@ site
 eta/node_modules
 eta/dist
 eta/.tmp
-eta/src/pages
+eta/src/data/meta.json
 eta/routes.config.json

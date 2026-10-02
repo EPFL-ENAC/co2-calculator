@@ -1,12 +1,15 @@
 import { defineConfig } from "vite";
 import { createMultiLocalePlugin } from "vite-ssr-i18n-basic";
+import { mermaid, pythonMarkdownIds } from "./scripts/marked-extensions.mjs";
 
-// Pages come from scripts/build-pages.mjs; run it before vite (npm run build).
-// The plugin version comes from guilbep/vite-ssr-i18n-basic#4 (unreleased):
-// it adds minifyHtml and drops the root redirect for a single locale.
+// The plugin renders ../src/**/*.md itself; scripts/prepare.mjs writes the
+// indexes, nav data and routes.config.json first (npm run build). The
+// plugin version is guilbep/vite-ssr-i18n-basic#5 (unreleased).
 export default defineConfig({
   plugins: [
     createMultiLocalePlugin({
+      pagesDir: "../src",
+      markdown: { extensions: [pythonMarkdownIds, mermaid] },
       locales: ["en"],
       defaultLocale: "en",
       siteUrl: "https://co2-calculator.epfl.ch",

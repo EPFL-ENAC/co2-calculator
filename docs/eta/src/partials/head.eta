@@ -1,4 +1,4 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title><%= title %> — <%= siteName %></title>
+<title><%= title %> — <%= meta.siteName %></title>
 <style><%~ inline_asset('/assets/styles/main.css') %></style>
