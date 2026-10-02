@@ -14,6 +14,6 @@
     "marked": "^18.0.14",
     "smol-toml": "^1.9.0",
     "vite": "^8.3.1",
-    "vite-ssr-i18n-basic": "^3.0.0"
+    "vite-ssr-i18n-basic": "https://github.com/guilbep/vite-ssr-i18n-basic/archive/21360960b2d4e176829140b04620c29b81f0efc7.tar.gz"
   }
 }

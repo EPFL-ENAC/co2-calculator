@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 import { createMultiLocalePlugin } from "vite-ssr-i18n-basic";
 
 // Pages come from scripts/build-pages.mjs; run it before vite (npm run build).
+// The plugin version comes from guilbep/vite-ssr-i18n-basic#4 (unreleased):
+// it adds minifyHtml and drops the root redirect for a single locale.
 export default defineConfig({
   plugins: [
     createMultiLocalePlugin({
@@ -12,6 +14,8 @@ export default defineConfig({
       emit404s: false,
       emitWebmanifest: false,
       linkRewrite: "off",
+      // nginx gzips; minifying was 1.5 s of a 1.8 s build.
+      minifyHtml: false,
     }),
     {
       name: "virtual-entry",

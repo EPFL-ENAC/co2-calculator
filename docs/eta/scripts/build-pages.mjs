@@ -257,20 +257,16 @@ for (const f of pages) {
   routes.push({ key, path: `/${key}.html`, title, hidden: true });
 }
 
-// One locale under /docs: the plugin always writes a root index.html
-// language redirect, so the docs home cannot sit at the site root.
+// One locale with no URL prefix: pages land where MkDocs put them.
 writeFileSync(
   "routes.config.json",
-  JSON.stringify(
-    { locales: ["en"], basePath: { en: "/docs" }, routes },
-    null,
-    2,
-  ) + "\n",
+  JSON.stringify({ locales: ["en"], basePath: { en: "" }, routes }, null, 2) +
+    "\n",
 );
 
 // The plugin only processes src/assets/**; page images keep their paths.
 for (const f of files.filter((f) => ASSET_RE.test(f))) {
-  cpSync(join(SRC, f), join("dist/docs", f));
+  cpSync(join(SRC, f), join("dist", f));
 }
 
 console.log(`build-pages: ${pages.length} pages, ${routes.length} routes`);

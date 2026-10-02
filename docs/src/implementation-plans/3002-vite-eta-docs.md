@@ -26,7 +26,10 @@ is untouched.
   sidebar nav from `zensical.toml`, and `routes.config.json`.
 - Heading ids use Python-Markdown's slug rules, so `page.md#anchor` links
   keep working.
-- `vite build` renders the pages with the plugin into `dist/docs/`.
+- `vite build` renders the pages with the plugin into `dist/`, with
+  `minifyHtml: false`. Both options it relies on come from the unreleased
+  [plugin PR #4](https://github.com/guilbep/vite-ssr-i18n-basic/pull/4),
+  pinned as a GitHub tarball of its head commit.
 - `Dockerfile` builds from the `docs/` context:
   `docker build -f docs/eta/Dockerfile docs/`.
 
@@ -34,18 +37,20 @@ is untouched.
 
 About 380 source pages plus 4 generated indexes, Apple Silicon.
 
-| Build                            | MkDocs | Zensical  | Vite + Eta |
-| -------------------------------- | ------ | --------- | ---------- |
-| Local, cold (no git plugins)     | 4.8 s  | 6.0–6.3 s | 2.2 s      |
-| ↳ converter                      | n/a    | n/a       | 0.4 s      |
-| ↳ `vite build`                   | n/a    | n/a       | 1.8 s      |
-| Local, cold, without HTML minify | n/a    | n/a       | 0.7 s      |
-| Docker image, `--no-cache`       | 14.5 s | 14.2 s    | 8.8 s      |
-| Image size                       | 74 MB  | 71 MB     | 44 MB      |
-| Site size                        | 34 MB  | 33 MB     | 9.7 MB     |
+| Build                         | MkDocs | Zensical  | Vite + Eta |
+| ----------------------------- | ------ | --------- | ---------- |
+| Local, cold (no git plugins)  | 4.8 s  | 6.0–6.3 s | 0.7 s      |
+| ↳ converter                   | n/a    | n/a       | 0.4 s      |
+| ↳ `vite build`                | n/a    | n/a       | 0.3 s      |
+| Local, cold, with HTML minify | n/a    | n/a       | 2.2 s      |
+| Docker image, `--no-cache`    | 14.5 s | 14.2 s    | 6.1 s      |
+| Docker, with HTML minify      | n/a    | n/a       | 8.8 s      |
+| Image size                    | 74 MB  | 71 MB     | 44 MB      |
+| Site size                     | 34 MB  | 33 MB     | 9.8 MB     |
 
-1.5 s of the 1.8 s `vite build` is the plugin's `html-minifier-terser`,
-run page by page. MkDocs and Zensical here do not minify.
+The plugin's per-page `html-minifier-terser` took 1.5 s of a 1.8 s
+`vite build` and saved 0.1 MB, so it is off. MkDocs and Zensical do not
+minify either, which makes the main rows like for like on that point.
 
 Part of the gap is doing less work. This variant has no search index,
 no 404 page, no per-page table of contents, no Material theme, no
@@ -54,34 +59,31 @@ highlighting (Zensical runs Pygments on 197 pages).
 
 No live reload for Markdown: `npm run dev` converts once at start, and
 the plugin watches `src/pages/`, not `docs/src/`, so an edited page needs
-a restart. Zensical's `serve` rebuilds on save.
+a restart. Zensical's `serve` rebuilds on save. With the plugin's
+directory check moved to build start, a small Vite plugin here could run
+the converter and watch `docs/src/` (follow-up).
 
 ## Verification
 
-- Same pages at the same paths as Zensical, under `/docs/`, minus
-  `404.html`. `check_links.py dist/docs`: 0 broken.
+- Same pages at the same paths as Zensical, minus `404.html`.
+  `check_links.py dist`: 0 broken.
 - Heading ids match Zensical on 358 of 386 pages. 27 differ only because
   Python-Markdown turns `#2487 text` (no space) into a heading and
   CommonMark does not; one archived plan gains a heading.
 - A planted `status: draft` fails the converter.
 
-## Plugin feedback (vite-ssr-i18n-basic 3.0.0)
+## Plugin feedback
 
-- The root `index.html` language redirect is always written, so a
-  single-locale site cannot have its home at `/`. Here pages sit under
-  `/docs`. An `emitRootRedirect` option would fix it.
-- Required directories are checked when `vite.config.js` loads, before
-  any hook, so generated pages must exist before Vite starts.
-- A page that fails to render logs `✗` and the build still exits 0.
-- `html-minifier-terser` dominates build time (see above).
-- Every build logs the asset manifest and the full page list.
-- Only `src/assets/**` is processed; page images are copied by the
-  converter.
-- `npm audit`: high severity in `sharp` (libvips CVEs), pulled in as the
-  plugin's optional dependency. Build stage only, not in the image.
+Filed as [guilbep/vite-ssr-i18n-basic#3](https://github.com/guilbep/vite-ssr-i18n-basic/issues/3);
+fixed in [#4](https://github.com/guilbep/vite-ssr-i18n-basic/pull/4)
+(unreleased): `emitRootRedirect` (off for one locale), `minifyHtml`,
+render failures fail the build, directory check at build start, no
+hardcoded `en`/`fr`, no debug logs. Still open: `sharp` (libvips CVEs,
+build stage only, not in the image) and copying images next to pages,
+which the converter does here.
 
 ## Decision
 
 Open. Fastest of the three, but it trades features for speed. Adopting
-it means rebuilding search, the 404 page and admonitions, deleting
-`gen_indexes.py` for the port, and moving assets under `/docs`.
+it means a plugin release with #4, rebuilding search, highlighting, the
+404 page and admonitions, and deleting `gen_indexes.py` for the port.
