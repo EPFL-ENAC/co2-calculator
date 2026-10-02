@@ -1,0 +1,19 @@
+{
+  "name": "co2-docs-eta",
+  "private": true,
+  "type": "module",
+  "description": "Exploratory (#3002): the docs site built with vite-ssr-i18n-basic and Eta.",
+  "scripts": {
+    "prepare-docs": "node scripts/prepare.mjs",
+    "build": "node scripts/prepare.mjs && vite build",
+    "dev": "node scripts/prepare.mjs && vite --port 8002 --strictPort",
+    "preview": "vite preview --port 8003"
+  },
+  "devDependencies": {
+    "gray-matter": "^4.0.3",
+    "marked": "^18.0.14",
+    "smol-toml": "^1.9.0",
+    "vite": "^8.3.1",
+    "vite-ssr-i18n-basic": "https://github.com/guilbep/vite-ssr-i18n-basic/archive/a314208ee79a72c087c3052cbf5a8bf348021e1c.tar.gz"
+  }
+}

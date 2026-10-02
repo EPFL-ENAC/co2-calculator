@@ -1,0 +1,23 @@
+<% const root = "../".repeat(page.key.split("/").length - 1) %>
+<!doctype html>
+<html lang="<%= locale %>">
+  <head>
+    <%~ include('/partials/head', it) %>
+  </head>
+  <body>
+    <header class="top">
+      <a href="<%= root %>index.html"><%= meta.siteName %></a>
+      <a href="<%= meta.repoUrl %>">GitHub</a>
+    </header>
+    <div class="layout">
+      <nav class="sidebar"><%~ include('/partials/nav', { items: meta.nav, current: page.key, root }) %></nav>
+      <main><article class="md"><%~ body %></article></main>
+    </div>
+    <% if (body.includes('class="mermaid"')) { %>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+    <% } %>
+  </body>
+</html>

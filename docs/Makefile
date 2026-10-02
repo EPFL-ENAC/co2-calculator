@@ -42,10 +42,29 @@ serve-docs: ## Serve documentation with live reload (rerun to refresh the plan i
 	UV_NO_ISOLATION=1 uv run python gen_indexes.py
 	UV_NO_ISOLATION=1 uv run zensical serve
 
+# Exploratory Vite + Eta build (#3002), opt-in: build-docs above is what
+# CI and the image use. Node only; see eta/ and plan 3002-vite-eta-docs.
+.PHONY: install-docs-eta
+install-docs-eta: ## Install the Vite + Eta build's dependencies
+	npm --prefix eta ci
+
+.PHONY: build-docs-eta
+build-docs-eta: ## Build the docs with Vite + Eta into eta/dist, failing on any dead link
+	npm --prefix eta run build
+	UV_NO_ISOLATION=1 uv run python check_links.py eta/dist
+
+.PHONY: serve-docs-eta
+serve-docs-eta: ## Serve the Vite + Eta docs with live reload on http://localhost:8002
+	npm --prefix eta run dev
+
+.PHONY: docker-build-run-eta
+docker-build-run-eta: ## Build and run the Vite + Eta docs image on http://localhost:8080
+	docker build -f eta/Dockerfile -t docs:eta . && docker run --rm -p 8080:8080 docs:eta
+
 .PHONY: clean
 clean: ## Clean built documentation
-	rm -rf site/
+	rm -rf site/ eta/dist/ eta/.tmp/
 
 .PHONY: clean-docker
 clean-docker: ## Remove Docker images
-	docker rmi -f co2-docs docs:test 2>/dev/null || true
+	docker rmi -f co2-docs docs:test docs:eta 2>/dev/null || true

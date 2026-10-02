@@ -1,0 +1,5 @@
+# written by scripts/prepare.mjs and vite build
+src/data/meta.json
+routes.config.json
+dist/
+.tmp/
