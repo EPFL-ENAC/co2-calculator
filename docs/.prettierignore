@@ -68,3 +68,7 @@ yarn.lock
 # docs build output (gitignored, but prettier scans it otherwise)
 site/
 src/**/_index.md
+# written by eta/scripts/build-pages.mjs and vite build
+eta/src/pages/
+eta/routes.config.json
+eta/.tmp/

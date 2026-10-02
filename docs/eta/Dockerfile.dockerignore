@@ -1,0 +1,8 @@
+.venv
+site
+**/_index.md
+eta/node_modules
+eta/dist
+eta/.tmp
+eta/src/pages
+eta/routes.config.json

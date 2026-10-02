@@ -1,0 +1,5 @@
+# written by scripts/build-pages.mjs and vite build
+src/pages/
+routes.config.json
+dist/
+.tmp/
