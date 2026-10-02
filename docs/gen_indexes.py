@@ -121,6 +121,8 @@ def _plans_index() -> list[str]:
         (PLANS_DIR / "archive").glob("*.md")
     )
     for md in plan_files:
+        if md.name == GENERATED_INDEX_NAME:
+            continue  # our own output from the previous run
         meta, body = _parse_frontmatter(md.read_text(encoding="utf-8"))
         status = str(meta.get("status", "")).strip().lower() or "uncategorized"
         if status not in groups:
