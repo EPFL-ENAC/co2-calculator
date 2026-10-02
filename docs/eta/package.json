@@ -6,7 +6,7 @@
   "scripts": {
     "prepare-docs": "node scripts/prepare.mjs",
     "build": "node scripts/prepare.mjs && vite build",
-    "dev": "node scripts/prepare.mjs && vite",
+    "dev": "node scripts/prepare.mjs && vite --port 8002 --strictPort",
     "preview": "vite preview --port 8003"
   },
   "devDependencies": {

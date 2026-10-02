@@ -34,6 +34,10 @@ Everything lives in `docs/eta/`; the build in `docs/` is untouched.
   `minifyHtml: false`.
 - `Dockerfile` builds from the `docs/` context:
   `docker build -f docs/eta/Dockerfile docs/`.
+- Opt-in `docs/Makefile` targets: `install-docs-eta`, `build-docs-eta`
+  (build + `check_links.py`), `serve-docs-eta` (port 8002),
+  `docker-build-run-eta`. `build-docs`, CI and the deployed image stay on
+  Zensical until a variant is chosen.
 
 ## Measurements
 
