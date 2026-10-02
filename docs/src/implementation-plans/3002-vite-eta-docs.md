@@ -41,14 +41,18 @@ About 380 source pages plus 4 generated indexes, Apple Silicon.
 
 | Build                         | MkDocs | Zensical  | Vite + Eta |
 | ----------------------------- | ------ | --------- | ---------- |
-| Local, cold (no git plugins)  | 4.8 s  | 6.0–6.3 s | 0.7 s      |
+| Local, cold (no git plugins)  | 4.8 s  | 6.0–6.3 s | 0.6 s      |
 | ↳ `prepare.mjs`               | n/a    | n/a       | 0.07 s     |
-| ↳ `vite build`                | n/a    | n/a       | 0.6 s      |
+| ↳ `vite build`                | n/a    | n/a       | 0.5 s      |
 | Local, cold, with HTML minify | n/a    | n/a       | 2.2 s      |
 | Docker image, `--no-cache`    | 14.5 s | 14.2 s    | 6.1–6.8 s  |
 | Docker, with HTML minify      | n/a    | n/a       | 8.8 s      |
 | Image size                    | 74 MB  | 71 MB     | 44 MB      |
 | Site size                     | 34 MB  | 33 MB     | 9.8 MB     |
+
+`vite build` dropped from 0.55–0.71 s to 0.5 s once the plugin cached
+compiled Eta templates in production (#4): the recursive nav partial
+was recompiled on every page.
 
 The plugin's per-page `html-minifier-terser` took 1.5 s of a 1.8 s
 `vite build` and saved 0.1 MB, so it is off. MkDocs and Zensical do not
