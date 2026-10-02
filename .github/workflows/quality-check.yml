@@ -123,9 +123,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          # mkdocs-git-authors-plugin reads history; a shallow clone breaks it.
-          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -155,7 +152,7 @@ jobs:
       - name: Check Markdown formatting
         run: make lint
 
-      # --strict turns a broken link, unparseable frontmatter or an unknown
-      # plan status into a failure here, rather than at deploy time on main.
+      # Fails on a dead link or anchor, unparseable frontmatter or an unknown
+      # plan status here, rather than at deploy time on main.
       - name: Build docs
-        run: uv run mkdocs build --strict --site-dir /tmp/docs-site
+        run: make build-docs

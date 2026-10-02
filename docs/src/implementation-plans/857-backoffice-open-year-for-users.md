@@ -14,7 +14,7 @@ prs:
 
 # Issue 857 — Back-office: Open year for users (functional)
 
-> **Naming note.** Issue [#857](https://github.com/EPFL-ENAC/co2-calculator/issues/857) is the GitHub-tracked feature ("[FEAT](BackOffice Configuration): Open year for user functional (backend)"). During development the epic was internally referred to as "#867" and the five delivery PRs adopted that identifier (`feat(867): … U1/5 … U5/5`). GitHub issue #867 is unrelated (a closed travel-module PR by @BenBotros). All references to "867" in the merged PR titles/bodies should be read as the U1–U5 grouping for this epic; the authoritative tracking issue is **#857**.
+> **Naming note.** Issue [#857](https://github.com/EPFL-ENAC/co2-calculator/issues/857) is the GitHub-tracked feature (`[FEAT](BackOffice Configuration): Open year for user functional (backend)`). During development the epic was internally referred to as "#867" and the five delivery PRs adopted that identifier (`feat(867): … U1/5 … U5/5`). GitHub issue #867 is unrelated (a closed travel-module PR by @BenBotros). All references to "867" in the merged PR titles/bodies should be read as the U1–U5 grouping for this epic; the authoritative tracking issue is **#857**.
 
 ## Context
 

@@ -58,8 +58,8 @@ jobs:
       - name: Install the project
         run: uv sync --locked --all-extras --dev
 
-      - name: Build MkDocs site
-        run: uv run mkdocs build --strict --site-dir site
+      - name: Build docs site
+        run: make build-docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

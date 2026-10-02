@@ -1,4 +1,4 @@
-# Stage 1: Build MkDocs site
+# Stage 1: Build the Zensical site
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 
 # Set working directory
@@ -16,21 +16,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy documentation source
 COPY src/ ./src/
-# Every top-level .py, not a hand-listed set: gen_indexes.py and hooks.py
-# are both build-time code, and the next one added must not silently
-# break this image the way hooks.py did.
-COPY mkdocs.yml *.py ./
+# Every top-level .py, not a hand-listed set: gen_indexes.py and
+# check_links.py are both build-time code, and the next one added must not
+# silently break this image.
+COPY zensical.toml *.py ./
 
-# The git plugins and minify are skipped here (see mkdocs.yml): the build
-# context has no git history, so they only produced the build date and a
-# fake author while tripling the build time.
-ENV MKDOCS_FULL_BUILD=false
-# GitPython (pulled in by the git plugins) probes for a git binary at import
-# time, before mkdocs reads `enabled`. Quiet keeps the import from raising.
-ENV GIT_PYTHON_REFRESH=quiet
-
-# Build documentation site
-RUN uv run mkdocs build --strict --site-dir /dist
+# Same steps as `make build-docs`: a dead link fails the image build.
+RUN uv run python gen_indexes.py \
+    && uv run zensical build --clean --strict \
+    && uv run python check_links.py site
 
 # Stage 2: Serve with nginx (alpine: the debian variant ships ~100 OS
 # packages that dominate CVE scans and are unused for serving static files)
@@ -44,7 +38,7 @@ RUN apk upgrade --no-cache
 USER 101
 
 # Copy built documentation from builder stage
-COPY --from=builder /dist /usr/share/nginx/html
+COPY --from=builder /app/site /usr/share/nginx/html
 
 # Expose nginx port (unprivileged nginx uses 8080 by default)
 EXPOSE 8080
