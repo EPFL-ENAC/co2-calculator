@@ -16,7 +16,7 @@ successor to Material for MkDocs. Does the same move make our docs faster?
 ## What changed
 
 - `docs/mkdocs.yml` → `docs/zensical.toml`, same nav, theme colours and
-  Markdown extensions. Zensical's own "modern" theme replaces Material.
+  Markdown extensions. The "classic" theme variant keeps Material's look.
 - `gen_indexes.py` runs as a plain script before the build and writes the
   `_index.md` files to disk (gitignored). Zensical has no plugin API, so
   `mkdocs-gen-files` cannot run it. An unknown plan status now exits

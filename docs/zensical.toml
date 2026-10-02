@@ -124,6 +124,8 @@ nav = [
 ]
 
 [project.theme]
+# Material for MkDocs look; Zensical defaults to its own "modern" theme.
+variant = "classic"
 language = "en"
 features = [
   "content.code.annotate",
