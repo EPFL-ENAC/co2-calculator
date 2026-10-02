@@ -14,7 +14,9 @@ The contract these tests pin:
   CSV without reading Python;
 * ``FACTOR_TO_EMISSION_TYPES`` stays exempt — buildings rooms, plane and
   train file one factor at an intermediate node on purpose, and the leaf is
-  chosen at data-entry time.
+  chosen at data-entry time;
+* a cloud *entry* with no ``service_type`` is incomplete, not invalid
+  (#2992): no leaves, no raise. A cloud *factor* row must still name one.
 """
 
 import pytest
@@ -110,6 +112,30 @@ def test_unmapped_value_never_resolves_to_a_parent(
     except EmissionTypeResolutionError:
         return
     pytest.fail(f"{label}: expected a raise, got {result}")
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        {"provider": "GCP"},
+        {"provider": "GCP", "service_type": None},
+        {"provider": "GCP", "service_type": ""},
+    ],
+    ids=["absent", "none", "blank"],
+)
+def test_cloud_entry_without_service_type_is_incomplete(row: dict) -> None:
+    # #2992: an inline provider change clears service_type; raising here
+    # rolled the PATCH back as a 422 instead of leaving an incomplete row.
+    assert resolve_clouds(row) == []
+
+
+def test_cloud_factor_without_service_type_still_raises() -> None:
+    # The incomplete gate is for entries: a factor row must name its leaf.
+    with pytest.raises(EmissionTypeResolutionError):
+        resolve_factor_emission_type(
+            DataEntryTypeEnum.external_clouds,
+            {"provider": "GCP", "service_type": ""},
+        )
 
 
 @pytest.mark.parametrize(
