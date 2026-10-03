@@ -2,14 +2,15 @@
 
 Walks documentation sections and emits virtual `INDEX.md` files via
 `mkdocs_gen_files`. Implementation-plans index is grouped by frontmatter
-`status` (delivered / in-progress / abandoned); other sections get an
-alphabetical TOC. Files lacking frontmatter fall under "Uncategorized" so
-`mkdocs build --strict` keeps passing before sibling backfill lands.
+`status` (delivered / in-progress / proposed / deferred / abandoned); other
+sections get an alphabetical TOC. Files lacking frontmatter fall under
+"Uncategorized" so `mkdocs build --strict` keeps passing before sibling
+backfill lands.
 
 Frontmatter schema (all optional)::
 
     ---
-    status: delivered | in-progress | abandoned
+    status: delivered | in-progress | proposed | deferred | abandoned
     issue: 310-b
     title: Human-readable title
     last_updated: 2026-05-05
@@ -100,10 +101,19 @@ def _issue_cell(issue: Any, repo_url: str) -> str:
 
 log = logging.getLogger("mkdocs.plugins.gen_indexes")
 
-STATUS_ORDER = ("delivered", "in-progress", "abandoned", "uncategorized")
+STATUS_ORDER = (
+    "delivered",
+    "in-progress",
+    "proposed",
+    "deferred",
+    "abandoned",
+    "uncategorized",
+)
 STATUS_LABEL = {
     "delivered": "Delivered",
     "in-progress": "In progress",
+    "proposed": "Proposed",
+    "deferred": "Deferred",
     "abandoned": "Abandoned",
     "uncategorized": "Uncategorized",
 }
