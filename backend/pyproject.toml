@@ -136,7 +136,7 @@ dev = [
     "asyncpg>=0.31.0",
     "types-pyyaml>=6.0.12.20260815",
     "ty>=0.0.83",
-    "opentelemetry-instrumentation-fastapi==0.65b0",
+    "opentelemetry-instrumentation-fastapi==0.66b0",
 ]
 
 [tool.alembic]
