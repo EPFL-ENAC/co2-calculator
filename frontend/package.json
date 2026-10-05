@@ -41,7 +41,7 @@
     "@playwright/experimental-ct-vue": "=1.62.1",
     "@playwright/test": "=1.62.1",
     "@quasar/app-vite": "=3.10.0",
-    "@types/node": "=24.13.6",
+    "@types/node": "=24.19.0",
     "@vue/eslint-config-typescript": "=14.9.0",
     "autoprefixer": "=10.6.1",
     "chokidar": "=4.0.3",
