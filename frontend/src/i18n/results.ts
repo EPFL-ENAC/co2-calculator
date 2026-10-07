@@ -402,7 +402,7 @@ export default {
     fr: 'Réinitialiser',
   },
   results_objectives_scenario_bau: {
-    en: 'Business As usual',
+    en: 'Business as usual',
     fr: 'Neutre',
   },
   results_objectives_scenario_low_effort: {
