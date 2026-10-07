@@ -79,6 +79,7 @@ type-check-go: ## Run TypeScript type checking
 
 .PHONY: audit
 audit: ## Run npm security audit
+	@echo "\033[33mnpm audit in $(CURDIR)\033[0m"
 	npm audit --audit-level=high
 
 .PHONY: type-check

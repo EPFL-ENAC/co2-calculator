@@ -204,6 +204,7 @@ type-check: ## Run type checking (backend + frontend)
 
 .PHONY: audit
 audit: ## Run security audits (mirrors .github/workflows/security.yml)
+	@echo "\033[33mnpm audit in $(CURDIR)\033[0m"
 	npm audit --audit-level=high
 	$(MAKE) -C frontend audit
 	$(MAKE) -C backend audit
