@@ -78,9 +78,10 @@ type-check-go: ## Run TypeScript type checking
 	@$(TSGO) --noEmit -p tsconfig.typecheck.json
 
 .PHONY: audit
-audit: ## Run npm security audit
+audit: ## Run npm security audit (runtime deps strict, accepted advisories in scripts/npm-audit.mjs)
 	@echo "\033[33mnpm audit in $(CURDIR)\033[0m"
-	npm audit --audit-level=high
+	npm audit --omit=dev --audit-level=high
+	node scripts/npm-audit.mjs
 
 .PHONY: type-check
 type-check: ## Run TypeScript type checking
