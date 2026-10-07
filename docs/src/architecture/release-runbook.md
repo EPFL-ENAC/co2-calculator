@@ -47,14 +47,12 @@ Ships the sprint to stage and generates the changelog. `changelog.yml` ("Generat
    ```bash
    gh pr create --base stage --head dev --title "chore: promote dev to stage (end of sprint N)"
    ```
-2. **Merge the PR.** `deploy.yml` deploys to **stage**; "Generate Changelog" commits `CHANGELOG.md` to `stage`. Verify: Actions → "deploy" and "Generate Changelog" green; `CHANGELOG.md` updated on `stage`.
+2. **Merge the PR.** `deploy.yml` deploys to **stage**; "Generate Changelog" generates `CHANGELOG.md`, rewrites the new entry under three human-readable headings via Claude (`.github/scripts/curate-changelog.sh` — needs the `ANTHROPIC_API_KEY` repo secret; missing key, an API error, or a malformed reply all fall back to the raw commit-message list instead of blocking the commit), and pushes both to `stage`. Verify: Actions → "deploy" and "Generate Changelog" green; `CHANGELOG.md` updated on `stage` — check it actually got the `## Key Changes` / `## Bug Fixes` / `## Technical Improvements (Non-functional)` headings and wasn't a silent fallback to the raw list.
 3. **Verify in ArgoCD** that stage is healthy; fix any issues — see [Troubleshooting](#troubleshooting-deployment).
 4. **Re-sync:** merge `stage` back into `dev` (brings back the changelog commit and any stage fixes):
    ```bash
    git checkout dev && git pull && git merge origin/stage && git push
    ```
-
-> **Optional — human-readable changelog.** The `CHANGELOG.md` generated at step 2 is raw commit messages. Feed the new version's entry to an LLM to rewrite it under three headings — `## Key Changes`, `## Bug Fixes`, `## Technical Improvements (Non-functional)` — then commit it to `stage` before the step 4 re-sync.
 
 Done. The only remaining step is to **communicate the release**.
 
