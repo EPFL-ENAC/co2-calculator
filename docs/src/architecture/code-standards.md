@@ -397,7 +397,7 @@ dependencies = [
 Run security audits regularly:
 
 ```bash
-# npm (root + frontend), uv-audit, bandit
+# npm (root, frontend, storybook), uv-audit, bandit
 make audit
 
 # Check Dependabot alerts
