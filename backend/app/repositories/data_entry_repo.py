@@ -1551,7 +1551,7 @@ class DataEntryRepository:
                 Factor,
                 BuildingRoom,
             ]
-            statement: Select[Any] = (
+            statement: Select = (
                 sa_select(*entities)
                 .join(RollupEmission, rollup_on, isouter=True)
                 .join(
@@ -2141,7 +2141,7 @@ class DataEntryRepository:
                 DataEntry.data["number_of_trips"].as_float(),
                 traveler_id_key,
             ]
-            statement: Select[Any] = (
+            statement: Select = (
                 sa_select(*select_entities)
                 .select_from(DataEntry)
                 .join(
