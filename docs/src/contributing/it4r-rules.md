@@ -2,7 +2,7 @@
 applyTo: "**"
 ---
 
-<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ 64a467a
+<!-- Vendored from https://github.com/EPFL-ENAC/it4r-agent-kit @ 7439f4f
      Do not edit here — edit AGENTS.md upstream, then run `make sync-agent-rules`. -->
 
 # ENAC IT4R — agent operating rules
@@ -70,14 +70,24 @@ Not preferences. Load-bearing.
 - **Frontend never checks roles.** UI gates on dedicated permission keys; the
   backend decides what a role means. Authorization fails closed. Boot-time
   config checks live in the app lifespan, not in `Settings` validators.
-- **The DB persists across deploys.** Data migrations ship in the same PR as
+- **Persisted data survives deploys.** Data migrations ship in the same PR as
   the code change. Never hand-author Alembic migrations — generate them, then
   prune false-positive `drop_index` calls. Keep manual edits to a generated
   migration minimal: anything expressible in model code belongs in model code.
+  Browser storage and exported files count too: version them, migrate old
+  versions, and fail loudly on an unknown one. Don't persist a derived value
+  next to its inputs unless it's a deliberate, recomputable cache.
 - **Background pipelines stay idempotent.** Ingestion and recompute must be
   safely re-runnable.
 - **No backward-compatibility paths.** When the new way ships, delete the old
   way in the same PR. No dual-path bloat.
+
+## Safety
+
+- Never commit a credential, even in a throwaway script — read it from the
+  environment. A force-push does not unpublish a pushed secret: rotate it first.
+- Agents never run queries, `db-*` targets, or DB-touching tests against a
+  shared database. Check what `.env` points at first; hand the SQL to a human.
 
 ## Performance budget
 
@@ -103,7 +113,12 @@ Not preferences. Load-bearing.
   keys, deterministic ordering. Creating or editing an entry updates visible
   charts without leaving the page.
 - No hardcoded user-facing strings — every label goes through i18n, and all
-  locale files are updated together.
+  locale files are updated together. Numbers and dates format through the i18n
+  locale, never a hard-coded one.
+- Derive with `computed`, react in handlers. `watch` is only a bridge to side
+  effects outside Vue (refetch on locale change), with a comment saying so.
+- ESLint baseline: `js.configs.recommended`, `pluginVue.configs['flat/recommended']`,
+  `vueTsConfigs.recommended`, then `eslint-config-prettier`. Prettier formats.
 - Visual components show explicit loading/empty/error states — never a silent
   blank.
 
@@ -123,20 +138,38 @@ Not preferences. Load-bearing.
 - Default at the top, `if` guards override it. Avoid `if/else` branching and
   falsy `or` defaults.
 - Comments explain intent (why), not implementation (what); 1–2 lines.
+  Infra glue (Dockerfile, entrypoint, boot file) always says why it exists.
+- No real-sounding names in code, tests, or docs — refer to people by role
+  ("a backoffice admin").
 
 ## Workflow
 
 - Releases flow `dev` → `stage` → `main`. PRs target `dev`. Never delete or
   force-push a protected branch.
-- Conventional commits (`feat:`, `fix:`, …).
+- Conventional commits (`feat:`, `fix:`, …), body wrapped at 72. A rejected
+  commit leaves its files staged — check `git show --stat` before pushing.
+- No AI attribution: no agent `Co-Authored-By` or session trailer, no
+  "Generated with" footer — in commits, PRs, or issues.
 - Lint + type-check must pass locally before pushing. A plain `tsc` pass is not
   sufficient for Vue projects — run `vue-tsc`.
+- CI and git hooks call the same check-only targets (`make lint`,
+  `npm run format:check`), defined once. CI never runs a `--write`, always runs
+  the tests, and is a required check on `dev` and `main`.
+- Fetch before acting on remote state (rebase, force-push, "up to date"
+  claims). After a push, check the PR head SHA matches `git ls-remote` before
+  calling the PR ready.
 - Backend dependencies change via `uv add` / `uv remove`, never by
   hand-editing `pyproject.toml`.
 - **Every bug fix ships with a regression test** that fails without the fix,
   and every change ships with a test on the side it touches.
 - Ship small. Several small releases beat one big one; a small release is one
   you can revert.
+- Refactor first, then change behaviour — separate commits, so each diff is
+  either "same behaviour, new shape" or "new behaviour, same shape".
+- Same issue, same PR. A stray finding goes into the PR of the issue it belongs
+  to, or is mentioned in one line — never its own side PR.
+- Measure before claiming a CI or performance gain; put the before/after
+  numbers in the issue.
 - **When in doubt, apply the invariant that generalizes: no silent fallbacks.**
   Making the uncertainty visible — a loud error, a blocked PR, a question on
   the issue — is always the right call.
