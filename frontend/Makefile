@@ -77,6 +77,10 @@ type-check-go: ## Run TypeScript type checking
 	@if [ -z "$(TSGO)" ]; then echo "Error: tsgo not found in PATH"; exit 1; fi
 	@$(TSGO) --noEmit -p tsconfig.typecheck.json
 
+.PHONY: audit
+audit: ## Run npm security audit
+	npm audit --audit-level=high
+
 .PHONY: type-check
 type-check: ## Run TypeScript type checking
 	@set -e; \

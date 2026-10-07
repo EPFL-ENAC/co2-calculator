@@ -42,6 +42,7 @@ help: ## Show available targets
 	@echo "  make type-check       Run type checking"
 	@echo "  make test             Run all tests"
 	@echo "  make build            Build all projects"
+	@echo "  make audit            Run security audits (npm, uv-audit, bandit)"
 	@echo ""
 	@echo "✨ Code Formatting:"
 	@echo "  make format           Format all code"
@@ -196,6 +197,16 @@ type-check: ## Run type checking (backend + frontend)
 	if [ -d "backend" ]; then $(MAKE) -C backend type-check FILES="."; fi; \
 	if [ -d "frontend" ]; then $(MAKE) -C frontend type-check FILES="."; fi
 	@echo "\033[32m✅ Type checking complete!\033[0m"
+
+# =============================================================================
+# Security Audit
+# =============================================================================
+
+.PHONY: audit
+audit: ## Run security audits (mirrors .github/workflows/security.yml)
+	npm audit --audit-level=high
+	$(MAKE) -C frontend audit
+	$(MAKE) -C backend audit
 
 # =============================================================================
 # Testing
