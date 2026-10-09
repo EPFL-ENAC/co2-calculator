@@ -428,7 +428,7 @@ async def delete_temp_files(
         logger.error(f"Invalid file path for deletion '{file_path}': {e}")
         raise HTTPException(status_code=400, detail="Invalid file path")
 
-    if not file_path.startswith("tmp/"):
+    if not os.path.normpath(file_path).startswith("tmp/"):
         raise HTTPException(
             status_code=403, detail="Can only delete files in /tmp/ folder"
         )
