@@ -53,6 +53,10 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # vuejs/language-tools#6237: 3.3.12 adds a bogus .value to imported
+      # constants inside template arrow handlers; take the next 3.3.x.
+      - dependency-name: "vue-tsc"
+        versions: ["3.3.12"]
 
   - package-ecosystem: "npm"
     directory: "/frontend/storybook"
