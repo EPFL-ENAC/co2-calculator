@@ -449,15 +449,20 @@ def test_ordinary_errors_get_no_explanation():
 def test_bouncer_timeout_is_logged_and_counted(monkeypatch, caplog):
     counter = _RecordingCounter()
     monkeypatch.setattr(db, "_bouncer_queue_timeouts", counter)
-    context = SimpleNamespace(
-        original_exception=psycopg.errors.ProtocolViolation("query_wait_timeout")
+    queue_timeout = psycopg.errors.ProtocolViolation("query_wait_timeout")
+    # 2026-10-05: a DBaaS update restarted Postgres; not a full pool.
+    postgres_away = psycopg.OperationalError(
+        "FATAL:  query_wait_timeout\nFATAL:  server login has been failing, "
+        "cached error: connect failed (server_login_retry)"
     )
 
     with caplog.at_level(logging.ERROR, logger="app.db"):
-        explain_pool_wait(context)
+        explain_pool_wait(SimpleNamespace(original_exception=queue_timeout))
+        explain_pool_wait(SimpleNamespace(original_exception=postgres_away))
 
     assert counter.calls == [(1, None)]
     assert "PgBouncer" in caplog.text
+    assert "cannot log in to Postgres" in caplog.text
 
 
 def test_bouncer_queued_notice_is_logged_and_counted(monkeypatch, caplog):

@@ -43,7 +43,8 @@ _connect_failures = get_meter(__name__).create_counter(
     unit="{failure}",
     description=(
         "Failed attempts to establish a DB connection, by SQLSTATE. 53300 "
-        "(too_many_connections) is the server-wide outage mode."
+        "(too_many_connections) is the server-wide outage mode; "
+        "server_login_retry means PgBouncer cannot reach Postgres at all."
     ),
 )
 
@@ -82,6 +83,9 @@ _bouncer_queue_timeouts = get_meter(__name__).create_counter(
 
 BOUNCER_QUEUED_NOTICE = "client being queued"
 BOUNCER_QUEUE_TIMEOUT = "query_wait_timeout"
+# PgBouncer's cached refusal while its own login to Postgres fails. The same
+# message can also say query_wait_timeout, so this marker is checked first.
+BOUNCER_LOGIN_RETRY = "server_login_retry"
 
 _WAIT_LAYERS = (
     "layers, in request order: sqlalchemy TimeoutError 'QueuePool limit ... "
@@ -89,13 +93,22 @@ _WAIT_LAYERS = (
     "DB_POOL_TIMEOUT); psycopg ProtocolViolation 'query_wait_timeout' = "
     "PgBouncer's server pool (default_pool_size, query_wait_timeout); FATAL "
     "'remaining connection slots' / 'too many clients' = Postgres "
-    "max_connections, the bouncer passed the login through"
+    "max_connections, the bouncer passed the login through; FATAL 'server "
+    "login has been failing' = the bouncer cannot reach Postgres at all"
 )
 
 
 def explain_db_wait(error: BaseException) -> str | None:
-    """Name the layer that ran out, for the two errors whose text does not."""
+    """Name the layer that ran out, for the errors whose text does not."""
     message = str(error)
+    if BOUNCER_LOGIN_RETRY in message:
+        return (
+            "PgBouncer cannot log in to Postgres and refuses every client until "
+            "server_login_retry has passed; the cached error in the exception says why "
+            "('connect failed' = Postgres is down, restarting or unreachable, "
+            "e.g. a DBaaS update or failover). No pool is full, ours or the "
+            f"bouncer's: resizing one will not help. {_WAIT_LAYERS}"
+        )
     if BOUNCER_QUEUE_TIMEOUT in message:
         return (
             "PgBouncer found no free server connection in its pool for the whole "
@@ -117,7 +130,10 @@ def explain_pool_wait(context: ExceptionContext) -> None:
     explanation = explain_db_wait(context.original_exception)
     if explanation is None:
         return
-    if BOUNCER_QUEUE_TIMEOUT in str(context.original_exception):
+    message = str(context.original_exception)
+    # A queue timeout behind a failing server login is Postgres being away,
+    # not the bouncer's pool being full: DbBouncerQueueTimeout must not fire.
+    if BOUNCER_QUEUE_TIMEOUT in message and BOUNCER_LOGIN_RETRY not in message:
         _bouncer_queue_timeouts.add(1)
     logger.error(explanation)
 
@@ -173,8 +189,9 @@ def connect_failure_sqlstate(error: BaseException) -> str:
 
     psycopg drops the SQLSTATE on connection-*establishment* errors: the
     server's ErrorResponse survives only as message text, so the outage
-    mode has to be recognised from that. Unrecognised failures are still
-    counted, as ``unknown``, rather than dropped.
+    mode has to be recognised from that, and so does PgBouncer's refusal
+    while it cannot reach Postgres (``server_login_retry``). Unrecognised
+    failures are still counted, as ``unknown``, rather than dropped.
     """
     sqlstate = getattr(error, "sqlstate", None)
     if sqlstate is not None:
@@ -182,6 +199,8 @@ def connect_failure_sqlstate(error: BaseException) -> str:
     message = str(error)
     if any(marker in message for marker in _TOO_MANY_CONNECTIONS_MESSAGES):
         return "53300"
+    if BOUNCER_LOGIN_RETRY in message:
+        return BOUNCER_LOGIN_RETRY
     return "unknown"
 
 
