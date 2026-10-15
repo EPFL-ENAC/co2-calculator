@@ -133,10 +133,10 @@ dev = [
     "pytest-env>=1.7.1",
     "faker>=40.40.0",
     "docker>=7.2.0",
-    "asyncpg>=0.31.0",
+    "asyncpg>=0.32.0",
     "types-pyyaml>=6.0.12.20260815",
     "ty>=0.0.85",
-    "opentelemetry-instrumentation-fastapi==0.66b0",
+    "opentelemetry-instrumentation-fastapi==0.66b1",
 ]
 
 [tool.alembic]
