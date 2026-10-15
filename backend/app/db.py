@@ -262,15 +262,10 @@ def _normalize_url(raw: str) -> tuple[URL, bool]:
         # Add async driver for SQLite
         url = url.set(drivername="sqlite+aiosqlite")
 
-    if (
-        url.drivername == "postgresql"
-        or url.drivername == "postgres"
-        or url.drivername == "postgresql+psycopg"
-    ) and not url.drivername.endswith("+asyncpg"):
-        # Preserve existing query params and add async_fallback
-        existing_query = dict(url.query)
-        existing_query["async_fallback"] = "true"
-        url = url.set(drivername="postgresql+psycopg", query=existing_query)
+    if url.drivername in ("postgresql", "postgres"):
+        # No async_fallback: SQLAlchemy 2.1 forwards it to libpq, which
+        # refuses every connection with it.
+        url = url.set(drivername="postgresql+psycopg")
     return url, is_sqlite
 
 

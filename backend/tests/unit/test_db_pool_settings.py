@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import psycopg
 import pytest
+from psycopg.conninfo import make_conninfo
 from sqlalchemy import event
 from sqlalchemy.engine import ExceptionContext
 from sqlalchemy.exc import OperationalError
@@ -193,12 +194,16 @@ def test_bare_sqlite_url_gains_the_async_driver():
     assert url.drivername == "sqlite+aiosqlite"
 
 
-def test_postgres_url_gains_psycopg_and_async_fallback():
-    url, is_sqlite = _normalize_url("postgresql://user:pw@db.example.org/app")
+@pytest.mark.parametrize("scheme", ["postgresql", "postgres", "postgresql+psycopg"])
+def test_postgres_url_gains_psycopg_and_valid_libpq_options(scheme):
+    """SQLAlchemy 2.1 hands URL query params straight to libpq: an unknown
+    one (async_fallback) failed every connection on dev.
+    """
+    url, is_sqlite = _normalize_url(f"{scheme}://user:pw@db.example.org/app")
 
     assert is_sqlite is False
     assert url.drivername == "postgresql+psycopg"
-    assert url.query["async_fallback"] == "true"
+    make_conninfo("", **url.query)
 
 
 def test_shipped_default_db_url_is_sqlite():
