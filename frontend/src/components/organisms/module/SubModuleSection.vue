@@ -68,7 +68,7 @@
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
-          :submodule-type="submodule.id"
+          :submodule-type="submodule.type"
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="isTableDisabled"

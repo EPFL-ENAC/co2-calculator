@@ -274,9 +274,7 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
             downloadLastCsv(e, y);
           }
         "
-        @upload="
-          (row, _t, file) => openDataEntryDialog(row, TargetType.FACTORS, file)
-        "
+        @upload="openDataEntryDialog"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
         @abort="handleAbortPipeline"
@@ -286,10 +284,7 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
         :row="getImportRow(submodule)"
         :pipeline-progress="pipelineProgress"
         :on-download="downloadLastCsv"
-        @upload="
-          (row, _t, file) =>
-            openDataEntryDialog(row, TargetType.REFERENCE_DATA, file)
-        "
+        @upload="openDataEntryDialog"
         @abort="handleAbortPipeline"
       />
       <UploadCardData
@@ -303,10 +298,7 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
         :recalc-status="getRecalcStatus(submodule)"
         :pipeline-progress="pipelineProgress"
         :on-download="downloadLastCsv"
-        @upload="
-          (row, _t, file) =>
-            openDataEntryDialog(row, TargetType.DATA_ENTRIES, file)
-        "
+        @upload="openDataEntryDialog"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @abort="handleAbortPipeline"
       />

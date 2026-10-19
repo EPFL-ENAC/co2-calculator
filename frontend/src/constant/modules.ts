@@ -122,7 +122,7 @@ export type BuildingsSubType =
 
 type BuildingsProps = {
   moduleType: typeof MODULES.Buildings;
-  submoduleType?: BuildingsSubType;
+  submoduleType?: AllSubmoduleTypes; // BuildingsSubType;
 };
 
 type EquipmentElectricConsumptionProps = {
