@@ -33,3 +33,14 @@ planner-*.png
 logs
 # scripts/loki-dump.sh output: prod logs with client IPs, never committed
 loki-*.ndjson
+
+# wtx: per-worktree files, local to one checkout
+.env.worktree
+.wt-logs/
+PROMPT.md
+PROMPT.sent.md
+.claude/settings.local.json
+.claude/agents/Explore.md
+.claude/rules/wtx.md
+.claude/worktrees/
+opencode.json

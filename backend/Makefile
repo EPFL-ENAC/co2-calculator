@@ -208,7 +208,7 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 	if [ -f $(PERF_REPORT_DIR)/.sampler.pid ]; then \
 		pid=$$(cat $(PERF_REPORT_DIR)/.sampler.pid); \
 		kill -- -$$pid 2>/dev/null || kill $$pid 2>/dev/null; \
-		pkill -f "resource_sampler --port" 2>/dev/null; \
+		p="$(PERF_HOST)"; p="$${p%%/}"; pkill -f "resource_sampler --port $${p##*:} " 2>/dev/null; \
 		rm -f $(PERF_REPORT_DIR)/.sampler.pid; \
 	fi; \
 	echo "report: file://$$(pwd)/$(PERF_REPORT_DIR)/$(PERF_TAG).html"; exit $$status

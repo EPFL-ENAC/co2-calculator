@@ -7,18 +7,20 @@ description: Launch and drive the CO2 calculator full stack (FastAPI + Quasar) l
 
 ## Launch
 
+The DB must be up and migrated. That is a human step (`make run-db`, then
+`cd backend && make db-migrate`); agents never run `db-*` targets.
+
+In a wtx worktree the servers already run in the `backend` and `frontend`
+panes, on `BACKEND_PORT` / `FRONTEND_PORT` from `.env.worktree`. Don't start
+them again: read `.wt-logs/*.log`, and reach the backend with
+`wtx curl backend <path>`. Outside a worktree:
+
 ```bash
-# DB must be up (docker postgres). Migrations:
-cd backend && make db-migrate
-
-# Backend (background):
-cd backend && uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
-
-# Frontend dev server (background, :9000; proxies /api/* -> :8000/* stripping /api):
-cd frontend && npm run dev
+cd backend && make dev      # :8000
+cd frontend && npm run dev  # :9000, proxies /api/* -> backend, stripping /api
 ```
 
-OpenAPI is at `http://127.0.0.1:8000/openapi.json` (NOT /v1/openapi.json); routes are mounted under `/v1`.
+OpenAPI is at `/openapi.json` on the backend port (NOT /v1/openapi.json); routes are mounted under `/v1`.
 
 ## Auth (debug builds only)
 
@@ -27,7 +29,7 @@ OpenAPI is at `http://127.0.0.1:8000/openapi.json` (NOT /v1/openapi.json); route
 `calco2.backoffice.admin` (global — passes `require_unit_access` for ANY unit).
 
 - curl: `curl -c cookies.txt ".../v1/auth/login-test?role=calco2.backoffice.admin"` then `-b cookies.txt`.
-- Browser/Playwright: navigate to `http://localhost:9000/api/v1/auth/login-test?role=...` (cookies land on localhost:9000 via the proxy), then goto `/` — guards resolve the default workspace.
+- Browser/Playwright: navigate to `http://localhost:$FRONTEND_PORT/api/v1/auth/login-test?role=...` (9000 outside a worktree; cookies land on the frontend origin via the proxy), then goto `/` — guards resolve the default workspace.
 
 ## Test-user workspace prerequisites (gotchas)
 
