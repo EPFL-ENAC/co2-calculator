@@ -1,3 +1,30 @@
+## [1.4.20](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.19...v1.4.20) (2026-10-19)
+
+A security, dependency and stability release. No data migration, no change to the emission formulas.
+
+### Module pages
+
+- **Changing the provider of an external cloud row no longer fails.** A provider change clears the row's service type, and the edit used to be refused and rolled back. The row now saves as incomplete, with a blank footprint and the usual incomplete-row styling, until a service type is picked again. (#2992)
+- "Business as usual" is now capitalised correctly in the reduction-objective scenarios. (#3040)
+
+### Security
+
+- The back-office detailed export neutralises text cells that a spreadsheet would read as a formula (starting with `=`, `+`, `-` or `@`): they get a leading apostrophe, so Excel or LibreOffice shows them as text instead of evaluating them. (#3049)
+- The back-office file-deletion endpoint normalises the path before checking that it stays under `tmp/`. (#3049)
+- Runtime images run a full Alpine package upgrade on every build, instead of patching one package per CVE after a blocked deploy. urllib3 moves to 2.8.0. (#3000)
+
+### Operations
+
+- **SQLAlchemy 2.1 and FastAPI 0.143.** The Postgres URL no longer carries `async_fallback`, which SQLAlchemy 2.1 passes on to libpq and libpq rejects. Dev rollouts failed readiness from 2026-10-07 to 2026-10-15 while the older pods kept serving. Stage and prod get the upgrade and the fix together.
+- A Postgres restart behind PgBouncer is now logged as a restart, not as a full bouncer pool, and no longer counts toward the `DbBouncerQueueTimeout` alert. During the prod restarts of 2026-10-05 both pointed at pool sizing, which could not help. (#3050)
+- `make audit` runs from the repo root, like the CI security job, and the Storybook dependencies have no high or critical findings left.
+- Developer tooling: the dev servers read their ports from `BACKEND_PORT`, `FRONTEND_PORT` and `PREVIEW_PORT`, so several checkouts run side by side; wtx worktrees and git-board views are configured. (#3096, #3097)
+
+### Known issues
+
+- A database blip while the app starts can send a signed-in user to the login page until they reload. (#2983)
+- Reduction-objective uploads made before 1.4.19 show their error count but not the row details. (#2983)
+
 ## [1.4.19](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.18...v1.4.19) (2026-09-28)
 
 A sign-in, resilience and logging release. No data migration, no change to how footprints are calculated.
