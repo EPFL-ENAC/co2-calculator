@@ -148,14 +148,46 @@ filter = "sprint:@current is:open -title:*spec*"
 
 [views.backlog]
 layout = "table"
-filter = "is:open"
+filter = "is:open -status:validated"
 group = "sprint"
 sort = "prio asc"
 
 [views.mine]
 layout = "table"
-filter = "assignee:@me is:open"
+filter = "assignee:@me is:open -status:ready-for-validation,validated"
+group = "sprint"
+
+[views.in-review]
+layout = "board"
+filter = "is:open"
+group = "status"
+
+[views.ready-or-qa]
+layout = "table"
+filter = "is:open -status:validated status:ready,qa"
+group = "sprint"
+sort = "prio asc"
+
+[views.roadmap]
+layout = "roadmap"
+filter = "is:open"
+group = "status"
+
+[views.dev]
+layout = "board"
+filter = "is:open"
+group = "status"
+lanes = ["ready", "in-progress", "in-review", "ready-for-validation"]
+limits = { in-progress = 3 }
+
 
 [github-project]
 owner = "epfl-enac"
 number = 40
+
+# Branch names for "Create branch" (CONTRIBUTING.md: branch from dev, the
+# type label sets the prefix; docs/src/contributing/project-board.md#labels)
+[branches]
+base = "dev"
+name = "{kind}/{number}-{slug}"
+kinds = { bug = "fix", feat = "feat", perf = "perf", refactor = "refactor", docs = "docs", polish = "polish", style = "style", test = "test" }
