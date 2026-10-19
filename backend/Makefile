@@ -152,7 +152,7 @@ exchange-rates: ## Fetch exchange rates from ECB API and store in database
 # ---------------------------------------------------------------------------
 # Load tests (#2295) — see tests/performance/locustfile.py for the scenarios.
 # ---------------------------------------------------------------------------
-PERF_HOST ?= http://localhost:8000
+PERF_HOST ?= http://localhost:$(or $(BACKEND_PORT),8000)
 PERF_USERS ?= 50
 PERF_TIME ?= 3m
 PERF_CLASSES ?= ExplorerReadUser
@@ -325,7 +325,7 @@ dev: install ## Start backend development server
 		exit 1; \
 	fi
 	@echo "Starting backend development server..."
-	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port $${BACKEND_PORT:-8000}
 
 .PHONY: dev
 run: dev ## Alias for dev
