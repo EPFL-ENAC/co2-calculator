@@ -17,7 +17,7 @@
  * for the identical rationale.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import { resolvePipelinePhaseLabelKey } from '../../src/composables/pipelinePhaseLabel';
 
 test('emission_recalc kind collapses to the single recalculating label, ignoring phase_label', () => {

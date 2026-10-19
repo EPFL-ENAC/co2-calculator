@@ -56,7 +56,7 @@ def get_test_client(test_user, db_session, monkeypatch):
 
         def _get_client():
             from app.api import deps
-            from app.api.v1 import data_sync, files
+            from app.api.v1 import data_sync
             from app.db import get_db
 
             # Override get_current_user to return test user
@@ -73,7 +73,7 @@ def get_test_client(test_user, db_session, monkeypatch):
 
             app.dependency_overrides[deps.get_current_user] = mock_get_current_user
             app.dependency_overrides[get_db] = mock_get_db
-            monkeypatch.setattr(files, "is_permitted", mock_is_permitted)
+            monkeypatch.setattr("app.core.security.is_permitted", mock_is_permitted)
             monkeypatch.setattr(data_sync, "is_permitted", mock_is_permitted)
 
             # AuthFirstRoute (#2261) verifies the JWT cookie before dependencies

@@ -17,6 +17,7 @@ import gc
 import pytest
 
 from app.core.config import get_settings
+from app.tasks import _background
 from app.tasks._background import (
     _BACKGROUND_TASKS,
     fire_and_forget,
@@ -143,7 +144,7 @@ async def test_dispatch_inline_when_enabled(monkeypatch):
     await asyncio.wait_for(finished.wait(), timeout=1.0)
 
 
-def test_fire_and_forget_inside_asyncio_run_is_cancelled(caplog):
+def test_fire_and_forget_inside_asyncio_run_is_cancelled(caplog, monkeypatch):
     """Documents the FastAPI BackgroundTasks bug class (#310B regression).
 
     When a sync function passed to ``background_tasks.add_task`` runs in
@@ -185,6 +186,9 @@ def test_fire_and_forget_inside_asyncio_run_is_cancelled(caplog):
         # alive.  Our strong-ref set keeps _child alive through GC, but
         # cannot save it from a closing loop.
 
+    # Any earlier test that exited TestClient(app) ran the lifespan drain,
+    # which latches _SHUTTING_DOWN and demotes this WARNING to INFO.
+    monkeypatch.setattr(_background, "_SHUTTING_DOWN", False)
     caplog.set_level(logging.WARNING, logger="app.tasks._background")
     asyncio.run(_parent())  # creates throwaway loop, runs _parent, closes loop
 

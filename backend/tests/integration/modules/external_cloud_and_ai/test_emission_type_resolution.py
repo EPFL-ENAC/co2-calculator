@@ -14,7 +14,8 @@ Two contracts, one per data entry type:
    same spelling — with all seven factors present, so a mapping swap or a
    cross-provider factor match is falsifiable.
 2. Each cloud ``service_type`` (virtualisation / compute / storage) resolves
-   to its ``external__clouds__*`` leaf the same way.
+   to its ``external__clouds__*`` leaf the same way; a cloud entry with no
+   ``service_type`` resolves to no emission rows (incomplete, #2992).
 """
 
 import pytest
@@ -212,3 +213,50 @@ async def test_each_cloud_service_type_resolves_to_its_emission_type(
             f"id={row.primary_factor_id}, expected its own factor "
             f"id={factor_ids[service_type]}"
         )
+
+
+@pytest.mark.asyncio
+async def test_cloud_entry_without_service_type_emits_nothing(
+    db_session: AsyncSession,
+    make_carbon_report,
+    make_carbon_report_module,
+    make_factor,
+    make_data_entry,
+):
+    """#2992: an inline provider change clears service_type. The recompute
+    used to raise on the blank value and the PATCH rolled back as a 422; the
+    row must instead persist as incomplete, with no emission rows.
+    """
+    module = await _seed_module(
+        db_session, make_carbon_report, make_carbon_report_module
+    )
+    # The new provider has a factor, but only under a service_type — no
+    # kind-only fallback may price the incomplete row with it.
+    await make_factor(
+        db_session,
+        emission_type_id=EmissionType.external__clouds__stockage.value,
+        data_entry_type_id=DataEntryTypeEnum.external_clouds.value,
+        classification={
+            "provider": "GCP",
+            "service_type": "storage",
+            "currency": "eur",
+        },
+        values={"ef_kg_co2eq_per_currency": 0.05, "currency": "eur"},
+        year=YEAR,
+    )
+    entry = await make_data_entry(
+        db_session,
+        data_entry_type_id=DataEntryTypeEnum.external_clouds.value,
+        carbon_report_module_id=module.id,
+        data={
+            "provider": "GCP",
+            "service_type": None,
+            "spent_amount": 100.0,
+            "currency": "eur",
+        },
+    )
+    await db_session.commit()
+
+    rows = await DataEntryEmissionService(db_session).prepare_create(entry)
+
+    assert rows == []

@@ -1,4 +1,4 @@
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from pydantic import field_validator, model_validator
 
@@ -33,8 +33,15 @@ def _validate_non_negative_float(v: float | None, field_name: str) -> float | No
 
 
 class _EquipmentUsageHoursValidationMixin:
-    active_usage_hours_per_week: int | None
-    standby_usage_hours_per_week: int | None
+    # Read-only so EquipmentFactorCreate may narrow the fields to required
+    # ints; each model declares the real fields itself.
+    if TYPE_CHECKING:
+
+        @property
+        def active_usage_hours_per_week(self) -> int | None: ...
+
+        @property
+        def standby_usage_hours_per_week(self) -> int | None: ...
 
     @field_validator(
         "active_usage_hours_per_week", "standby_usage_hours_per_week", mode="after"

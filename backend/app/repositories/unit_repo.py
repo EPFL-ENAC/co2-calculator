@@ -260,7 +260,9 @@ class UnitRepository:
         self, units: builtins.list[Unit]
     ) -> UpsertResult:
         """SQLite fallback — single-writer engine, no race to worry about."""
-        rows = (await self.session.exec(select(Unit.institutional_code, Unit.id))).all()
+        rows = (
+            await self.session.exec(select(col(Unit.institutional_code), col(Unit.id)))
+        ).all()
         existing: dict[str | None, int] = {
             code: uid for code, uid in rows if uid is not None
         }

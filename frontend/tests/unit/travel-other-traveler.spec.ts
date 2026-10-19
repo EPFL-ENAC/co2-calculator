@@ -14,7 +14,7 @@
  *     "Other traveler (internal)" instead of blank (must still remonter).
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   TRAVELER_OTHER_INTERNAL,

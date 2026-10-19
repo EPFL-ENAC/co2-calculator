@@ -33,6 +33,10 @@ _AI_USE_MAP: dict[str, EmissionType] = {
 
 def resolve_clouds(data: dict) -> list[EmissionType]:
     service_type = (data.get("service_type") or "").lower()
+    # Incomplete row (#2992): a provider change clears service_type; the row
+    # emits nothing until one is re-picked. Unknown values still raise below.
+    if not service_type:
+        return []
     emission_type = _CLOUD_SUBKIND_MAP.get(service_type)
     if emission_type is None:
         raise EmissionTypeResolutionError(

@@ -6,7 +6,7 @@
  * it wins over `defaultFrom: 'total_fte'` in the Explorer.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import type { ModuleField } from '../../src/constant/moduleConfig';
 
 import { resolveExplorerFormDefaults } from '../../src/utils/module-table-access';

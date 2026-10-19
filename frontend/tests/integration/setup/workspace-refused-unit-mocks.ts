@@ -18,7 +18,7 @@
  * handler is evaluated FIRST. Catch-alls must be registered FIRST so they have
  * the LOWEST priority.
  */
-import type { Page } from '@playwright/test';
+import type { Page } from 'playwright/test';
 
 /** The stale selection: unit 996 is readable but its workspace is refused. */
 export const STALE_WORKSPACE_URL = '/en/996-stale-unit/2025/home';

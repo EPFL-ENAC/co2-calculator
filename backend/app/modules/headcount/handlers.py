@@ -18,7 +18,7 @@ from app.schemas.data_entry import BaseModuleHandler
 
 class HeadcountMemberModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.headcount
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.member
+    data_entry_type = DataEntryTypeEnum.member
     create_dto = HeadCountCreate
     update_dto = HeadCountUpdate
     response_dto = HeadcountItemResponse
@@ -96,7 +96,7 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
 
 class HeadcountStudentModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.headcount
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.student
+    data_entry_type = DataEntryTypeEnum.student
     create_dto = HeadCountStudentCreate
     update_dto = HeadCountStudentUpdate
     response_dto = HeadCountStudentResponse

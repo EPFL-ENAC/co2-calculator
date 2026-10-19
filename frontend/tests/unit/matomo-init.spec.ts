@@ -3,7 +3,7 @@
  * the tracker is cookieless when it is on.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   isTrackingEnabled,

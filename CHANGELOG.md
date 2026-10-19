@@ -1,3 +1,41 @@
+## [1.4.20](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.19...v1.4.20) (2026-10-19)
+
+      A security, dependency and stability release. No data migration, no change to the emission formulas.
+
+      ### Module pages
+
+      - **Changing the provider of an external cloud row no longer fails.** A provider change clears the row's service type, and the edit used to be refused and rolled back. The row now saves as incomplete, with a blank footprint and the usual incomplete-row styling, until a service type is picked again. (#2992)
+      - "Business as usual" is now capitalised correctly in the reduction-objective scenarios.
+
+      ### Security
+
+      - The back-office detailed export neutralises text cells that a spreadsheet would read as a formula (starting with `=`, `+`, `-` or `@`): they get a leading apostrophe, so Excel or LibreOffice shows them as text instead of evaluating them. (#3049)
+      - The back-office file-deletion endpoint normalises the path before checking that it stays under `tmp/`. (#3049)
+      - Runtime images run a full Alpine package upgrade on every build, instead of patching one package per CVE after a blocked deploy. urllib3 moves to 2.8.0. (#3000)
+
+      ### Operations
+
+      - **SQLAlchemy 2.1 and FastAPI 0.143.** The Postgres URL no longer carries `async_fallback`, which SQLAlchemy 2.1 passes on to libpq and libpq rejects. Dev rollouts failed readiness from 2026-10-07 to 2026-10-15 while the older pods kept serving. Stage and prod get the upgrade and the fix together.
+      - A Postgres restart behind PgBouncer is now logged as a restart, not as a full bouncer pool, and no longer counts toward the `DbBouncerQueueTimeout` alert. During the prod restarts of 2026-10-05 both pointed at pool sizing, which could not help. (#3050)
+      - `make audit` runs from the repo root, like the CI security job, and the Storybook dependencies have no high or critical findings left.
+      - Developer tooling: the dev servers read their ports from `BACKEND_PORT`, `FRONTEND_PORT` and `PREVIEW_PORT`, so several checkouts run side by side; wtx worktrees and git-board views are configured. (#3096, #3097)
+
+      ### Known issues
+
+      - A database blip while the app starts can send a signed-in user to the login page until they reload. (#2983)
+      - Reduction-objective uploads made before 1.4.19 show their error count but not the row details. (#2983)
+
+
+### Bug Fixes
+
+* **backend:** satisfy ty 0.0.86 type checks ([2019c87](https://github.com/EPFL-ENAC/co2-calculator/commit/2019c87f85040eac755bc820ecf82347ddbb61b5))
+* correct reduction objective typo ([2a870e8](https://github.com/EPFL-ENAC/co2-calculator/commit/2a870e80dd6d7f8894b03820ff5b71ac7c8bbfdc))
+* **db:** name a Postgres restart, not a full bouncer pool ([fe7414e](https://github.com/EPFL-ENAC/co2-calculator/commit/fe7414e113d5b562b3d781ee5bc20db3c486636f))
+* **db:** stop adding async_fallback to the Postgres URL ([8625c76](https://github.com/EPFL-ENAC/co2-calculator/commit/8625c764bc69d4ecd12fc810456de408234acd71))
+* **deps:** type-check and frontend tests after the 2026-10-19 update ([#3099](https://github.com/EPFL-ENAC/co2-calculator/issues/3099)) ([#3101](https://github.com/EPFL-ENAC/co2-calculator/issues/3101)) ([95ef73d](https://github.com/EPFL-ENAC/co2-calculator/commit/95ef73dd25b47fe0bbad5600e3383949d71c22c0)), closes [#3098](https://github.com/EPFL-ENAC/co2-calculator/issues/3098) [#3049](https://github.com/EPFL-ENAC/co2-calculator/issues/3049) [vuejs/language-tools#6237](https://github.com/vuejs/language-tools/issues/6237) [#3051](https://github.com/EPFL-ENAC/co2-calculator/issues/3051) [#3098](https://github.com/EPFL-ENAC/co2-calculator/issues/3098) [#3075](https://github.com/EPFL-ENAC/co2-calculator/issues/3075) [#3049](https://github.com/EPFL-ENAC/co2-calculator/issues/3049) [#3100](https://github.com/EPFL-ENAC/co2-calculator/issues/3100)
+* **docker:** full apk upgrade in runtime images, urllib3 2.8.0 ([#3000](https://github.com/EPFL-ENAC/co2-calculator/issues/3000)) ([2bb14cc](https://github.com/EPFL-ENAC/co2-calculator/commit/2bb14ccfec843e26331ea88c94d722314317b1a9))
+* **external-clouds:** provider change yields an incomplete row, not a 422 ([#2992](https://github.com/EPFL-ENAC/co2-calculator/issues/2992)) ([477d488](https://github.com/EPFL-ENAC/co2-calculator/commit/477d4884c140346af54fd9326557a949b02bf840)), closes [#2501](https://github.com/EPFL-ENAC/co2-calculator/issues/2501)
+* **frontend:** pin vue-tsc to 3.3.11 ([#3051](https://github.com/EPFL-ENAC/co2-calculator/issues/3051)) ([e413a7c](https://github.com/EPFL-ENAC/co2-calculator/commit/e413a7c84cc79b2434d6409c8df5273d12e304d6)), closes [vuejs/language-tools#6237](https://github.com/vuejs/language-tools/issues/6237)
 ## [1.4.19](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.18...v1.4.19) (2026-09-28)
 
 A sign-in, resilience and logging release. No data migration, no change to how footprints are calculated.

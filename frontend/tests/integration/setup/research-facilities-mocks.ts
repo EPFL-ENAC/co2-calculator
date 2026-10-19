@@ -11,7 +11,7 @@
  * catalog carried the acronym while the taxonomy relabelled it with the unit
  * code — so there is now a single payload to get right.
  */
-import type { Page } from '@playwright/test';
+import type { Page } from 'playwright/test';
 
 export const RF_URL = '/en/10/2024/research-facilities';
 

@@ -9,7 +9,7 @@
  * can't keep the old room's type.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import type { BuildingRoom } from '../../src/api/building_rooms';
 import {

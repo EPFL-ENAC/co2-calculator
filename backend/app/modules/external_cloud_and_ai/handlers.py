@@ -24,13 +24,13 @@ from app.services.exchange_rates_service import ExchangeRatesService
 
 class ExternalCloudModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_clouds
+    data_entry_type = DataEntryTypeEnum.external_clouds
     create_dto = ExternalCloudHandlerCreate
     update_dto = ExternalCloudHandlerUpdate
     response_dto = ExternalCloudHandlerResponse
 
-    kind_field: str = "provider"
-    subkind_field: str = "service_type"
+    kind_field = "provider"
+    subkind_field = "service_type"
     # Service types are enum keys (storage/compute) labeled by the #2613
     # seed in both languages — sius_code shape, English display included.
     translated_code_fields = ("service_type",)
@@ -140,13 +140,13 @@ def _requests_frequency_sort_expr() -> ColumnElement[int]:
 
 class ExternalAIModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.external_cloud_and_ai
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
+    data_entry_type = DataEntryTypeEnum.external_ai
     create_dto = ExternalAIHandlerCreate
     update_dto = ExternalAIHandlerUpdate
     response_dto = ExternalAIHandlerResponse
 
-    kind_field: str = "provider"
-    subkind_field: str = "usage_type"
+    kind_field = "provider"
+    subkind_field = "usage_type"
     sort_map = {
         "id": DataEntry.id,
         "provider": func.coalesce(

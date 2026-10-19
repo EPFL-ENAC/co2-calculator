@@ -22,7 +22,7 @@
  * existing test infra (Playwright, no Vitest) supports.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 // Import the leaf helper file directly (not via ``useModuleConfig``)
 // so Playwright's babel transform doesn't follow the runtime import

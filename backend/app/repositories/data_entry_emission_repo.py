@@ -259,7 +259,7 @@ class DataEntryEmissionRepository:
         """
         year_expr = col(CarbonReport.year)
 
-        query: Select[Any] = (
+        query: Select = (
             select(
                 year_expr.label("year"),
                 func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
@@ -318,7 +318,7 @@ class DataEntryEmissionRepository:
             [(building_name, sum_kg_co2eq), ...] sorted by building name.
         """
         building_name_expr = col(BuildingRoom.building_name)
-        query: Select[Any] = (
+        query: Select = (
             select(
                 building_name_expr.label("building_name"),
                 func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
@@ -371,7 +371,7 @@ class DataEntryEmissionRepository:
         Returns:
             [(category, sum_kg_co2eq), ...] sorted by category.
         """
-        query: Select[Any] = (
+        query: Select = (
             select(
                 col(DataEntryEmission.kg_co2eq).label("kg_co2eq"),
                 col(DataEntryEmission.meta).label("meta"),
@@ -421,7 +421,7 @@ class DataEntryEmissionRepository:
         factor_category_map: dict[int, str] = {}
         factor_ef_map: dict[int, float] = {}
         if factor_ids:
-            factor_query: Select[Any] = select(
+            factor_query: Select = select(
                 col(Factor.id).label("id"),
                 Factor.classification["category"].as_string().label("category"),
                 Factor.values["ef_kgco2eq_per_m2"].as_float().label("ef"),
@@ -480,7 +480,7 @@ class DataEntryEmissionRepository:
         category_expr = col(DataEntry.data_entry_type_id)
         class_expr = DataEntry.data["cabin_class"].as_string()
 
-        query: Select[Any] = (
+        query: Select = (
             select(
                 category_expr.label("category"),
                 class_expr.label("class_key"),
@@ -667,7 +667,7 @@ class DataEntryEmissionRepository:
                 ).label("class_label")
             )
 
-        query: Select[Any] = select(*outer_columns).group_by(*group_by_outer)
+        query: Select = select(*outer_columns).group_by(*group_by_outer)
 
         rows = (await self.session.execute(query)).all()
 

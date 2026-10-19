@@ -172,7 +172,7 @@ def _wire(monkeypatch, db_factory) -> None:
     async def fake_is_permitted(user, path, action="view"):
         return path == "backoffice.configuration" and action in ("view", "edit")
 
-    monkeypatch.setattr("app.api.v1.year_configuration.is_permitted", fake_is_permitted)
+    monkeypatch.setattr("app.core.security.is_permitted", fake_is_permitted)
 
     # ``audit_document_one_current_idx`` is declared with
     # ``postgresql_where=...`` only — a Postgres-only partial-unique index.

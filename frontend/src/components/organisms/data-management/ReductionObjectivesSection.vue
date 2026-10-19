@@ -222,10 +222,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.institutional_footprint)"
-          @upload="
-            (row, _t, file) =>
-              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
-          "
+          @upload="openDataEntryDialog"
           @download="downloadFile(reductionFiles?.institutional_footprint)"
         />
         <UploadCard
@@ -246,10 +243,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.population_projections)"
-          @upload="
-            (row, _t, file) =>
-              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
-          "
+          @upload="openDataEntryDialog"
           @download="downloadFile(reductionFiles?.population_projections)"
         />
         <UploadCard
@@ -270,10 +264,7 @@ function csvButtonLabel(file: FileMetadata | null | undefined): string {
           "
           :target-type="TargetType.REDUCTION_OBJECTIVES"
           :last-job="fileMetaToJob(reductionFiles?.unit_scenarios)"
-          @upload="
-            (row, _t, file) =>
-              openDataEntryDialog(row, TargetType.REDUCTION_OBJECTIVES, file)
-          "
+          @upload="openDataEntryDialog"
           @download="downloadFile(reductionFiles?.unit_scenarios)"
         />
       </div>

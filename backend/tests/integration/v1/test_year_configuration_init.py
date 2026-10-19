@@ -88,7 +88,7 @@ def _wire(monkeypatch, factory, *, is_admin: bool) -> None:
             return is_admin
         return False
 
-    monkeypatch.setattr("app.api.v1.year_configuration.is_permitted", fake_is_permitted)
+    monkeypatch.setattr("app.core.security.is_permitted", fake_is_permitted)
 
     def fake_fire_and_forget(coro, *, name=None):
         coro.close()

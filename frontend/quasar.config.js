@@ -260,10 +260,11 @@ export default defineConfig(function () {
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#devServer
     devServer: {
       // https: true
+      port: Number(process.env.FRONTEND_PORT ?? 9000),
       open: false, // opens browser window automatically
       proxy: {
         '/api': {
-          target: 'http://localhost:8000',
+          target: `http://localhost:${process.env.BACKEND_PORT ?? 8000}`,
           changeOrigin: true,
           secure: false,
           ws: false,

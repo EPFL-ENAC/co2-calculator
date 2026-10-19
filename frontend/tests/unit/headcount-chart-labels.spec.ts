@@ -18,7 +18,7 @@
  * via a full component mount + DOM assertion.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { resolveHeadcountCategoryLabel } from '../../src/utils/headcountChart';
 

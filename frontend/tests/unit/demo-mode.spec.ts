@@ -4,7 +4,7 @@
  * (unset, empty, typo) must leave the app usable.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { isDemoMode } from '../../src/utils/demoMode';
 

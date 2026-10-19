@@ -117,14 +117,14 @@ async def _reject_unknown_room(data: dict, session: Any) -> tuple[dict, str | No
 
 class BuildingRoomModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.building
+    data_entry_type = DataEntryTypeEnum.building
 
     create_dto = BuildingRoomHandlerCreate
     update_dto = BuildingRoomHandlerUpdate
     response_dto = BuildingRoomHandlerResponse
 
-    kind_field: str = "building_name"
-    subkind_field: str = "room_type"
+    kind_field = "building_name"
+    subkind_field = "room_type"
     # A room belongs to exactly one building: a building change clears
     # room_name (with the subkind room_type) and the row goes incomplete
     # — no emission rows until a room of the new building is picked (#2501).
@@ -329,13 +329,13 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
 
 class EnergyCombustionModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.energy_combustion
+    data_entry_type = DataEntryTypeEnum.energy_combustion
 
     create_dto = EnergyCombustionHandlerCreate
     update_dto = EnergyCombustionHandlerUpdate
     response_dto = EnergyCombustionHandlerResponse
 
-    kind_field: str = "name"
+    kind_field = "name"
     subkind_field: str | None = None
     factor_match_fields = ("unit",)
     # Fuel names are enum keys (natural_gas, …) labeled by the #2613 seed
@@ -409,7 +409,7 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
 
 class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.building_embodied_energy
+    data_entry_type = DataEntryTypeEnum.building_embodied_energy
 
     create_dto = BuildingEmbodiedEnergyHandlerCreate
     update_dto = BuildingEmbodiedEnergyHandlerUpdate

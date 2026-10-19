@@ -4,6 +4,8 @@ list = ["EPFL-ENAC/co2-calculator", "EPFL-ENAC/co2-calculator-back-office-doc"]
 [fields.status]
 single = true
 options = ["backlog", "comite", "ready", "in-progress", "in-review", "ready-for-validation", "qa", "tests-metier", "validated"]
+# Project 40's names where their slug isn't the value
+project = { comite = "Comité Spécialisé", qa = "QA Validation" }
 
 [fields.prio]
 single = true
@@ -21,6 +23,99 @@ single = false
 length_days = 14
 start_weekday = "monday"
 
+# Project 40's iterations: their dates are what sprint:@current/@next use.
+# A sprint missing here still gets its label (its title as a slug); add it
+# here for @current to find it.
+[[sprints.list]]
+slug = "preliminary-work-s0"
+title = "Preliminary work (S0)"
+start = 2025-10-19
+
+[[sprints.list]]
+slug = "s1-set-up"
+title = "S1 - Set up"
+start = 2025-10-27
+
+[[sprints.list]]
+slug = "sprint-2"
+title = "Sprint 2"
+start = 2025-11-19
+
+[[sprints.list]]
+slug = "sprint-3"
+title = "Sprint 3"
+start = 2025-12-03
+
+[[sprints.list]]
+slug = "sprint-4"
+title = "Sprint 4"
+start = 2025-12-19
+
+[[sprints.list]]
+slug = "sprint-5"
+title = "Sprint 5"
+start = 2026-01-20
+
+[[sprints.list]]
+slug = "sprint-6"
+title = "Sprint 6"
+start = 2026-02-11
+
+[[sprints.list]]
+slug = "sprint-7"
+title = "Sprint 7"
+start = 2026-03-10
+
+[[sprints.list]]
+slug = "sprint-8"
+title = "Sprint 8"
+start = 2026-03-31
+
+[[sprints.list]]
+slug = "sprint-9"
+title = "Sprint 9"
+start = 2026-04-14
+
+[[sprints.list]]
+slug = "sprint-10"
+title = "Sprint 10"
+start = 2026-05-05
+
+[[sprints.list]]
+slug = "sprint-11-qa-fixes"
+title = "Sprint 11 (QA & Fixes)"
+start = 2026-05-20
+
+[[sprints.list]]
+slug = "sprint-12-qa-fixes"
+title = "Sprint 12 (QA & Fixes)"
+start = 2026-06-03
+
+[[sprints.list]]
+slug = "delivery-v1-0-hot-fixes"
+title = "Delivery v1.0 & Hot fixes"
+start = 2026-06-17
+
+[[sprints.list]]
+slug = "sprint-de-refactor"
+title = "Sprint de Refactor"
+start = 2026-06-29
+
+[[sprints.list]]
+slug = "simulator-sprint-1"
+title = "Simulator Sprint 1"
+start = 2026-07-13
+
+[[sprints.list]]
+slug = "simulator-sprint-2"
+title = "Simulator Sprint 2"
+start = 2026-07-27
+
+[[sprints.list]]
+slug = "simulator-sprint-3-qa-fixes"
+title = "Simulator Sprint 3 (QA & Fixes)"
+start = 2026-08-10
+
 [[sprints.list]]
 slug = "delivery"
 title = "Delivery"
@@ -31,6 +126,21 @@ slug = "post-delivery"
 title = "Post-delivery"
 start = 2026-09-07
 
+[[sprints.list]]
+slug = "hypercare"
+title = "Hypercare"
+start = 2026-09-22
+
+[[sprints.list]]
+slug = "post-hypercare"
+title = "Post-Hypercare"
+start = 2026-11-01
+
+[[sprints.list]]
+slug = "modularity"
+title = "Modularity Sprint (TBD When, to be conducted when deploying in another institution)"
+start = 2027-02-01
+
 [views.current-sprint]
 layout = "board"
 group = "status"
@@ -38,14 +148,46 @@ filter = "sprint:@current is:open -title:*spec*"
 
 [views.backlog]
 layout = "table"
-filter = "is:open"
+filter = "is:open -status:validated"
 group = "sprint"
 sort = "prio asc"
 
 [views.mine]
 layout = "table"
-filter = "assignee:@me is:open"
+filter = "assignee:@me is:open -status:ready-for-validation,validated"
+group = "sprint"
+
+[views.in-review]
+layout = "board"
+filter = "is:open"
+group = "status"
+
+[views.ready-or-qa]
+layout = "table"
+filter = "is:open -status:validated status:ready,qa"
+group = "sprint"
+sort = "prio asc"
+
+[views.roadmap]
+layout = "roadmap"
+filter = "is:open"
+group = "status"
+
+[views.dev]
+layout = "board"
+filter = "is:open"
+group = "status"
+lanes = ["ready", "in-progress", "in-review", "ready-for-validation"]
+limits = { in-progress = 3 }
+
 
 [github-project]
 owner = "epfl-enac"
 number = 40
+
+# Branch names for "Create branch" (CONTRIBUTING.md: branch from dev, the
+# type label sets the prefix; docs/src/contributing/project-board.md#labels)
+[branches]
+base = "dev"
+name = "{kind}/{number}-{slug}"
+kinds = { bug = "fix", feat = "feat", perf = "perf", refactor = "refactor", docs = "docs", polish = "polish", style = "style", test = "test" }

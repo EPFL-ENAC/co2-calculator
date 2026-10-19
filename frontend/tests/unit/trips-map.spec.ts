@@ -8,7 +8,7 @@
  * de-selecting a member drops their legs before aggregation.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import type { TripLeg } from '../../src/stores/modules';
 import {
   aggregateLegs,
