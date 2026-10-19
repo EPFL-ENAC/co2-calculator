@@ -20,7 +20,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_ROOT = resolve(__dirname, '..');
 const SNAPSHOT_PATH = join(__dirname, 'openapi.snapshot.json');
 const OUTPUT_PATH = join(FRONTEND_ROOT, 'src/types/api/openapi.d.ts');
-const API_URL = process.env.OPENAPI_URL ?? 'http://localhost:8000/openapi.json';
+const API_URL =
+  process.env.OPENAPI_URL ??
+  `http://localhost:${process.env.BACKEND_PORT ?? 8000}/openapi.json`;
 const FETCH_TIMEOUT_MS = 3000;
 
 async function tryFetchLive() {

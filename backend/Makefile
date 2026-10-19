@@ -152,7 +152,7 @@ exchange-rates: ## Fetch exchange rates from ECB API and store in database
 # ---------------------------------------------------------------------------
 # Load tests (#2295) — see tests/performance/locustfile.py for the scenarios.
 # ---------------------------------------------------------------------------
-PERF_HOST ?= http://localhost:8000
+PERF_HOST ?= http://localhost:$(or $(BACKEND_PORT),8000)
 PERF_USERS ?= 50
 PERF_TIME ?= 3m
 PERF_CLASSES ?= ExplorerReadUser
@@ -208,7 +208,7 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 	if [ -f $(PERF_REPORT_DIR)/.sampler.pid ]; then \
 		pid=$$(cat $(PERF_REPORT_DIR)/.sampler.pid); \
 		kill -- -$$pid 2>/dev/null || kill $$pid 2>/dev/null; \
-		pkill -f "resource_sampler --port" 2>/dev/null; \
+		p="$(PERF_HOST)"; p="$${p%%/}"; pkill -f "resource_sampler --port $${p##*:} " 2>/dev/null; \
 		rm -f $(PERF_REPORT_DIR)/.sampler.pid; \
 	fi; \
 	echo "report: file://$$(pwd)/$(PERF_REPORT_DIR)/$(PERF_TAG).html"; exit $$status
@@ -325,7 +325,7 @@ dev: install ## Start backend development server
 		exit 1; \
 	fi
 	@echo "Starting backend development server..."
-	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	$(UV) run uvicorn app.main:app --reload --host 0.0.0.0 --port $${BACKEND_PORT:-8000}
 
 .PHONY: dev
 run: dev ## Alias for dev
