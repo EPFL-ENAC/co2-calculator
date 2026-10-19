@@ -14,14 +14,14 @@ from app.schemas.data_entry import BaseModuleHandler
 
 class ProcessEmissionsModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.process_emissions
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.process_emissions
+    data_entry_type = DataEntryTypeEnum.process_emissions
 
     create_dto = ProcessEmissionsHandlerCreate
     update_dto = ProcessEmissionsHandlerUpdate
     response_dto = ProcessEmissionsHandlerResponse
 
-    kind_field: str = "category"
-    subkind_field: str = "subcategory"
+    kind_field = "category"
+    subkind_field = "subcategory"
 
     sort_map = {
         "id": DataEntry.id,

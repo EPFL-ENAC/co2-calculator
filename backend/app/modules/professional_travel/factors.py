@@ -131,9 +131,9 @@ class TravelPlaneFactorUpdate(
 
 
 class TravelPlaneFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.plane
+    data_entry_type = DataEntryTypeEnum.plane
     registration_keys = [DataEntryTypeEnum.plane]
-    emission_type: EmissionType = EmissionType.professional_travel__plane
+    emission_type = EmissionType.professional_travel__plane
 
     classification_fields: list[str] = ["category", "cabin_class"]
     value_fields: list[str] = [
@@ -199,8 +199,8 @@ class TravelTrainFactorUpdate(
 
 
 class TravelTrainFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.train
-    emission_type: EmissionType = EmissionType.professional_travel__train
+    data_entry_type = DataEntryTypeEnum.train
+    emission_type = EmissionType.professional_travel__train
 
     registration_keys = [DataEntryTypeEnum.train]
 

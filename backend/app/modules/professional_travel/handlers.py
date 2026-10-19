@@ -65,7 +65,6 @@ async def _get_report_year_for_module(
 
 class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.professional_travel
-    data_entry_type: DataEntryTypeEnum
     create_dto: type[DataEntryCreate]
     update_dto: type[DataEntryUpdate]
     response_dto: type[DataEntryResponseGen]
@@ -110,13 +109,13 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
 
 
 class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.plane
+    data_entry_type = DataEntryTypeEnum.plane
     create_dto = ProfessionalTravelPlaneHandlerCreate
     update_dto = ProfessionalTravelPlaneHandlerUpdate
     response_dto = ProfessionalTravelPlaneHandlerResponse
 
-    kind_field: str = "category"
-    subkind_field: str = "cabin_class"
+    kind_field = "category"
+    subkind_field = "cabin_class"
 
     filter_map = {
         "origin_iata": DataEntry.data["origin_iata"].as_string(),
@@ -306,7 +305,7 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
 
 
 class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.train
+    data_entry_type = DataEntryTypeEnum.train
     create_dto = ProfessionalTravelTrainHandlerCreate
     update_dto = ProfessionalTravelTrainHandlerUpdate
     response_dto = ProfessionalTravelTrainHandlerResponse

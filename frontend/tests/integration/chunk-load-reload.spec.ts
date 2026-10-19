@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 /**
  * Regression test for #2194: after a deploy, a client holding stale chunk

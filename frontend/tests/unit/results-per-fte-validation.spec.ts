@@ -9,7 +9,7 @@
  * categories.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import type { ReportStats } from '../../src/utils/emissionStatsAdapter';
 import { toEmissionBreakdown } from '../../src/utils/emissionStatsAdapter';

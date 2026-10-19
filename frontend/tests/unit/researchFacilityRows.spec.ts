@@ -6,7 +6,7 @@
  * subkind child the housing type, and `meta.use_unit` the row's metric.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   buildResearchFacilityRows,

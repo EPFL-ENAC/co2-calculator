@@ -11,9 +11,9 @@
  *
  * Issue #867 / U5 — additional `Data management — open year for users`
  * describe block at the bottom of this file covers the is_started chip
- * + button flow.  Reuses the same `@playwright/test` import.
+ * + button flow.  Reuses the same `playwright/test` import.
  */
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from 'playwright/test';
 import {
   DATA_MANAGEMENT_URL,
   TEST_PIPELINE_ID,

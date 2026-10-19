@@ -12,7 +12,7 @@
  */
 
 import { test, expect } from '@playwright/experimental-ct-vue';
-import type { Page } from '@playwright/test';
+import type { Page } from 'playwright/test';
 import ExploreModuleExpansionHarness from './ExploreModuleExpansionHarness.vue';
 
 const EQUIPMENT_TITLE_TESTID = 'explore-module-title-equipment';

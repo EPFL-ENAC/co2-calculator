@@ -119,7 +119,7 @@ class BuildingsFactorHandler(BaseFactorHandler):
     registration_keys = [
         DataEntryTypeEnum.building,
     ]
-    emission_type: EmissionType = EmissionType.buildings__rooms
+    emission_type = EmissionType.buildings__rooms
 
     create_dto = BuildingsFactorCreate
     update_dto = BuildingsFactorUpdate
@@ -175,7 +175,7 @@ class EnergyCombustionFactorHandler(BaseFactorHandler):
     registration_keys = [
         DataEntryTypeEnum.energy_combustion,
     ]
-    emission_type: EmissionType = EmissionType.buildings__combustion
+    emission_type = EmissionType.buildings__combustion
 
     create_dto = EnergyCombustionFactorCreate
     update_dto = EnergyCombustionFactorUpdate
@@ -256,7 +256,7 @@ class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):
     registration_keys = [
         DataEntryTypeEnum.building_embodied_energy,
     ]
-    emission_type: EmissionType = EmissionType.buildings__construction_and_renovation
+    emission_type = EmissionType.buildings__construction_and_renovation
 
     create_dto = BuildingEmbodiedEnergyFactorCreate
     update_dto = BuildingEmbodiedEnergyFactorUpdate

@@ -83,7 +83,7 @@ class ExternalCloudFactorHandler(BaseFactorHandler):
     registration_keys = [
         DataEntryTypeEnum.external_clouds,
     ]
-    emission_type: EmissionType = EmissionType.external__clouds
+    emission_type = EmissionType.external__clouds
 
     create_dto = ExternalCloudFactorCreate
     update_dto = ExternalCloudFactorUpdate
@@ -131,9 +131,9 @@ class ExternalAIFactorUpdate(FactorUpdate):
 
 
 class ExternalAIFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.external_ai
+    data_entry_type = DataEntryTypeEnum.external_ai
     # todo: resolver at runtime based on provider/use
-    emission_type: EmissionType = EmissionType.external__ai
+    emission_type = EmissionType.external__ai
 
     create_dto = ExternalAIFactorCreate
     update_dto = ExternalAIFactorUpdate

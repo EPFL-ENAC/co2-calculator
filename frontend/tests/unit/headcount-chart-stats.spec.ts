@@ -4,7 +4,7 @@
  * aggregate. Pins the shape the chart is fed from that JSON.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { headcountChartStats } from '../../src/utils/headcountChart';
 

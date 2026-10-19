@@ -8,7 +8,7 @@
  * tests pin its W3C shape and the trace/span id lifecycle it relies on.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { traceparent, startNavigationTrace } from '../../src/utils/glitchtip';
 

@@ -2,13 +2,16 @@
 
 import pytest
 
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.modules.emissions import EmissionType
 from app.modules.emissions.registry import resolve_emission_types
 from app.modules_planner.purchase import (
     PlannerPurchaseBudgetCreate,
+    PlannerPurchaseBudgetModuleHandler,
     PlannerPurchaseCreate,
+    PlannerPurchaseModuleHandler,
 )
+from app.modules_planner.purchase.handlers import _PlannerPurchaseBase
 
 
 def test_planner_purchase_create_validates_category():
@@ -93,3 +96,38 @@ def test_global_budget_resolves_generic_purchases_node():
         DataEntryTypeEnum.planner_purchase_budget, {"amount_eur": 1000.0}
     )
     assert resolved == [EmissionType.purchases__goods_and_services]
+
+
+@pytest.mark.parametrize(
+    ("handler", "kind"),
+    [
+        (PlannerPurchaseModuleHandler(), DataEntryTypeEnum.planner_purchase),
+        (
+            PlannerPurchaseBudgetModuleHandler(),
+            DataEntryTypeEnum.planner_purchase_budget,
+        ),
+    ],
+)
+def test_each_kind_looks_up_factors_of_its_own_type(handler, kind):
+    # The shared base reads data_entry_type from the concrete kind (#3099).
+    entry = DataEntry(
+        carbon_report_module_id=1,
+        data_entry_type_id=kind,
+        data={"purchase_category": "vehicles", "amount_eur": 1000.0},
+    )
+    [computation] = handler.resolve_computations(
+        entry, EmissionType.purchases__vehicles, {}
+    )
+    assert computation.factor_query.data_entry_type == kind
+
+
+def test_base_without_data_entry_type_fails_loudly():
+    entry = DataEntry(
+        carbon_report_module_id=1,
+        data_entry_type_id=DataEntryTypeEnum.planner_purchase,
+        data={},
+    )
+    with pytest.raises(ValueError, match="no data_entry_type"):
+        _PlannerPurchaseBase().resolve_computations(
+            entry, EmissionType.purchases__vehicles, {}
+        )

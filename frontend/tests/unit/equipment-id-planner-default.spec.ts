@@ -5,7 +5,7 @@
  * rule `SubModuleSection.vue` feeds into `ModuleForm`'s `formDefaults`.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import type { ModuleField } from '../../src/constant/moduleConfig';
 
 import { resolvePlannerFormDefaults } from '../../src/utils/module-table-access';

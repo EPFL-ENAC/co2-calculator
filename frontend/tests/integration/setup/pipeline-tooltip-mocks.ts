@@ -23,7 +23,7 @@
  * one-shot setup; extra routes can stack on the same ``page``).
  */
 
-import type { Page } from '@playwright/test';
+import type { Page } from 'playwright/test';
 
 /**
  * Wire shape for ``GET /api/v1/sync/active-pipelines?year=Y&modules=...``.

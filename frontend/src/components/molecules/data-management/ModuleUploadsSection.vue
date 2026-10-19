@@ -97,10 +97,7 @@ async function handleAbortPipeline() {
             :row="getImportRow(common)"
             :pipeline-progress="pipelineProgress"
             :on-download="downloadLastCsv"
-            @upload="
-              (row, _t, file) =>
-                openDataEntryDialog(row, TargetType.FACTORS, file)
-            "
+            @upload="openDataEntryDialog"
             @recalculate="() => triggerTypeRecalculation(common)"
             @abort="handleAbortPipeline"
           />
@@ -115,10 +112,7 @@ async function handleAbortPipeline() {
             "
             :recalc-status="getRecalcStatus(common)"
             :on-download="downloadLastCsv"
-            @upload="
-              (row, _t, file) =>
-                openDataEntryDialog(row, TargetType.DATA_ENTRIES, file)
-            "
+            @upload="openDataEntryDialog"
             @recalculate="() => triggerTypeRecalculation(common)"
             @abort="handleAbortPipeline"
           />

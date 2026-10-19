@@ -30,7 +30,7 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
     update_dto = ResearchFacilitiesCommonHandlerUpdate
     response_dto = ResearchFacilitiesCommonHandlerResponse
 
-    kind_field: str = "researchfacility_id"
+    kind_field = "researchfacility_id"
     subkind_field: str | None = None
     # The id is an opaque unit code (1902); the name carries the acronym users
     # know it by (SCITAS-GE). Without this the taxonomy labels every facility
@@ -140,8 +140,8 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
     update_dto = ResearchFacilitiesAnimalHandlerUpdate
     response_dto = ResearchFacilitiesAnimalHandlerResponse
 
-    kind_field: str = "researchfacility_id"
-    subkind_field: str = "researchfacility_type"
+    kind_field = "researchfacility_id"
+    subkind_field = "researchfacility_type"
     # See the common handler: label facilities by acronym, not by unit code,
     # and carry the metric unit per (facility, housing type) — the unit is a
     # per-factor-row value, so it belongs on the subkind node too.

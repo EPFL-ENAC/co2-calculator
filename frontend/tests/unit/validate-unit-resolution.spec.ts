@@ -17,7 +17,7 @@
  * Playwright without the Pinia/i18n boot chain (no Vitest in this repo).
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { resolveWorkspaceUnit } from '../../src/utils/resolveWorkspaceUnit';
 

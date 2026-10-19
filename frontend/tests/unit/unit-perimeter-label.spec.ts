@@ -5,7 +5,7 @@
  * combined units) and the backoffice export (a filter that can span many).
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   buildUnitPerimeterLabel,

@@ -20,7 +20,7 @@
  * The stale selection is only the trigger. Any unit a user can read but not
  * enter reproduces it, with or without a database drop.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import {
   mockRefusedWorkspaceBackend,
   STALE_WORKSPACE_URL,
