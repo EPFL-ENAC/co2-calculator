@@ -66,14 +66,10 @@ const moduleStateKeys = Object.keys(
       <q-checkbox
         v-for="state in moduleStateKeys"
         :key="state"
-        :model-value="
-          selectedStates.includes(
-            MODULE_STATES[state as keyof typeof MODULE_STATES],
-          )
-        "
+        :model-value="selectedStates.includes(MODULE_STATES[state])"
         size="sm"
         color="accent"
-        :label="$t(MODULE_STATE_LABELS[state as keyof typeof MODULE_STATES])"
+        :label="$t(MODULE_STATE_LABELS[state])"
         class="q-mr-md"
         @update:model-value="(checked) => toggleState(state, checked)"
       />

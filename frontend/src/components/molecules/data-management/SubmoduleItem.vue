@@ -269,11 +269,7 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
         :computed-factor-running="computedFactorRunning[submodule.key]"
         :any-computed-factor-running="anyComputedFactorRunning"
         :pipeline-progress="pipelineProgress"
-        :on-download="
-          (e, y) => {
-            downloadLastCsv(e, y);
-          }
-        "
+        :on-download="downloadLastCsv"
         @upload="openDataEntryDialog"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
