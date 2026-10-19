@@ -11,7 +11,7 @@
  * ``backoffice.<page>/<aff>`` keys.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   hasAnyScopePermission,

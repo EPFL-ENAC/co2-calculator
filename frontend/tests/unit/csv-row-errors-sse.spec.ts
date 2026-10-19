@@ -4,7 +4,7 @@
  * module page. The backend persists row errors under ``meta.stats`` and
  * strips them from the meta root; the live-stream notifier read the root.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import { formatJobRowErrors } from '../../src/utils/rowErrors';
 import type { JobUpdatePayload } from '../../src/stores/backofficeDataManagement';
 

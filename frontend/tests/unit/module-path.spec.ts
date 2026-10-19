@@ -9,7 +9,7 @@
  * still guards the unit/year lookup entry points.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { MODULES } from '../../src/constant/modules';
 import {

@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 from attr import dataclass
 from fastapi import HTTPException
-from sqlmodel import func, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.user import Role, User, UserProvider
@@ -142,7 +142,7 @@ class UserRepository:
             return UpsertUserResult(created=0, updated=0, total=0, data=[])
         rows = (
             await self.session.exec(
-                select(User.institutional_id, User.id, User.roles_raw)
+                select(col(User.institutional_id), col(User.id), col(User.roles_raw))
             )
         ).all()
         existing: dict[str, int] = {}

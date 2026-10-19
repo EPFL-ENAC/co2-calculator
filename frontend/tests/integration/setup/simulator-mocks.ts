@@ -25,7 +25,7 @@
  * specific routes LAST.
  */
 
-import type { BrowserContext, Page, Request, Route } from '@playwright/test';
+import type { BrowserContext, Page, Request, Route } from 'playwright/test';
 
 export const UNIT_ID = 10;
 export const YEAR = 2024;

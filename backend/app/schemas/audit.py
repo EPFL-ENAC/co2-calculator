@@ -39,9 +39,6 @@ class AuditLogDetail(AuditLogEntry):
     data_snapshot: dict[str, Any] = Field(default_factory=dict)
     data_diff: dict[str, Any] | None = None
 
-    class Config:
-        from_attributes = True
-
 
 class PaginationMeta(BaseModel):
     """Pagination metadata."""

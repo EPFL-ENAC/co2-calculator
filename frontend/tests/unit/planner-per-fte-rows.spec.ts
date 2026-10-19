@@ -5,7 +5,7 @@
  * planner page and its print report so both draw the same bars.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { plannerPerFteRows } from '../../src/utils/plannerPerFte';
 import type { EmissionBreakdownResponse } from '../../src/stores/modules';

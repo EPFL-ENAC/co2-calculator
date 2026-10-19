@@ -8,7 +8,7 @@
  * so it can be tested for both locales without a live i18n runtime.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   buildPowerRequestBody,

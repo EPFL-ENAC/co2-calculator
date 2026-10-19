@@ -1,0 +1,119 @@
+# wtx: every branch gets its own worktree, ports, tmux session and agent.
+# Reference for every key: https://github.com/EPFL-ENAC/wtx/blob/main/docs/schema.md
+schema_version = 1
+
+[repo]
+name = "co2-calculator"
+base_branch = "dev"
+# The single source for the push guard, the completion and the deny rules.
+protected_branches = ["dev", "stage", "main"]
+
+# One offset per worktree, one port per family at that offset.
+[ports]
+
+[[ports.family]]
+name = "backend"
+main = 8000   # what the main checkout keeps
+
+[[ports.family]]
+name = "frontend"
+main = 9000   # what the main checkout keeps
+
+[[ports.family]]
+name = "preview"
+main = 4173   # what the main checkout keeps
+
+# Gitignored files a fresh worktree needs. Never overwritten.
+[seed]
+copy = ["backend/.env", "frontend/.env.local"]
+symlink = ["backend/INPUT_DATA"]
+
+[deps]
+python_version_file = ".python-version"   # uv does not look up the tree for it
+post_install = ["npx --no-install lefthook install"]
+
+[[deps.step]]
+if_missing = "node_modules"
+cwd = "."
+run = "npm run setup"
+
+[[deps.step]]
+if_missing = "frontend/node_modules"
+cwd = "frontend"
+run = "npm ci"
+
+[[deps.step]]
+if_missing = "frontend/.quasar"
+cwd = "frontend"
+run = "npx --no-install quasar prepare"
+
+[[deps.step]]
+if_missing = "backend/.venv"
+cwd = "backend"
+run = "uv sync --frozen --python {python_version}"
+
+# The agent pane fills the left half, the rest stack on the right.
+[panes]
+
+[[panes.pane]]
+name = "agent"
+role = "agent"
+
+[[panes.pane]]
+name = "backend"
+role = "server"
+cwd = "backend"
+cmd = "FRONTEND_URL=http://localhost:${FRONTEND_PORT:-9000} make dev"
+log = true   # mirrored to .wt-logs/, the agent reads it
+
+[[panes.pane]]
+name = "frontend"
+role = "server"
+cwd = "frontend"
+cmd = "make dev"
+log = true   # mirrored to .wt-logs/, the agent reads it
+
+[[panes.pane]]
+name = "shell"
+role = "shell"
+
+[agent]
+tool = "claude"
+llm = "opus"
+subagent_model = "sonnet"
+auto_compact_window = 200000
+explore_agent_model = "haiku"
+
+# Plan on one model, implement on another. A brief starts on
+# plan_model in plan mode. With Claude, accepting the plan carries
+# the same conversation on to build_model, at the effort the plan
+# asked for. With opencode the agent switch does it, and the
+# effort routing does not apply.
+[agent.orchestration]
+enabled = true
+plan_model = "fable"
+build_model = "opus"
+build_effort = "xhigh"
+
+# Added to the baseline wtx ships. A repo can tighten, never loosen.
+[permissions]
+allow = ["Bash(make lint)", "Bash(make type-check)", "Bash(make ci)", "Bash(make format)", "Bash(make test)", "Bash(npm run lint)", "Bash(uv run ruff *)", "Bash(uv run pytest *)"]
+ask = ["Bash(make *db-revision*)"]
+deny = ["Bash(git tag *)", "Bash(git push *--tags*)", "Bash(make *db-migrate*)", "Bash(make *db-downgrade*)", "Bash(make *db-drop*)", "Bash(make *db-create*)", "Bash(make *seed*)", "Bash(make *clean-db*)", "Bash(make *connect-db*)", "Bash(docker compose down*-v*)", "Bash(docker compose down*--volumes*)", "Bash(docker volume rm *)", "Bash(uv run alembic *)", "Bash(uv run -m scripts.manage_db*)", "Bash(uv run -m app.seed*)", "Bash(psql *)"]
+
+# Run by `wtx land --local`.
+[checks]
+lint = ["make ci"]
+test = ["make test"]
+
+[[repos]]
+name = "it4r-agent-kit"
+path = "../it4r-agent-kit"
+access = "read"   # read free, never writable
+base_branch = "main"
+
+[[repos]]
+name = "osac"
+path = "../openshift-app-config"
+access = "pair"   # read free, edits only through a paired worktree
+base_branch = "main"

@@ -161,8 +161,9 @@ def _wire(
             return is_admin
         return False
 
-    # Patch the symbol where the route module looked it up at import time.
-    monkeypatch.setattr("app.api.v1.year_configuration.is_permitted", fake_is_permitted)
+    # The routes gate through check_permission (#2934), which resolves
+    # is_permitted in app.core.security at call time — patch it there.
+    monkeypatch.setattr("app.core.security.is_permitted", fake_is_permitted)
 
 
 # ---------------------------------------------------------------------------

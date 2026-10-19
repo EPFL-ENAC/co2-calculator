@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2689
-last_updated: 2026-09-24
+last_updated: 2026-10-09
 title: "DB queries queue at the DBaaS PgBouncer: query_wait_timeout waves"
 summary: "Dev lost two hours on 2026-09-08 to psycopg ProtocolViolation query_wait_timeout waves, each 120 s long. The error is PgBouncer's client-wait timeout: DBaaS bounces dev, stage and prod, and the server-side connection count plateaus at ~40 in dev. Our SQLAlchemy pool was never the wall (no QueuePool limit error), it was 17 coroutines each holding a slot while queued at the bouncer. Shipped: get_current_user hands its connection back before any route body runs (the general form of #2654), the DB health poller no longer freezes /ready for two minutes per wave, the orphan-poller log stops spamming, and both pods move to 5+50 in openshift-app-config."
 ---
@@ -396,3 +396,17 @@ pool is the wall first, ~60 rps on 70 slots. The lever that moves
 Monday's ceiling is `default_pool_size` (100 asked for prod), not more
 pods. Prod's version of #60 is openshift-app-config #68, gated on the
 1.4.17 release to `main` (chart 1.0.1781 has no worker HPA template).
+
+## Update 2026-10-09 — a dead server is not a full pool
+
+On 2026-10-05 a DBaaS update (CHG0048468) restarted prod's Postgres twice,
+17:22 and 18:06 UTC, under a minute each. The bouncer stayed up and
+answered `FATAL: server login has been failing, cached error: connect
+failed (server_login_retry)`, sometimes after a `query_wait_timeout`.
+`explain_db_wait` matched `query_wait_timeout` first and logged "Its pool
+... is full", ticked `db.pgbouncer.queue_timeouts` (the critical
+`DbBouncerQueueTimeout`), and the 103 connect failures were labelled
+`unknown`. `server_login_retry` is now checked first: its own
+explanation, no queue-timeout tick, and the connect-failure label
+`server_login_retry`. Runbook row in
+[the connection budget](../database/02-connection-budget.md#which-knob-when-an-alert-fires).

@@ -4,7 +4,7 @@
  * saw ``lastReferenceJob`` (no overwrite warning, no year-sync guard).
  * Every target type now resolves through this one lookup.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import { lastJobForTarget } from '../../src/composables/lastJobForTarget';
 import { TargetType } from '../../src/constant/ingestion';
 import type {

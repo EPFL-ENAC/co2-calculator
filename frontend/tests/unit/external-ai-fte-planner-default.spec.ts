@@ -7,7 +7,7 @@
  * is the pure rule `SubModuleSection.vue` feeds into `ModuleForm`.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import type { ModuleField } from '../../src/constant/moduleConfig';
 
 import { resolveValidatedFteFormDefaults } from '../../src/utils/module-table-access';

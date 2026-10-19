@@ -17,7 +17,7 @@
  * view are never fetched anyway because they are not top-class.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { MODULES, type Module } from '../../src/constant/modules';
 import {

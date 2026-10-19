@@ -5,7 +5,7 @@
  * (data_entry_policies), not duplicated here.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   branchOf,

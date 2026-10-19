@@ -31,7 +31,8 @@ const selectedStates = computed({
   },
 });
 
-function toggleState(state: ModuleState, checked: boolean) {
+function toggleState(key: keyof typeof MODULE_STATES, checked: boolean) {
+  const state = MODULE_STATES[key];
   if (checked) {
     if (!selectedStates.value.includes(state)) {
       selectedStates.value = [...selectedStates.value, state];
@@ -65,22 +66,12 @@ const moduleStateKeys = Object.keys(
       <q-checkbox
         v-for="state in moduleStateKeys"
         :key="state"
-        :model-value="
-          selectedStates.includes(
-            MODULE_STATES[state as keyof typeof MODULE_STATES],
-          )
-        "
+        :model-value="selectedStates.includes(MODULE_STATES[state])"
         size="sm"
         color="accent"
-        :label="$t(MODULE_STATE_LABELS[state as keyof typeof MODULE_STATES])"
+        :label="$t(MODULE_STATE_LABELS[state])"
         class="q-mr-md"
-        @update:model-value="
-          (checked) =>
-            toggleState(
-              MODULE_STATES[state as keyof typeof MODULE_STATES],
-              checked,
-            )
-        "
+        @update:model-value="(checked) => toggleState(state, checked)"
       />
     </div>
   </div>

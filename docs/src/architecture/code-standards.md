@@ -397,11 +397,8 @@ dependencies = [
 Run security audits regularly:
 
 ```bash
-# Python
-cd backend && uv pip audit
-
-# Node.js
-cd frontend && npm audit --omit=dev
+# npm (root, frontend, storybook), uv-audit, bandit
+make audit
 
 # Check Dependabot alerts
 # Visit GitHub Security tab

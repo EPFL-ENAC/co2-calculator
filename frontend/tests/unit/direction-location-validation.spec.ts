@@ -7,7 +7,7 @@
  * for train — never got set, so the entry silently persisted with zero
  * emissions.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { isTravelLocationResolved } from '../../src/utils/directionLocationValidation';
 

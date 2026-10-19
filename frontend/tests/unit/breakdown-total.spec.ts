@@ -6,7 +6,7 @@
  * a non-zero headline above an empty chart for a headcount-only report.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { sumBreakdownTonnes } from '../../src/utils/breakdownTotal';
 import type { EmissionBreakdownResponse } from '../../src/stores/modules';

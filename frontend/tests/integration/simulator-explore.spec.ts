@@ -10,7 +10,7 @@
  * same mocks and compare the dropdown options / form labels with the
  * explorer's.
  */
-import { test, expect, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from 'playwright/test';
 import {
   calculatorModuleUrl,
   EXPLORER_REPORT_ID,

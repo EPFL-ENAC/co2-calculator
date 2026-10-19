@@ -104,10 +104,8 @@ class HeadcountFactorCreate(
     headcount_subclass: OptionalClassificationKey = None
 
 
-class HeadcountFactorUpdate(
-    _HeadcountFactorValidationMixin, FactorUpdate, HeadcountBaseFactor
-):
-    """Schema for updating a headcount factor."""
+class HeadcountFactorUpdate(_HeadcountFactorValidationMixin, FactorUpdate):
+    """Schema for updating a headcount factor (all fields optional)."""
 
     headcount_category: str | None = None
     headcount_class: str | None = None
@@ -128,7 +126,7 @@ class HeadcountMemberFactorHandler(BaseFactorHandler):
 
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [DataEntryTypeEnum.member]
-    emission_type: EmissionType = EmissionType.food
+    emission_type = EmissionType.food
 
     create_dto = HeadcountFactorCreate
     update_dto = HeadcountFactorUpdate
@@ -147,7 +145,7 @@ class HeadcountStudentFactorHandler(BaseFactorHandler):
 
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [DataEntryTypeEnum.student]
-    emission_type: EmissionType = EmissionType.food
+    emission_type = EmissionType.food
 
     create_dto = HeadcountFactorCreate
     update_dto = HeadcountFactorUpdate

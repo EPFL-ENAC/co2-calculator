@@ -7,7 +7,7 @@
  * deselecting a category lowers the displayed total in step with the chart.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import type { MultiYearReportStatsEntry } from '../../src/stores/modules';
 import type { ReductionObjectiveGoal } from '../../src/stores/yearConfig';

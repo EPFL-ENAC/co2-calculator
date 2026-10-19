@@ -25,7 +25,7 @@ from app.schemas.data_entry import (
 class EquipmentModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.equipment
     data_entry_type: DataEntryTypeEnum | None = None
-    category_field: str = "equipment_category"
+    category_field = "equipment_category"
     registration_keys = [
         DataEntryTypeEnum.it,
         DataEntryTypeEnum.scientific,
@@ -39,8 +39,8 @@ class EquipmentModuleHandler(BaseModuleHandler):
     update_dto = EquipmentHandlerUpdate
     response_dto = EquipmentHandlerResponse
 
-    kind_field: str = "equipment_class"
-    subkind_field: str = "sub_class"
+    kind_field = "equipment_class"
+    subkind_field = "sub_class"
     # The planner's global-mode block shows the aggregate lines (#2749).
     default_where = [IS_NOT_PERCENTAGE_AGGREGATE]
 

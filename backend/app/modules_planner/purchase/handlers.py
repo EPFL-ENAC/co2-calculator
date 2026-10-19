@@ -36,8 +36,6 @@ class _PlannerPurchaseBase(BaseModuleHandler):
     require_factor_to_match = False
     subkind_field = None
 
-    # Set by the two concrete kinds below (always non-None there).
-    data_entry_type: DataEntryTypeEnum
     create_dto: type[BaseModel]
     update_dto: type[BaseModel]
     response_dto: type[BaseModel]
@@ -67,6 +65,8 @@ class _PlannerPurchaseBase(BaseModuleHandler):
     def resolve_computations(
         self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
     ) -> list:
+        if self.data_entry_type is None:
+            raise ValueError(f"{type(self).__name__} has no data_entry_type")
         # kind = the row's category for the submodule kind, None for the
         # single global budget (both driven by ``kind_field``).
         kind = data_entry.data.get(self.kind_field) if self.kind_field else None
@@ -88,7 +88,7 @@ class _PlannerPurchaseBase(BaseModuleHandler):
 class PlannerPurchaseModuleHandler(_PlannerPurchaseBase):
     """Manual EUR total per purchase submodule."""
 
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.planner_purchase
+    data_entry_type = DataEntryTypeEnum.planner_purchase
     create_dto = PlannerPurchaseCreate
     update_dto = PlannerPurchaseUpdate
     response_dto = PlannerPurchaseResponse
@@ -108,7 +108,7 @@ class PlannerPurchaseModuleHandler(_PlannerPurchaseBase):
 class PlannerPurchaseBudgetModuleHandler(_PlannerPurchaseBase):
     """Single global EUR budget (mutually exclusive with submodule totals)."""
 
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.planner_purchase_budget
+    data_entry_type = DataEntryTypeEnum.planner_purchase_budget
     create_dto = PlannerPurchaseBudgetCreate
     update_dto = PlannerPurchaseBudgetUpdate
     response_dto = PlannerPurchaseBudgetResponse

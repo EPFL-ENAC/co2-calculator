@@ -16,7 +16,7 @@
  * last cleared — so the ordering can be replayed without a browser.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { createFieldInteractionTracker } from '../../src/utils/fieldInteraction';
 

@@ -9,7 +9,7 @@
  * backend DELETE stays the authority.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { canDeletePlan } from '../../src/utils/permission';
 
