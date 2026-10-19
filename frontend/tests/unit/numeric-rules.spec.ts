@@ -7,7 +7,7 @@
  * can be exercised without mounting the component.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import { createI18n } from 'vue-i18n';
 
 import { getNumericRules } from '../../src/utils/numeric-rules';

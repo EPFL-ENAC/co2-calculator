@@ -13,7 +13,7 @@
  * ``addInitScript`` and expose a controller on ``window.__sse`` so each
  * spec can drive ``message`` / ``pipeline-update`` events deterministically.
  */
-import type { BrowserContext, Page, Route } from '@playwright/test';
+import type { BrowserContext, Page, Route } from 'playwright/test';
 
 /** Default backoffice landing URL with explicit year. */
 export const DATA_MANAGEMENT_URL = '/en/back-office/data-management?year=2025';

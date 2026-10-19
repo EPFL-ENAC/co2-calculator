@@ -20,7 +20,7 @@
  * the emission-breakdown store (which categories render as icons) in one
  * response — see ``workspaceGuard.ts`` / ``loadWorkspaceFromRoute``.
  */
-import type { Page } from '@playwright/test';
+import type { Page } from 'playwright/test';
 
 export const HOME_URL = '/en/10/2024/home';
 

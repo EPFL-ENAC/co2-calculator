@@ -18,7 +18,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 const I18N_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

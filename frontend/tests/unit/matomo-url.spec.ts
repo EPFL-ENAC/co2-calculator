@@ -11,7 +11,7 @@
  * nested record, which is exactly the kind of assumption a fixture would fake.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import {
   createMemoryHistory,
   createRouter,

@@ -7,7 +7,7 @@
  * which the unit runner cannot load. Its values are mirrored inline.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   DEFAULT_TABLE_PAGE_SIZE,

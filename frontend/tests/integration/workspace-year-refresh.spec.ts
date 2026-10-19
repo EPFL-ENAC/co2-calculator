@@ -24,7 +24,7 @@
  * WorkspaceSelectorBar — WITHOUT any page reload. A test that only checked
  * behavior after `page.reload()` would not catch this class of bug.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import {
   mockWorkspaceBackend,
   WORKSPACE_URL,

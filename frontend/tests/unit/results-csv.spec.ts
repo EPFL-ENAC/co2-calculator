@@ -13,7 +13,7 @@
  * `parent_key` survives — and emits one row per leaf, parent in its own column.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import type { ReportStats } from '../../src/utils/emissionStatsAdapter';
 import { toEmissionBreakdown } from '../../src/utils/emissionStatsAdapter';

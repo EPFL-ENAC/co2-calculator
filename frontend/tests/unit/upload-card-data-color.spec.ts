@@ -15,7 +15,7 @@
  * drags src/i18n's Vite-only import.meta.glob into the node runner.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 import { resolveDataButtonColor } from '../../src/composables/uploadCardColor';
 import { IngestionResult } from '../../src/constant/ingestion';
 

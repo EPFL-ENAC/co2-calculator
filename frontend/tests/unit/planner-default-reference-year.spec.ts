@@ -6,7 +6,7 @@
  * return `null` — not fall through to a -Infinity default — on an empty set.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { resolveDefaultReferenceYear } from '../../src/utils/plannerYearRange';
 

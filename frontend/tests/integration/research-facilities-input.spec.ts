@@ -13,7 +13,7 @@
  *  - `use` is bounded by that unit (0-100 for %, whole numbers for housings);
  *  - the backoffice switch hides the form behind a notice.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from 'playwright/test';
 import {
   RF_URL,
   mockResearchFacilitiesBackend,

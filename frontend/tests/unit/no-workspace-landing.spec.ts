@@ -9,7 +9,7 @@
  * behaviour.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { UNAUTHORIZED_ROUTE_NAME } from '../../src/router/routeNames';
 import {

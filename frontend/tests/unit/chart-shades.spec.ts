@@ -12,7 +12,7 @@
  * contract.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   STACK_SHADE_ORDER,

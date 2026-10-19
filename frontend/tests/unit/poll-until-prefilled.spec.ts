@@ -12,7 +12,7 @@
  * Injected `sleep` keeps it a pure function test: no timers, no HTTP.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import { pollUntilPrefilled } from '../../src/composables/pollUntilPrefilled';
 

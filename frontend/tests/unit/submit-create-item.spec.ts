@@ -17,7 +17,7 @@
  * create call itself never succeeded.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from 'playwright/test';
 
 import {
   submitCreateItem,
