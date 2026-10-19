@@ -126,7 +126,7 @@ class HeadcountMemberFactorHandler(BaseFactorHandler):
 
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [DataEntryTypeEnum.member]
-    emission_type: EmissionType = EmissionType.food
+    emission_type = EmissionType.food
 
     create_dto = HeadcountFactorCreate
     update_dto = HeadcountFactorUpdate
@@ -145,7 +145,7 @@ class HeadcountStudentFactorHandler(BaseFactorHandler):
 
     data_entry_type: DataEntryTypeEnum | None = None
     registration_keys = [DataEntryTypeEnum.student]
-    emission_type: EmissionType = EmissionType.food
+    emission_type = EmissionType.food
 
     create_dto = HeadcountFactorCreate
     update_dto = HeadcountFactorUpdate

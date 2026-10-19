@@ -18,7 +18,7 @@ from app.services.exchange_rates_service import ExchangeRatesService
 
 class PurchaseModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
-    category_field: str = "purchase_category"
+    category_field = "purchase_category"
     registration_keys = [
         DataEntryTypeEnum.scientific_equipment,
         DataEntryTypeEnum.it_equipment,
@@ -33,7 +33,7 @@ class PurchaseModuleHandler(BaseModuleHandler):
     update_dto = PurchaseHandlerUpdate
     response_dto = PurchaseHandlerResponse
 
-    kind_field: str = "purchase_institutional_code"
+    kind_field = "purchase_institutional_code"
     # purchase_additional_code is optional on entries but is the primary
     # factor key when present: it overrides the institutional-code match.
     kind_field_override: str | None = "purchase_additional_code"
@@ -153,13 +153,13 @@ class PurchaseModuleHandler(BaseModuleHandler):
 
 class PurchaseCentralizedModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.purchases_centralized
+    data_entry_type = DataEntryTypeEnum.purchases_centralized
 
     create_dto = PurchaseCentralizedHandlerCreate
     update_dto = PurchaseCentralizedHandlerUpdate
     response_dto = PurchaseCentralizedHandlerResponse
 
-    kind_field: str = "name"
+    kind_field = "name"
     subkind_field: str | None = ""
 
     sort_map = {

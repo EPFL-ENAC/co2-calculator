@@ -24,7 +24,7 @@ class PlannerHeadcountModuleHandler(BaseModuleHandler):
     """
 
     module_type: ModuleTypeEnum = ModuleTypeEnum.headcount
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.planner_headcount
+    data_entry_type = DataEntryTypeEnum.planner_headcount
     create_dto = PlannerHeadCountCreate
     update_dto = PlannerHeadCountUpdate
     response_dto = PlannerHeadCountResponse
