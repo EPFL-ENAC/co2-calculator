@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "=10.0.1",
-    "@intlify/unplugin-vue-i18n": "=11.2.6",
+    "@intlify/unplugin-vue-i18n": "=11.2.7",
     "@playwright/experimental-ct-vue": "=1.62.1",
     "@quasar/app-vite": "=3.10.3",
     "@types/node": "=24.19.2",
