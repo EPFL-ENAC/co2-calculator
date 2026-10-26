@@ -35,7 +35,7 @@ COPY alembic.ini ./
 # =========================
 # 2-  Runtime Stage
 # =========================
-FROM python:3.14-alpine AS runtime
+FROM python:3.15-alpine AS runtime
 
 # The alpine 3.24 base lags Alpine's package repo and Trivy blocks the deploy
 # on every HIGH it finds there: take every fixed package at build time rather
