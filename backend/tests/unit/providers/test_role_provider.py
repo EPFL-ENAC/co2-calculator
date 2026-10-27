@@ -20,6 +20,7 @@ from app.models.user import (
     UnitScope,
     UserProvider,
 )
+from app.providers import role_provider as role_provider_module
 from app.providers.role_provider import (
     AccredRoleProvider,
     JwtClaimsRoleProvider,
@@ -31,6 +32,28 @@ from app.providers.role_provider import (
 # ============================================================================
 # Fixtures
 # ============================================================================
+
+
+class _RecordingCounter:
+    """Stands in for the OTel counter and keeps what would be exported."""
+
+    def __init__(self):
+        self.calls: list[tuple[int, dict | None]] = []
+
+    def add(self, amount, attributes=None):
+        self.calls.append((amount, attributes))
+
+
+def _accred_client_answering(status_code: int) -> AsyncMock:
+    """An httpx.AsyncClient stand-in whose GET returns a real response, so
+    raise_for_status() raises a real HTTPStatusError.
+    """
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.return_value = httpx.Response(
+        status_code, request=httpx.Request("GET", "https://api.epfl.ch/v1/x")
+    )
+    return mock_client
 
 
 @pytest.fixture
@@ -513,7 +536,7 @@ class TestAccredRoleProvider:
 
     @pytest.mark.asyncio
     async def test_accred_request_error(self, accred_provider, sample_user_id):
-        """Test handling of request errors from Accred API."""
+        """A transport error means Accred is unreachable, not a bad answer."""
         with patch(
             "app.providers.role_provider.httpx.AsyncClient"
         ) as mock_client_class:
@@ -523,8 +546,74 @@ class TestAccredRoleProvider:
             mock_client.get.side_effect = error
             mock_client_class.return_value = mock_client
 
-            with pytest.raises(httpx.RequestError):
+            with pytest.raises(RoleProviderNetworkError):
                 await accred_provider.get_roles_by_user_id(sample_user_id)
+
+    # Accred outage 2026-10-27: persons/{id} answered 500 and only
+    # ConnectError was mapped, so login 401'd and role sync swallowed it.
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("method", "endpoint", "status_code"),
+        [
+            ("get_user_by_user_id", "persons", 500),
+            ("get_roles_by_user_id", "authorizations", 503),
+        ],
+    )
+    async def test_accred_5xx_raises_network_error_and_counts(
+        self,
+        accred_provider,
+        sample_user_id,
+        monkeypatch,
+        method,
+        endpoint,
+        status_code,
+    ):
+        counter = _RecordingCounter()
+        monkeypatch.setattr(role_provider_module, "_accred_request_failures", counter)
+        with patch("app.providers.role_provider.httpx.AsyncClient") as client_class:
+            client_class.return_value = _accred_client_answering(status_code)
+
+            with pytest.raises(RoleProviderNetworkError):
+                await getattr(accred_provider, method)(sample_user_id)
+
+        assert counter.calls == [
+            (1, {"endpoint": endpoint, "status_code": str(status_code)})
+        ]
+
+    @pytest.mark.asyncio
+    async def test_accred_timeout_raises_network_error_and_counts(
+        self, accred_provider, sample_user_id, monkeypatch
+    ):
+        """A ReadTimeout is not a ConnectError; it used to escape raw."""
+        counter = _RecordingCounter()
+        monkeypatch.setattr(role_provider_module, "_accred_request_failures", counter)
+        with patch("app.providers.role_provider.httpx.AsyncClient") as client_class:
+            mock_client = AsyncMock()
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.get.side_effect = httpx.ReadTimeout("timed out")
+            client_class.return_value = mock_client
+
+            with pytest.raises(RoleProviderNetworkError):
+                await accred_provider.get_user_by_user_id(sample_user_id)
+
+        assert counter.calls == [
+            (1, {"endpoint": "persons", "status_code": "ReadTimeout"})
+        ]
+
+    @pytest.mark.asyncio
+    async def test_accred_404_stays_http_status_error_and_is_not_counted(
+        self, accred_provider, sample_user_id, monkeypatch
+    ):
+        """A 404 is an answer about this user, not an Accred outage."""
+        counter = _RecordingCounter()
+        monkeypatch.setattr(role_provider_module, "_accred_request_failures", counter)
+        with patch("app.providers.role_provider.httpx.AsyncClient") as client_class:
+            client_class.return_value = _accred_client_answering(404)
+
+            with pytest.raises(httpx.HTTPStatusError):
+                await accred_provider.get_user_by_user_id(sample_user_id)
+
+        assert counter.calls == []
 
     @pytest.mark.asyncio
     async def test_accred_unexpected_error(self, accred_provider, sample_user_id):

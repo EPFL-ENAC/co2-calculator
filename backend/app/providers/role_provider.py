@@ -5,9 +5,10 @@ user roles from different sources (JWT claims, EPFL Accred API, etc.).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx
+from opentelemetry.metrics import get_meter
 
 from app.core.config import RoleProviderType, get_settings
 from app.core.logging import get_logger
@@ -37,6 +38,31 @@ class RoleProviderNetworkError(Exception):
     """Raised when role provider cannot reach or use its external service."""
 
     pass
+
+
+# Accred outage 2026-10-27: persons/{id} answered 500 for every login and
+# nothing alerted. Feeds the AccredUnavailable alert in openshift-app-config.
+_accred_request_failures = get_meter(__name__).create_counter(
+    "accred.request.failures",
+    unit="{failure}",
+    description=(
+        "Accred API calls that failed with a 5xx, a timeout or a connection "
+        "error, by endpoint. Each one blocks a login or a role sync."
+    ),
+)
+
+
+def _raise_accred_unavailable(endpoint: str, error: httpx.HTTPError) -> NoReturn:
+    """Count the failure, then raise the one type login and role sync handle.
+
+    A 5xx or a transport error means Accred is unusable; a 4xx is an answer
+    about this user, so callers keep raising it unchanged.
+    """
+    status_code = type(error).__name__
+    if isinstance(error, httpx.HTTPStatusError):
+        status_code = str(error.response.status_code)
+    _accred_request_failures.add(1, {"endpoint": endpoint, "status_code": status_code})
+    raise RoleProviderNetworkError(f"Accred {endpoint} unavailable: {error}") from error
 
 
 def _log_wholesale_drop(
@@ -506,14 +532,6 @@ class AccredRoleProvider(RoleProvider):
             user_insert["roles"] = roles
             return user_insert
 
-        except httpx.ConnectError as e:
-            logger.error(
-                "Cannot connect to Accred API - network unavailable",
-                extra={"user_id": user_id, "error": str(e)},
-            )
-            raise RoleProviderNetworkError(
-                f"Cannot connect to Accred API: {str(e)}"
-            ) from e
         except RoleProviderNetworkError:
             # Already logged with its diagnosis; don't re-log as unexpected.
             raise
@@ -526,12 +544,15 @@ class AccredRoleProvider(RoleProvider):
                     "error": str(e),
                 },
             )
+            if e.response.status_code >= 500:
+                _raise_accred_unavailable("persons", e)
             raise
         except httpx.RequestError as e:
+            # ConnectError, ConnectTimeout, ReadTimeout...: Accred unreachable.
             logger.error(
                 "Accred API request error", extra={"user_id": user_id, "error": str(e)}
             )
-            raise
+            _raise_accred_unavailable("persons", e)
         except Exception as e:
             logger.error(
                 "Unexpected error fetching user from Accred API",
@@ -695,12 +716,15 @@ class AccredRoleProvider(RoleProvider):
                     "error": str(e),
                 },
             )
+            if e.response.status_code >= 500:
+                _raise_accred_unavailable("authorizations", e)
             raise
         except httpx.RequestError as e:
+            # ConnectError, ConnectTimeout, ReadTimeout...: Accred unreachable.
             logger.error(
                 "Accred API request error", extra={"user_id": user_id, "error": str(e)}
             )
-            raise
+            _raise_accred_unavailable("authorizations", e)
         except Exception as e:
             logger.error(
                 "Unexpected error fetching roles from Accred API",
