@@ -201,6 +201,11 @@ the failure this replaced (an empty provider response was written as
 - Every skip outcome is counted via an OTel counter
   (`role_sync.skipped` → `role_sync_skipped_total{outcome=...}`) — see
   [#2623](https://github.com/EPFL-ENAC/co2-calculator/issues/2623).
+- A 5xx, timeout or connection error from Accred raises
+  `RoleProviderNetworkError` in both lookups and counts
+  `accred.request.failures{endpoint,status_code}`. Role sync skips as
+  `skipped_provider_unavailable`; the login callback redirects to
+  `/en/login?reason=accred-unavailable`. A 4xx is not an outage.
 
 ## 7. Security gotchas
 
