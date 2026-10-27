@@ -2,7 +2,8 @@
 status: delivered
 issue: 3140
 last_updated: 2026-10-27
-summary: "Accred 5xx and timeouts become RoleProviderNetworkError: the
+summary:
+  "Accred 5xx, 401/403/429 and timeouts become RoleProviderNetworkError: the
   login callback redirects to a login page that says Accred is down, a
   new accred.request.failures counter feeds a critical AccredUnavailable
   alert, and role sync records the outage instead of swallowing it."
@@ -31,9 +32,11 @@ as a raw-JSON 401 "Authentication failed" and no alert fired.
 
 ### Provider (`app/providers/role_provider.py`)
 
-Both `get_user_by_user_id` and `get_roles_by_user_id` raise
-`RoleProviderNetworkError` on a 5xx or any `httpx.RequestError`, through
-one helper that first counts it:
+Both `get_user_by_user_id` and `get_roles_by_user_id` route every
+`httpx.HTTPError` through one helper, `_raise_accred_error`, which logs it
+once and raises `RoleProviderNetworkError` on an outage: a 5xx, a 401/403
+(our service credential is rejected), a 429 (rate-limited) or any
+`httpx.RequestError`. It counts each outage first:
 
 ```python
 _accred_request_failures = get_meter(__name__).create_counter(
@@ -44,10 +47,14 @@ _accred_request_failures = get_meter(__name__).create_counter(
 Attributes `endpoint` (`persons` / `authorizations`) and `status_code`
 (the HTTP status, or the httpx exception class name such as
 `ReadTimeout`). Never the user id. Exported as
-`accred_request_failures_total`. A 4xx still raises `HTTPStatusError`
-and is not counted: a 404 is an answer about this user, not an outage.
+`accred_request_failures_total`. Any other 4xx still raises
+`HTTPStatusError` and is not counted: a 404 is an answer about this user,
+not an outage. `_require_credentials` (missing Accred settings) counts
+`endpoint=config, status_code=unconfigured` before it raises, so a
+misconfigured pod alerts too.
 
-Consequence for role sync: a 500 or a timeout now lands on
+Consequence for role sync: every outage above (5xx, 401/403/429,
+timeout, connection error) now lands on
 `SKIPPED_PROVIDER_UNAVAILABLE` (roles kept, `last_roles_sync_at` stamped,
 one `ROLE_SYNC_TTL_MINUTES` backoff, counted). The admin
 `POST /v1/users/{id}/revoke-roles` answers 200 with that outcome instead
@@ -56,7 +63,10 @@ of a 500.
 ### Callback (`app/api/v1/auth.py`)
 
 `RoleProviderNetworkError` redirects (302) to
-`{FRONTEND_URL}/en/login?reason=accred-unavailable`. The ERROR log and
+`{FRONTEND_URL}/login?reason=accred-unavailable`, with no language: the
+backend cannot know it. The frontend `login-redirect` route forwards to
+`/<lang>/login`, keeping the query, with the language from
+`resolveLanguage` (locale cookie, then browser). The ERROR log and
 the `login_failed` audit event (`reason: provider_unavailable`) are
 kept. The other 401 paths and the state-mismatch redirect are unchanged.
 
@@ -65,7 +75,9 @@ kept. The other 401 paths and the state-mismatch redirect are unchanged.
 `src/utils/loginReason.ts` maps `accred-unavailable` to
 `login_accred_unavailable_message` (shape of `utils/unauthorized.ts`).
 `LoginPage` passes `?reason=` to `LoginCard`, which renders the
-`ErrorUnauthorized` highlight. Unknown or absent reasons show nothing.
+`ErrorUnauthorized` highlight with `role="alert"`. Unknown or absent
+reasons show nothing; the lookup uses `Object.hasOwn`, so inherited keys
+such as `?reason=toString` are unknown too.
 
 ### Alert (`openshift-app-config`, all three envs)
 
@@ -77,9 +89,4 @@ after the backoff. Runbook row in
 
 ## Not in scope
 
-- A 401/403 from Accred (rotated credentials) still raises
-  `HTTPStatusError` and reaches neither alert.
-- `_require_credentials` (missing Accred settings) already raises
-  `RoleProviderNetworkError`; it is not an Accred request and is not
-  counted.
 - No dashboard panel, same as #2623.
