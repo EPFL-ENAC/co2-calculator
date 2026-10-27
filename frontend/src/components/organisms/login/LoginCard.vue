@@ -102,6 +102,7 @@ const buttonLabel = computed(() => {
       <div
         v-if="reasonMessage"
         data-testid="login-reason"
+        role="alert"
         class="q-pa-md rounded-borders bg-orange-1"
       >
         <div class="row items-center no-wrap q-gutter-x-sm">

@@ -12,7 +12,8 @@ const LOGIN_REASON_MESSAGE_KEYS: Record<LoginReason, string> = {
 };
 
 function isLoginReason(reason: string): reason is LoginReason {
-  return reason in LOGIN_REASON_MESSAGE_KEYS;
+  // Not `in`: it also matches inherited keys like `toString` (?reason=toString).
+  return Object.hasOwn(LOGIN_REASON_MESSAGE_KEYS, reason);
 }
 
 /** i18n key for a known `?reason=`, or `null` when absent or unrecognised. */

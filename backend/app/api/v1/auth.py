@@ -211,7 +211,8 @@ async def _redirect_provider_unavailable(
         entity_id=0,
     )
     return RedirectResponse(
-        url=f"{settings.FRONTEND_URL}/en/login?reason={ACCRED_UNAVAILABLE_REASON}",
+        # No language: the frontend resolves it (cookie, then browser).
+        url=f"{settings.FRONTEND_URL}/login?reason={ACCRED_UNAVAILABLE_REASON}",
         status_code=status.HTTP_302_FOUND,
     )
 

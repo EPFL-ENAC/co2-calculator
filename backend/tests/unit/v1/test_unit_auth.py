@@ -155,7 +155,8 @@ _ACCRED_USERINFO = {"email": "user@example.com", "uniqueid": "123456"}
 
 
 def _accred_unavailable_location() -> str:
-    return f"{auth_module.settings.FRONTEND_URL}/en/login?reason=accred-unavailable"
+    # No /en/: the backend cannot know the UI language, the frontend picks it.
+    return f"{auth_module.settings.FRONTEND_URL}/login?reason=accred-unavailable"
 
 
 @pytest.mark.asyncio
