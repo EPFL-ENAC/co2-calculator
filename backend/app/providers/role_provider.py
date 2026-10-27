@@ -46,10 +46,16 @@ _accred_request_failures = get_meter(__name__).create_counter(
     "accred.request.failures",
     unit="{failure}",
     description=(
-        "Accred API calls that failed with a 5xx, a timeout or a connection "
-        "error, by endpoint. Each one blocks a login or a role sync."
+        "Accred API calls that failed with a 5xx, a 401/403/429, a timeout or "
+        "a connection error, or were never made because Accred is not "
+        "configured, by endpoint. Each one blocks a login or a role sync."
     ),
 )
+
+# 401/403: our service credential is rejected; 429: we are rate-limited.
+# Like a 5xx they fail every user, so they are an outage, not an answer
+# about this user (that is 404).
+_ACCRED_OUTAGE_4XX = frozenset({401, 403, 429})
 
 
 def _raise_accred_error(
@@ -58,15 +64,14 @@ def _raise_accred_error(
     """Log the failed call once, then raise.
 
     An outage is counted and becomes the RoleProviderNetworkError that login
-    and role sync handle; a 4xx is an answer about this user and is
-    re-raised unchanged.
+    and role sync handle; anything else (a 404) is re-raised unchanged.
     """
     status_code = type(error).__name__
     is_outage = True
     if isinstance(error, httpx.HTTPStatusError):
         status = error.response.status_code
         status_code = str(status)
-        is_outage = status >= 500
+        is_outage = status >= 500 or status in _ACCRED_OUTAGE_4XX
     logger.error(
         "Accred API call failed",
         extra={
@@ -465,6 +470,9 @@ class AccredRoleProvider(RoleProvider):
             logger.error(
                 "Accred API not configured - cannot resolve roles",
                 extra={"user_id": user_id},
+            )
+            _accred_request_failures.add(
+                1, {"endpoint": "config", "status_code": "unconfigured"}
             )
             raise RoleProviderNetworkError("Accred API is not configured")
         return self.api_url, self.api_username, self.api_key

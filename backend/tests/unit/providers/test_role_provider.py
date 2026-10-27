@@ -512,16 +512,16 @@ class TestAccredRoleProvider:
 
     @pytest.mark.asyncio
     async def test_accred_http_status_error(self, accred_provider, sample_user_id):
-        """Test handling of HTTP status errors from Accred API."""
+        """A 404 on authorizations is an answer, not an outage: raised as is."""
         with patch(
             "app.providers.role_provider.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_response_obj = AsyncMock()
-            mock_response_obj.status_code = 401
+            mock_response_obj.status_code = 404
 
             error = httpx.HTTPStatusError(
-                "Unauthorized",
+                "Not Found",
                 request=Mock(),
                 response=mock_response_obj,
             )
@@ -557,9 +557,13 @@ class TestAccredRoleProvider:
         [
             ("get_user_by_user_id", "persons", 500),
             ("get_roles_by_user_id", "authorizations", 503),
+            # Rejected service credential / rate limit: fails every user too.
+            ("get_user_by_user_id", "persons", 401),
+            ("get_user_by_user_id", "persons", 403),
+            ("get_roles_by_user_id", "authorizations", 429),
         ],
     )
-    async def test_accred_5xx_raises_network_error_and_counts(
+    async def test_accred_outage_status_raises_network_error_and_counts(
         self,
         accred_provider,
         sample_user_id,
@@ -681,9 +685,15 @@ class TestAccredRoleProvider:
 
     @pytest.mark.asyncio
     async def test_accred_unconfigured_raises_on_get_user_by_user_id(
-        self, sample_user_id
+        self, sample_user_id, monkeypatch
     ):
-        """Same guarantee for the user fetch the background sync calls."""
+        """Same guarantee for the user fetch the background sync calls.
+
+        Counted, so AccredUnavailable fires instead of the login page
+        silently blaming a transient outage.
+        """
+        counter = _RecordingCounter()
+        monkeypatch.setattr(role_provider_module, "_accred_request_failures", counter)
         with patch("app.providers.role_provider.settings") as mock_settings:
             mock_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
             mock_settings.ACCRED_API_USERNAME = "user"
@@ -692,6 +702,10 @@ class TestAccredRoleProvider:
 
         with pytest.raises(RoleProviderNetworkError):
             await provider.get_user_by_user_id(sample_user_id)
+
+        assert counter.calls == [
+            (1, {"endpoint": "config", "status_code": "unconfigured"})
+        ]
 
     @pytest.mark.asyncio
     async def test_accred_logs_but_does_not_raise_when_all_dropped(
