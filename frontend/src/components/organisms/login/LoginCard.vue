@@ -5,6 +5,8 @@ import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import { useI18n } from 'vue-i18n';
 import { ROLES } from '@/constant/roles';
+import { loginReasonMessageKey } from '@/utils/loginReason';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 
 const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
@@ -12,10 +14,18 @@ const { t } = useI18n();
 
 interface Props {
   mode?: 'test' | 'prod';
+  /** `?reason=` the backend redirected here with (e.g. Accred down). */
+  reason?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   mode: 'prod',
+  reason: null,
+});
+
+const reasonMessage = computed(() => {
+  const key = loginReasonMessageKey(props.reason);
+  return key ? t(key) : null;
 });
 
 const form = ref(null);
@@ -86,6 +96,20 @@ const buttonLabel = computed(() => {
           emit-value
           class="full-width"
         />
+      </div>
+
+      <!-- same highlight as ErrorUnauthorized.vue -->
+      <div
+        v-if="reasonMessage"
+        data-testid="login-reason"
+        class="q-pa-md rounded-borders bg-orange-1"
+      >
+        <div class="row items-center no-wrap q-gutter-x-sm">
+          <q-icon :name="outlinedInfo" size="sm" color="orange-8" />
+          <p class="text-body1 text-weight-medium text-orange-9 q-ma-none">
+            {{ reasonMessage }}
+          </p>
+        </div>
       </div>
 
       <!-- submit button -->

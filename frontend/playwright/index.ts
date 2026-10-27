@@ -17,7 +17,9 @@ import {
   QDialog,
   QSeparator,
   QExpansionItem,
+  QForm,
   QIcon,
+  QImg,
   QInput,
   QItem,
   QItemLabel,
@@ -73,4 +75,7 @@ beforeMount(async ({ app }) => {
   // PlannerYearSection's reference-year and mode-switch dialogs: without it
   // a closed q-dialog renders its content inline.
   app.component('QDialog', QDialog);
+  // LoginCard (login-card-reason.spec.ts) renders its form and logo.
+  app.component('QForm', QForm);
+  app.component('QImg', QImg);
 });
