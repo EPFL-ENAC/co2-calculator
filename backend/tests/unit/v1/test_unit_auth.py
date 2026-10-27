@@ -1,5 +1,6 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from fastapi import Response, status
 from fastapi.testclient import TestClient
@@ -9,6 +10,8 @@ import app.api.v1.auth as auth_module
 import app.core.config as config
 from app.main import app
 from app.models.user import User
+from app.providers import role_provider as role_provider_module
+from app.providers.role_provider import AccredRoleProvider, RoleProviderNetworkError
 
 API_PREFIX = config.get_settings().API_VERSION
 
@@ -146,6 +149,79 @@ async def test_auth_callback_exception(monkeypatch):
     with pytest.raises(auth_module.HTTPException) as exc:
         await auth_module.oauth_callback(request, db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+_ACCRED_USERINFO = {"email": "user@example.com", "uniqueid": "123456"}
+
+
+def _accred_unavailable_location() -> str:
+    return f"{auth_module.settings.FRONTEND_URL}/en/login?reason=accred-unavailable"
+
+
+@pytest.mark.asyncio
+async def test_auth_callback_provider_unavailable_redirects_with_reason(monkeypatch):
+    """Accred outage 2026-10-27: the user lands on the login page with a
+    reason, not on a JSON 503 telling them to check their VPN.
+    """
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": _ACCRED_USERINFO}),
+    )
+    provider = MagicMock()
+    provider.get_user_id.return_value = "123456"
+    provider.get_user_by_user_id = AsyncMock(
+        side_effect=RoleProviderNetworkError("down")
+    )
+    monkeypatch.setattr(auth_module, "get_role_provider", lambda: provider)
+    audit = AsyncMock()
+    monkeypatch.setattr(auth_module, "_log_auth_audit_event", audit)
+
+    response = await auth_module.oauth_callback(MagicMock(), MagicMock())
+
+    assert response.status_code == status.HTTP_302_FOUND
+    assert response.headers["location"] == _accred_unavailable_location()
+    audit.assert_awaited_once()
+    assert audit.await_args.kwargs["data_snapshot"] == {
+        "event": "login_failed",
+        "reason": "provider_unavailable",
+    }
+
+
+@pytest.mark.asyncio
+async def test_auth_callback_accred_500_redirects_and_counts(monkeypatch):
+    """The whole chain from the 2026-10-27 outage: a real AccredRoleProvider
+    gets a 500 from persons/{id}, counts it, and the callback redirects
+    instead of falling into its generic 401.
+    """
+    with patch("app.providers.role_provider.settings") as provider_settings:
+        provider_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
+        provider_settings.ACCRED_API_USERNAME = "test_user"
+        provider_settings.ACCRED_API_KEY = "test_key"
+        provider = AccredRoleProvider()
+    counter = MagicMock()
+    monkeypatch.setattr(role_provider_module, "_accred_request_failures", counter)
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": _ACCRED_USERINFO}),
+    )
+    monkeypatch.setattr(auth_module, "get_role_provider", lambda: provider)
+    monkeypatch.setattr(auth_module, "_log_auth_audit_event", AsyncMock())
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.get.return_value = httpx.Response(
+        500, request=httpx.Request("GET", "https://api.epfl.ch/persons/123456")
+    )
+
+    with patch("app.providers.role_provider.httpx.AsyncClient", return_value=client):
+        response = await auth_module.oauth_callback(MagicMock(), MagicMock())
+
+    assert response.status_code == status.HTTP_302_FOUND
+    assert response.headers["location"] == _accred_unavailable_location()
+    counter.add.assert_called_once_with(
+        1, {"endpoint": "persons", "status_code": "500"}
+    )
 
 
 @pytest.mark.asyncio
