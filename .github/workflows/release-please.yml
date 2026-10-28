@@ -40,6 +40,14 @@ jobs:
       - name: Extract changelog entry for this version
         id: changelog
         run: |
+          # The top entry is written by hand on dev before the dev -> stage
+          # promotion: fail rather than publish the previous release's notes.
+          VERSION="${{ steps.version.outputs.version }}"
+          TOP=$(grep -m1 '^## ' CHANGELOG.md)
+          if [[ "$TOP" != "## [$VERSION]"* ]]; then
+            echo "::error::CHANGELOG.md starts with '$TOP', not a $VERSION entry"
+            exit 1
+          fi
           # Extracts the section between the first and second version headers
           BODY=$(awk '/^## \[?[0-9]+\.[0-9]+\.[0-9]+/{count++; if(count==2) exit} count==1{print}' CHANGELOG.md)
           # Pass multiline string safely to output
@@ -61,5 +69,5 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Release ${{ steps.version.outputs.tag }}
-          body: ${{ steps.changelog.body }}
+          body: ${{ steps.changelog.outputs.body }}
           token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}

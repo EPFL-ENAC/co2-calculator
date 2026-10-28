@@ -33,7 +33,6 @@ flowchart LR
     Mdev --> Ddev[Deploy dev]
     Ddev --> PRstage[Open dev → stage PR]
     PRstage --> Mstage[Merge to stage]
-    Mstage --> CL[Changelog]
     Mstage --> Dstage[Deploy stage]
     Dstage --> PRmain[Open stage → main PR]
     PRmain --> Mmain[Merge to main]
@@ -137,20 +136,15 @@ container image plus the dispatch event.
 as a fallback for the `main` GitHub Pages mirror. Per-environment
 docs (`/docs` path) ship with `deploy.yml`.
 
-### `changelog.yml` — Changelog on dev → stage
-
-**Trigger:** PR closed against `stage`. **Job:** `changelog` runs
-only when the merged PR came from `dev`, regenerating
-`CHANGELOG.md` ahead of the next release.
-
 ### `release-please.yml` — Tag and Release
 
 **Trigger:** PR closed against `main`. **Job:** `release` runs
 only when the merged PR came from `stage`. Despite the workflow
 filename, **it does not invoke the release-please action**: it
 reads the version from `package.json`, creates an annotated git
-tag `v<version>` directly, extracts the matching section from
-`CHANGELOG.md`, and publishes a GitHub Release via
+tag `v<version>` directly, takes the top `CHANGELOG.md` entry
+(written by hand on `dev`; the job fails if it is not for that
+version), and publishes it as a GitHub Release via
 `softprops/action-gh-release`. See
 [Release Management](release-management.md) for the full
 promotion flow.
