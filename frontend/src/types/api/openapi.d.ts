@@ -1503,6 +1503,7 @@ export interface paths {
          *     Args:
          *         query: Search query string (minimum 2 characters)
          *         limit: Maximum number of results (default: 5, max: 20)
+         *         page: Page number (1-indexed); a page shorter than ``limit`` is the last
          *         transport_mode: Filter by location transport mode ('train' or 'plane').
          *             If None, returns both types.
          *         db: Database session
@@ -1873,7 +1874,8 @@ export interface paths {
          * @description Server-Sent Events endpoint to stream a single job update in real-time.
          *
          *     Polls the database for status changes and sends updates to the client.
-         *     Stream ends when the job is completed, failed, or the client disconnects.
+         *     Stream ends when the job is completed, failed, the client disconnects,
+         *     or a poll hits a DB error (``_end_stream_on_db_error``).
          *
          *     Session lifetime: no pooled connection is held anywhere on this path.
          *     ``get_current_user`` hands its connection back before the stream opens
@@ -2733,11 +2735,14 @@ export interface paths {
          *     #2049: reads the background DB health poller's cached verdict — zero
          *     I/O of its own, so a saturated pool can no longer make this endpoint
          *     itself hang (#2050 A1 bounded that per-request check; this removes
-         *     it). 503 when the DB is down, unchecked, or the poller has gone
-         *     stale; 200 otherwise. A merely *slow* DB still passes — DB latency is
-         *     shared state, so gating readiness on it would take every pod unready
-         *     at once, turning "slow" into the very outage this endpoint exists to
-         *     prevent. Used by Kubernetes readinessProbe.
+         *     it). 503 only before the first ok/slow check since boot (broken DB
+         *     config never takes traffic) or when the verdict is stale (this pod's
+         *     poller died). A slow DB, or one down after that first success
+         *     ("degraded"), still answers 200: the DB is shared, so gating on it
+         *     pulls every pod from the Service at once and the router serves its
+         *     HTML 503 for the whole API. Accepted cost: a pod that loses its own
+         *     network path to the DB also stays in, answering 503 JSON per request.
+         *     Used by Kubernetes readinessProbe.
          *
          *     External provider health (Accred) lives in /health/deps (#2050 A1):
          *     it must never gate readiness — a blip there is EPFL's incident, not
@@ -3649,7 +3654,7 @@ export interface components {
             municipality?: string | null;
             /**
              * Keywords
-             * @description Keywords (e.g., ['airport', 'train station']); indexed via explicit Alembic trigram GIN migration
+             * @description Keywords (e.g., ['airport', 'train station'])
              */
             keywords?: string | null;
             /** Id */
@@ -7428,6 +7433,8 @@ export interface operations {
                 query: string;
                 /** @description Maximum number of results to return (default: 5, max: 20) */
                 limit?: number;
+                /** @description Page number (1-indexed) */
+                page?: number;
                 /** @description Filter by location transport mode: 'train' or 'plane'. If not provided, returns both types. */
                 transport_mode?: components["schemas"]["TransportModeEnum"] | null;
             };

@@ -70,15 +70,20 @@ it is not an error.
 
 ## build_train_seed_from_trainline.py
 
-One-time seed builder (#1183): converts the trainline-eu `stations.csv`
-dump (gitignored, `backend/stations.csv`) into
-`backend/seed_data/seed_travel_location_train.csv`, the schema the
-reference-data CSV ingestion expects. Re-run only when refreshing the
-station dataset from upstream.
+Seed builder (#1183, #939): converts the trainline-eu `stations.csv`
+dump into `backend/seed_data/seed_travel_location_train.csv`, the schema
+the reference-data CSV ingestion expects, keeping railway stations only.
+Swiss rows are checked against the "Service Points (actual date)" export
+from opentransportdata.swiss. Both inputs are gitignored and default to
+`backend/stations.csv` and `backend/service_points.csv`. Re-run only when
+refreshing the station dataset from upstream.
 
 ```bash
-uv run python -m scripts.build_train_seed_from_trainline
+uv run python -m scripts.build_train_seed_from_trainline \
+  stations.csv service_points.csv --output travel_trains_reference.csv
 ```
+
+It fails when a station `ALIASES` names is no longer in the output.
 
 ## dedupe_member_roles.py
 

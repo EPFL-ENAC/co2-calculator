@@ -39,6 +39,7 @@
             hide-bottom-space
             :disable="disable || !transportMode"
             @filter="(val, update) => filterFrom(val, update)"
+            @virtual-scroll="onScrollFrom"
             @update:model-value="handleFromSelection"
           >
             <template #option="scope">
@@ -56,6 +57,22 @@
                         .join(', ')
                     }}
                   </q-item-label>
+                </q-item-section>
+              </q-item>
+            </template>
+            <template #no-option>
+              <q-item dense>
+                <q-item-section
+                  :class="fromError ? 'text-negative' : 'text-grey'"
+                >
+                  {{ $t(fromEmpty) }}
+                </q-item-section>
+              </q-item>
+            </template>
+            <template v-if="fromError" #after-options>
+              <q-item dense>
+                <q-item-section class="text-negative">
+                  {{ $t('module_options_load_error') }}
                 </q-item-section>
               </q-item>
             </template>
@@ -99,6 +116,7 @@
             hide-bottom-space
             :disable="disable || !transportMode"
             @filter="(val, update) => filterTo(val, update)"
+            @virtual-scroll="onScrollTo"
             @update:model-value="handleToSelection"
           >
             <template #option="scope">
@@ -116,6 +134,22 @@
                         .join(', ')
                     }}
                   </q-item-label>
+                </q-item-section>
+              </q-item>
+            </template>
+            <template #no-option>
+              <q-item dense>
+                <q-item-section
+                  :class="toError ? 'text-negative' : 'text-grey'"
+                >
+                  {{ $t(toEmpty) }}
+                </q-item-section>
+              </q-item>
+            </template>
+            <template v-if="toError" #after-options>
+              <q-item dense>
+                <q-item-section class="text-negative">
+                  {{ $t('module_options_load_error') }}
                 </q-item-section>
               </q-item>
             </template>
@@ -162,7 +196,7 @@ import {
 import { ref, computed, watch } from 'vue';
 import { MODULES } from '@/constant/modules';
 import { useI18n } from 'vue-i18n';
-import { searchLocations } from '@/api/locations';
+import { useLocationSearch } from '@/composables/useLocationSearch';
 import type { Location } from '@/constant/locations';
 
 const { t: $t } = useI18n();
@@ -214,10 +248,24 @@ const emit = defineEmits<{
   (e: 'swap'): void;
 }>();
 
-const fromOptions = ref<Location[]>([]);
-const toOptions = ref<Location[]>([]);
-const loadingFrom = ref(false);
-const loadingTo = ref(false);
+const {
+  options: fromOptions,
+  loading: loadingFrom,
+  loadError: fromError,
+  emptyLabel: fromEmpty,
+  filter: filterFrom,
+  onVirtualScroll: onScrollFrom,
+  reset: resetFrom,
+} = useLocationSearch(() => props.transportMode);
+const {
+  options: toOptions,
+  loading: loadingTo,
+  loadError: toError,
+  emptyLabel: toEmpty,
+  filter: filterTo,
+  onVirtualScroll: onScrollTo,
+  reset: resetTo,
+} = useLocationSearch(() => props.transportMode);
 const fromModel = ref<string>('');
 const toModel = ref<string>('');
 
@@ -277,11 +325,8 @@ watch(
   () => props.transportMode,
   (newMode, oldMode) => {
     if (oldMode !== undefined && newMode !== oldMode) {
-      // Clear options
-      fromOptions.value = [];
-      toOptions.value = [];
-      loadingFrom.value = false;
-      loadingTo.value = false;
+      resetFrom();
+      resetTo();
       fromModel.value = '';
       toModel.value = '';
       emit('update:from', '');
@@ -289,54 +334,6 @@ watch(
     }
   },
 );
-
-async function filterFrom(val: string, update: (fn: () => void) => void) {
-  if (!props.transportMode || val.length < 2) {
-    update(() => {
-      fromOptions.value = [];
-    });
-    return;
-  }
-
-  loadingFrom.value = true;
-  try {
-    const results = await searchLocations(val, props.transportMode, 20);
-    update(() => {
-      fromOptions.value = results;
-    });
-  } catch (error) {
-    console.error('Error fetching from locations:', error);
-    update(() => {
-      fromOptions.value = [];
-    });
-  } finally {
-    loadingFrom.value = false;
-  }
-}
-
-async function filterTo(val: string, update: (fn: () => void) => void) {
-  if (!props.transportMode || val.length < 2) {
-    update(() => {
-      toOptions.value = [];
-    });
-    return;
-  }
-
-  loadingTo.value = true;
-  try {
-    const results = await searchLocations(val, props.transportMode, 20);
-    update(() => {
-      toOptions.value = results;
-    });
-  } catch (error) {
-    console.error('Error fetching to locations:', error);
-    update(() => {
-      toOptions.value = [];
-    });
-  } finally {
-    loadingTo.value = false;
-  }
-}
 
 function handleFromSelection(value: Location | string | null) {
   if (!value) {

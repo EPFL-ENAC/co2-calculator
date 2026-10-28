@@ -1,14 +1,35 @@
 """Location repository for database operations."""
 
 import logging
+import re
 
-from sqlalchemy import bindparam, case, or_, text
-from sqlmodel import col, select
+from sqlalchemy import ColumnElement
+from sqlmodel import case, col, func, or_, select, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.location import Location, TransportModeEnum
+from app.models.location import LOCATION_SEARCH_COLUMNS, Location, TransportModeEnum
 
 logger = logging.getLogger(__name__)
+
+
+def _word_matches(word: str) -> ColumnElement[bool]:
+    """``word`` appears in one of the search columns, ignoring case and accents.
+
+    Words of 1-2 letters match a word start ("be" finds Bern, not Oberhausen);
+    longer words match anywhere ("bahnhof" in Hauptbahnhof). Both patterns keep
+    a trigram, so the ``ix_locations_*_trgm`` indexes on ``search_text()`` serve
+    them.
+    """
+    pattern = f"%{word}%"
+    if len(word) < 3:
+        pattern = f"% {word}%"
+    folded = func.unaccent(pattern)
+    return or_(
+        *(
+            func.search_text(col(getattr(Location, column))).ilike(folded)
+            for column in LOCATION_SEARCH_COLUMNS
+        )
+    )
 
 
 class LocationRepository:
@@ -22,6 +43,7 @@ class LocationRepository:
         query: str,
         transport_mode: TransportModeEnum,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[Location]:
         """Search locations by keywords, municipality, iata and name with
         relevance ordering.
@@ -32,7 +54,9 @@ class LocationRepository:
         - iata_code column
         - name column
 
-        Search uses PostgreSQL trigram similarity for efficient pattern matching.
+        The query is split into words; a location matches when every word
+        appears in one of those columns, ignoring case and accents. Words of
+        1-2 letters must start a word, longer ones may appear anywhere.
 
         Results are prioritized by:
         1. Switzerland (country_code == "CH") first
@@ -47,6 +71,7 @@ class LocationRepository:
         Args:
             query: Search query string
             limit: Maximum number of results to return (default: 20)
+            offset: Number of ranked results to skip, for pagination
             transport_mode: Filter by location transport mode ('train' or 'plane').
 
         Returns:
@@ -54,48 +79,29 @@ class LocationRepository:
             relevance, and airport_size (for airport searches)
         """
         query = query.strip()
-        if not query:
+
+        # Every word must appear somewhere, so separators, word order and accents
+        # don't matter: "geneve aeroport" finds "Genève-Aéroport".
+        words = re.findall(r"[^\W_]+", query)
+        if not words:
             return []
-
-        statement = select(Location)
-
-        # Use PostgreSQL trigram similarity for efficient searching
-        # This works with our GIN indexes using gin_trgm_ops
-        wildcard_query = f"%{query}%"
-        search_condition = or_(
-            text("name ilike :wildcard_query").bindparams(
-                bindparam("wildcard_query", wildcard_query)
-            ),
-            text("iata_code ilike :wildcard_query").bindparams(
-                bindparam("wildcard_query", wildcard_query)
-            ),
-            text("municipality ilike :wildcard_query").bindparams(
-                bindparam("wildcard_query", wildcard_query)
-            ),
-            text("keywords ilike :wildcard_query").bindparams(
-                bindparam("wildcard_query", wildcard_query)
-            ),
-        )
-
-        statement = statement.where(search_condition)
+        statement = select(Location).where(*(_word_matches(word) for word in words))
 
         # Filter by location transport_mode
         if transport_mode:
             statement = statement.where(col(Location.transport_mode) == transport_mode)
 
-        # Calculate numeric relevance score using trigram similarity.
-        # The % operator above is only a boolean threshold match filter; similarity()
-        # returns the 0..1 score used here for ordering.
+        # Relevance for ordering: trigram similarity (0..1), case-folded by pg_trgm.
         relevance_score = case(
             # Exact matches get highest score (1.0)
-            (text("LOWER(name) = LOWER(:exact_query)"), 1.0),
+            (text("unaccent(LOWER(name)) = unaccent(LOWER(:exact_query))"), 1.0),
             # Similarity scores for partial matches
             else_=text("""
                 GREATEST(
-                    COALESCE(similarity(LOWER(name), LOWER(:query)), 0),
-                    COALESCE(similarity(LOWER(iata_code), LOWER(:query)), 0),
-                    COALESCE(similarity(LOWER(municipality), LOWER(:query)), 0),
-                    COALESCE(similarity(LOWER(keywords), LOWER(:query)), 0)
+                    COALESCE(similarity(unaccent(name), unaccent(:query)), 0),
+                    COALESCE(similarity(unaccent(iata_code), unaccent(:query)), 0),
+                    COALESCE(similarity(unaccent(municipality), unaccent(:query)), 0),
+                    COALESCE(similarity(unaccent(keywords), unaccent(:query)), 0)
                 )
             """),
         ).label("relevance")
@@ -122,17 +128,23 @@ class LocationRepository:
                 switzerland_priority.asc(),
                 airport_priority.asc(),
                 text("relevance DESC"),  # Higher similarity scores first
+                # Accents are folded to match; the spelling typed ranks first
+                text("similarity(name, :query) DESC"),
                 col(Location.name).asc(),
+                # Names repeat, so id keeps the order total and pages disjoint
+                col(Location.id).asc(),
             )
         else:
             # For train searches, order by Switzerland first, then relevance
             extended = extended.order_by(
                 switzerland_priority.asc(),
                 text("relevance DESC"),  # Higher similarity scores first
+                text("similarity(name, :query) DESC"),
                 col(Location.name).asc(),
+                col(Location.id).asc(),
             )
 
-        extended = extended.limit(limit)
+        extended = extended.offset(offset).limit(limit)
 
         # Strip newlines so a crafted query can't forge extra log lines
         safe_query = query.replace("\r", "").replace("\n", "")
