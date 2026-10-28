@@ -3,8 +3,41 @@
 import re
 from enum import Enum
 
-from sqlalchemy import Index
+from sqlalchemy import Index, literal_column
 from sqlmodel import Field, SQLModel
+
+# Columns the travel from/to search matches word by word (#939), each served
+# by its own trigram index on ``search_text(column)``.
+LOCATION_SEARCH_COLUMNS = ("name", "iata_code", "municipality", "keywords")
+
+# ``unaccent()`` is only STABLE, so it cannot back an index; this IMMUTABLE
+# wrapper can. Schema-qualified because pg_restore runs with an empty
+# search_path. Separators become one space and a space is prepended, so a word
+# start is always " " + word and ``'% be%'`` still yields trigrams. Alembic
+# cannot see functions: listed in alembic/CUSTOM_DB_OBJECTS.md.
+SEARCH_TEXT_FUNCTION_SQL = """
+CREATE OR REPLACE FUNCTION public.search_text(text) RETURNS text
+LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
+AS $$
+SELECT ' ' || regexp_replace(
+    public.unaccent('public.unaccent'::regdictionary, $1),
+    '[[:space:][:punct:]]+', ' ', 'g'
+)
+$$
+"""
+
+
+def _search_index(column: str) -> Index:
+    # Spelled the way Postgres stores it (varchar -> text cast), so
+    # autogenerate compares it equal instead of re-creating it every revision.
+    expression = f"search_text(({column})::text)"
+    return Index(
+        f"ix_locations_{column}_trgm",
+        literal_column(expression),
+        postgresql_using="gin",
+        postgresql_ops={expression: "gin_trgm_ops"},
+    ).ddl_if(dialect="postgresql")
+
 
 # ==========================================
 # 1. BASE MODEL
@@ -76,10 +109,7 @@ class LocationBase(SQLModel):
     keywords: str | None = Field(
         default=None,
         max_length=255,
-        description=(
-            "Keywords (e.g., ['airport', 'train station']); indexed via "
-            "explicit Alembic trigram GIN migration"
-        ),
+        description="Keywords (e.g., ['airport', 'train station'])",
     )
 
 
@@ -100,15 +130,7 @@ class Location(LocationBase, table=True):
             "natural_key",
             unique=True,
         ),
-        # GIN trigram index powering fuzzy keyword search (created in
-        # migration 3f8147b5e516). Mirrored here so Alembic autogenerate
-        # stops proposing a spurious drop_index.
-        Index(
-            "ix_locations_keywords",
-            "keywords",
-            postgresql_using="gin",
-            postgresql_ops={"keywords": "gin_trgm_ops"},
-        ).ddl_if(dialect="postgresql"),
+        *(_search_index(column) for column in LOCATION_SEARCH_COLUMNS),
     )
 
     # ID: Integer, Primary Key, Auto-Increment

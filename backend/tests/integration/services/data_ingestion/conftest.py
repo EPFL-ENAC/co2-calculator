@@ -84,6 +84,7 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
+from app.models.location import SEARCH_TEXT_FUNCTION_SQL
 from app.models.module_type import ALL_MODULE_TYPE_IDS
 from app.models.unit import Unit
 from app.models.user import UserProvider
@@ -178,10 +179,12 @@ async def pg_dsn(postgres_container):
     url = postgres_container["url"]
     engine = create_async_engine(url, future=True)
     async with engine.begin() as conn:
-        # Mirror migration 3f8147b5e516: the GIN trigram index on
-        # locations.keywords needs pg_trgm. create_all (not Alembic) builds
-        # the schema here, so install the extension before create_all.
+        # create_all (not Alembic) builds the schema here, so lay down what
+        # the migrations add by hand first: the trigram indexes need pg_trgm,
+        # and the locations ones index search_text(), which needs unaccent.
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
+        await conn.execute(text(SEARCH_TEXT_FUNCTION_SQL))
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
     await engine.dispose()
