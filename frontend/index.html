@@ -49,28 +49,29 @@
     <!--
       Preload branded text fonts. They're otherwise discovered late via the
       CSS @font-face chain (CSS -> @font-face -> fetch), delaying LCP text.
-      crossorigin is required: @font-face fetches use CORS mode even
-      same-origin, so the preload must match or the browser double-fetches.
+      They come from enac-it-fonts.epfl.ch (see css/00-fonts/_fonts.scss).
+      crossorigin is required: @font-face fetches use CORS mode, so the
+      preload must match or the browser double-fetches.
     -->
     <link
       rel="preload"
       as="font"
       type="font/woff2"
-      href="src/assets/fonts/SuisseIntlEPFL-Regular-WebS.woff2"
+      href="https://enac-it-fonts.epfl.ch/SuisseIntl-Regular-WebS.woff2"
       crossorigin
     />
     <link
       rel="preload"
       as="font"
       type="font/woff2"
-      href="src/assets/fonts/SuisseIntlEPFL-Medium-WebS.woff2"
+      href="https://enac-it-fonts.epfl.ch/SuisseIntl-Medium-WebS.woff2"
       crossorigin
     />
     <link
       rel="preload"
       as="font"
       type="font/woff2"
-      href="src/assets/fonts/SuisseIntlEPFL-Bold-WebS.woff2"
+      href="https://enac-it-fonts.epfl.ch/SuisseIntl-Bold-WebS.woff2"
       crossorigin
     />
 

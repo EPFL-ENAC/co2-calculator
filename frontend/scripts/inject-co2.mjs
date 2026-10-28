@@ -40,8 +40,24 @@ if (textAssets.size === 0) {
   throw new Error(`no first-load assets found in ${indexPath}`);
 }
 
+// Fonts fetched from another origin (css/00-fonts/_fonts.scss) are not in
+// dist/spa, so their served size is declared here; an unlisted one throws.
+const EXTERNAL_FONT_BYTES = {
+  'https://enac-it-fonts.epfl.ch/SuisseIntl-Regular-WebS.woff2': 17228,
+  'https://enac-it-fonts.epfl.ch/SuisseIntl-Medium-WebS.woff2': 17788,
+  'https://enac-it-fonts.epfl.ch/SuisseIntl-Bold-WebS.woff2': 17852,
+};
+
 const readAsset = (url) => readFileSync(join(distDir, url.replace(/^\//, '')));
 const gzippedBytes = (buffer) => gzipSync(buffer, { level: 9 }).length;
+const fontBytes = (url) => {
+  if (!/^https?:\/\//.test(url)) return readAsset(url).length;
+  const bytes = EXTERNAL_FONT_BYTES[url];
+  if (bytes === undefined) {
+    throw new Error(`no declared size for external font ${url}`);
+  }
+  return bytes;
+};
 
 let totalBytes = gzippedBytes(Buffer.from(html));
 for (const url of textAssets) {
@@ -57,7 +73,7 @@ for (const url of textAssets) {
 }
 // woff2 is already Brotli-compressed, so fonts count at their raw size.
 for (const url of fontAssets) {
-  totalBytes += readAsset(url).length;
+  totalBytes += fontBytes(url);
 }
 
 const mg = totalBytes * G_PER_BYTE * 1000;
