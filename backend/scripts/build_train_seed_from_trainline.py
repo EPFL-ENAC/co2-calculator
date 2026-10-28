@@ -12,9 +12,21 @@ coach stops, and dropped the airport railway stations. Swiss rows carry no
 mode, so they are checked against the official Swiss service points.
 
 Input  : ``backend/stations.csv``       (trainline-eu, ``;``-delimited; gitignored)
-         ``backend/service_points.csv`` (opentransportdata.swiss "Service
-         Points (actual date)", ``;``-delimited; gitignored)
+         ``backend/service_points.csv`` (opentransportdata.swiss, ``;``-delimited;
+         gitignored)
 Output : ``backend/seed_data/seed_travel_location_train.csv``
+
+Getting the inputs (neither is committed):
+  - ``stations.csv``: from the trainline-eu repository above.
+  - ``service_points.csv``: download ``actual-date-swiss-service-point.csv``
+    from https://data.opentransportdata.swiss/dataset/service-point-v2 and
+    rename it. The #939 build used the retired "Service Points (actual
+    date)" dataset's last file (2026-06-30). Only ``number``,
+    ``designationOfficial`` and ``meansOfTransport`` (``|``-separated) are
+    read; a renamed column fails the build with a ``KeyError``.
+  - Run from ``backend/``: ``uv run python
+    scripts/build_train_seed_from_trainline.py [stations] [service_points]
+    [--output PATH]``, both inputs defaulting to the paths above.
          (comma-delimited, LF, the 10-column schema the reference CSV
          ingestion expects — see ``ReferenceDataCSVProvider``)
 
