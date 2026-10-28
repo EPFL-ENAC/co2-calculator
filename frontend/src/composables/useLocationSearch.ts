@@ -1,4 +1,4 @@
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import type { QSelect } from 'quasar';
 import { searchLocations } from '@/api/locations';
 import type { Location, TransportMode } from '@/constant/locations';
@@ -16,42 +16,56 @@ export function useLocationSearch(
 ) {
   const options = ref<Location[]>([]);
   const loading = ref(false);
-  let query = '';
+  const loadError = ref(false);
+  const query = ref('');
   let page = 1;
   let hasMore = false;
-  // Bumped whenever the list is replaced, so a late page for an older list
-  // (previous query, previous transport mode) is dropped instead of appended.
-  let generation = 0;
+  // Bumped when a search, a page load or a reset starts: only the latest
+  // request may touch the list, the loading flag or the error.
+  let request = 0;
+
+  // The `#no-option` wording: an empty list is a failure, a too-short
+  // query or a real "no match", never a silent blank.
+  const emptyLabel = computed(() => {
+    if (loadError.value) return 'module_options_load_error';
+    if (query.value.length < 2) return 'common_type_to_search';
+    return 'common_no_search_results';
+  });
 
   function replace(results: Location[], val: string) {
-    generation += 1;
     options.value = results;
-    query = val;
+    query.value = val;
     page = 1;
     hasMore = results.length === PAGE_SIZE;
   }
 
   async function filter(val: string, update: (fn: () => void) => void) {
     const mode = transportMode();
-    if (!mode || val.length < 2) {
-      update(() => replace([], val));
+    const text = val.trim();
+    const seq = ++request;
+    loading.value = false;
+    loadError.value = false;
+    // Mirrors the backend's min_length=2 on the trimmed query.
+    if (!mode || text.length < 2) {
+      update(() => replace([], text));
       return;
     }
 
-    const started = generation;
     loading.value = true;
     try {
-      const results = await searchLocations(val, mode, PAGE_SIZE, 1);
+      const results = await searchLocations(text, mode, PAGE_SIZE, 1);
       update(() => {
-        if (started === generation) replace(results, val);
+        if (seq === request) replace(results, text);
       });
     } catch (error) {
       console.error('Error fetching locations:', error);
       update(() => {
-        if (started === generation) replace([], val);
+        if (seq !== request) return;
+        replace([], text);
+        loadError.value = true;
       });
     } finally {
-      loading.value = false;
+      if (seq === request) loading.value = false;
     }
   }
 
@@ -67,29 +81,46 @@ export function useLocationSearch(
       return;
     }
 
-    const listed = generation;
+    const seq = ++request;
     loading.value = true;
     try {
-      const results = await searchLocations(query, mode, PAGE_SIZE, page + 1);
-      if (listed !== generation) return;
+      const results = await searchLocations(
+        query.value,
+        mode,
+        PAGE_SIZE,
+        page + 1,
+      );
+      if (seq !== request) return;
       page += 1;
       hasMore = results.length === PAGE_SIZE;
       options.value = [...options.value, ...results];
       await nextTick();
       select.refresh();
     } catch (error) {
-      // Keep the rows already shown; paging resumes with the next search.
+      // Keep the rows already shown and say the list stops short.
       console.error('Error fetching more locations:', error);
-      if (listed === generation) hasMore = false;
+      if (seq !== request) return;
+      hasMore = false;
+      loadError.value = true;
     } finally {
-      loading.value = false;
+      if (seq === request) loading.value = false;
     }
   }
 
   function reset() {
+    request += 1;
     replace([], '');
     loading.value = false;
+    loadError.value = false;
   }
 
-  return { options, loading, filter, onVirtualScroll, reset };
+  return {
+    options,
+    loading,
+    loadError,
+    emptyLabel,
+    filter,
+    onVirtualScroll,
+    reset,
+  };
 }

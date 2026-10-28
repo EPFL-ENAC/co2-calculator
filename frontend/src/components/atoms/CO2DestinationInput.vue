@@ -60,6 +60,22 @@
                 </q-item-section>
               </q-item>
             </template>
+            <template #no-option>
+              <q-item dense>
+                <q-item-section
+                  :class="fromError ? 'text-negative' : 'text-grey'"
+                >
+                  {{ $t(fromEmpty) }}
+                </q-item-section>
+              </q-item>
+            </template>
+            <template v-if="fromError" #after-options>
+              <q-item dense>
+                <q-item-section class="text-negative">
+                  {{ $t('module_options_load_error') }}
+                </q-item-section>
+              </q-item>
+            </template>
           </q-select>
           <q-input
             v-else
@@ -118,6 +134,22 @@
                         .join(', ')
                     }}
                   </q-item-label>
+                </q-item-section>
+              </q-item>
+            </template>
+            <template #no-option>
+              <q-item dense>
+                <q-item-section
+                  :class="toError ? 'text-negative' : 'text-grey'"
+                >
+                  {{ $t(toEmpty) }}
+                </q-item-section>
+              </q-item>
+            </template>
+            <template v-if="toError" #after-options>
+              <q-item dense>
+                <q-item-section class="text-negative">
+                  {{ $t('module_options_load_error') }}
                 </q-item-section>
               </q-item>
             </template>
@@ -219,6 +251,8 @@ const emit = defineEmits<{
 const {
   options: fromOptions,
   loading: loadingFrom,
+  loadError: fromError,
+  emptyLabel: fromEmpty,
   filter: filterFrom,
   onVirtualScroll: onScrollFrom,
   reset: resetFrom,
@@ -226,6 +260,8 @@ const {
 const {
   options: toOptions,
   loading: loadingTo,
+  loadError: toError,
+  emptyLabel: toEmpty,
   filter: filterTo,
   onVirtualScroll: onScrollTo,
   reset: resetTo,
