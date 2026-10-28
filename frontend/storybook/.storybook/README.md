@@ -49,30 +49,6 @@ npm run storybook:build
 
 The static files will be generated in the `storybook-static/` directory at the project root.
 
-### Testing Stories
-
-Run Storybook's test runner to verify all stories render correctly:
-
-```bash
-# Using Make (recommended)
-make storybook-test
-
-# Or using npm directly
-npm run storybook:test
-```
-
-For CI environments, use:
-
-```bash
-# Using Make (recommended)
-make storybook-test-ci
-
-# Or using npm directly
-npm run storybook:test-ci
-```
-
-This command starts Storybook in CI mode and runs tests once it's ready.
-
 ### Running Storybook in Docker
 
 Build and run Storybook using Docker:

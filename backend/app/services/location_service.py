@@ -26,12 +26,14 @@ class LocationService:
         query: str,
         transport_mode: TransportModeEnum,
         limit: int = 10,
+        page: int = 1,
     ) -> list[LocationRead]:
         """Search locations by name with relevance ordering.
 
         Args:
             query: Search query string
-            limit: Maximum number of results
+            limit: Maximum number of results (page size)
+            page: 1-indexed page of the ranked results
             transport_mode: Filter by location transport mode ('train' or 'plane')
 
         Returns:
@@ -60,6 +62,7 @@ class LocationService:
         locations = await self.repo.search_location(
             query=query,
             limit=limit,
+            offset=(page - 1) * limit,
             transport_mode=transport_mode,
         )
 

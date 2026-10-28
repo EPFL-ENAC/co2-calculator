@@ -78,10 +78,9 @@ type-check-go: ## Run TypeScript type checking
 	@$(TSGO) --noEmit -p tsconfig.typecheck.json
 
 .PHONY: audit
-audit: ## Run npm security audit (runtime deps strict, accepted advisories in scripts/npm-audit.mjs)
+audit: ## Run npm security audit
 	@echo "\033[33mnpm audit in $(CURDIR)\033[0m"
-	npm audit --omit=dev --audit-level=high
-	node scripts/npm-audit.mjs
+	npm audit --audit-level=high
 	@echo "\033[33mnpm audit in $(CURDIR)/storybook\033[0m"
 	cd storybook && npm audit --audit-level=high
 
@@ -153,14 +152,6 @@ storybook: ## Start Storybook development server
 .PHONY: storybook-build
 storybook-build: ## Build static Storybook site
 	cd storybook && npm run build
-
-.PHONY: storybook-test
-storybook-test: ## Test Storybook stories
-	cd storybook && npm run test
-
-.PHONY: storybook-test-ci
-storybook-test-ci: ## Test Storybook stories in CI mode
-	cd storybook && npm run test:ci
 
 .PHONY: storybook-install
 storybook-install: ## Install Storybook dependencies (separate from frontend)

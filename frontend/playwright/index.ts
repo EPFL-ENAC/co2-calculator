@@ -17,9 +17,12 @@ import {
   QDialog,
   QSeparator,
   QExpansionItem,
+  QForm,
   QIcon,
+  QImg,
   QInput,
   QItem,
+  QItemLabel,
   QItemSection,
   QSelect,
   QTooltip,
@@ -58,6 +61,8 @@ beforeMount(async ({ app }) => {
   app.component('QItem', QItem);
   app.component('QItemSection', QItemSection);
   app.component('QSelect', QSelect);
+  // CO2DestinationInput's options (location-search-paging.spec.ts).
+  app.component('QItemLabel', QItemLabel);
   app.component('QTooltip', QTooltip);
   // PlannerHeadcountRows (#2613 vocabulary labels) renders q-input rows.
   app.component('QInput', QInput);
@@ -70,4 +75,7 @@ beforeMount(async ({ app }) => {
   // PlannerYearSection's reference-year and mode-switch dialogs: without it
   // a closed q-dialog renders its content inline.
   app.component('QDialog', QDialog);
+  // LoginCard (login-card-reason.spec.ts) renders its form and logo.
+  app.component('QForm', QForm);
+  app.component('QImg', QImg);
 });

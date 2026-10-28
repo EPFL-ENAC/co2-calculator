@@ -12,11 +12,32 @@ Last collapse: #2904 (2026-09-22), into `versions/2026_09_22_1021-128d2947054c_i
 ### `pg_trgm` extension
 
 - **What:** `CREATE EXTENSION IF NOT EXISTS pg_trgm`
-- **Why:** two trigram GIN indexes depend on it — `ix_locations_keywords`
-  (`location.py`) and `ix_classification_translations_label_trgm`
-  (`classification_translation.py`). Autogenerate emits both `CREATE INDEX`
-  statements, but **not** the extension they need.
+- **Why:** the trigram GIN indexes depend on it — the four
+  `ix_locations_<column>_trgm` (`location.py`) and
+  `ix_classification_translations_label_trgm` (`classification_translation.py`).
+  Autogenerate emits the `CREATE INDEX` statements, but **not** the extension
+  they need.
 - **Where:** top of `upgrade()`; dropped at the end of `downgrade()`.
+
+### `unaccent` extension
+
+- **What:** `CREATE EXTENSION IF NOT EXISTS unaccent`
+- **Why:** `search_text()` below and the search ranking call `unaccent()` so
+  `zurich` finds `Zürich` (#939). Autogenerate never emits extensions.
+- **Where:** `c69b88dfd949` (#939), before `search_text()`; on a collapse, next to
+  `pg_trgm` at the top of `upgrade()`, dropped at the end of `downgrade()`.
+
+### `search_text(text)` function
+
+- **What:** `SEARCH_TEXT_FUNCTION_SQL` in `app/models/location.py`: an
+  IMMUTABLE `unaccent` wrapper that turns separators into one space and
+  prepends a space.
+- **Why:** the four `ix_locations_<column>_trgm` index `search_text(column)`;
+  `unaccent()` itself is only STABLE and cannot be indexed. Autogenerate does
+  not see functions.
+- **Where:** `c69b88dfd949` (#939), after `unaccent` and before the index changes;
+  dropped in `downgrade()` after the indexes, before `unaccent`. The migration
+  keeps its own copy of the SQL; on a collapse, copy the current one.
 
 ### `classification_translations` label rows
 
@@ -48,10 +69,15 @@ hand-write the index.
 - Factor-resolution expression indexes: 8 × `ix_factors_res_<key>` (`factor.py`,
   one per `FACTOR_RESOLUTION_INDEX_KEYS`, pinned by
   `tests/unit/models/test_factor_resolution_indexes.py`).
-- Trigram GIN indexes: `ix_locations_keywords` (`location.py`),
+- Trigram GIN indexes: 4 × `ix_locations_<column>_trgm` on
+  `search_text((<column>)::text)` (`location.py`, one per
+  `LOCATION_SEARCH_COLUMNS`, pinned by
+  `tests/unit/v1/test_locations_search_endpoint.py`),
   `ix_classification_translations_label_trgm` (`classification_translation.py`).
-  The second was migration-only until #2904, when it moved into the model; every
-  autogenerate before that proposed dropping it.
+  The `(<column>)::text` spelling is how Postgres stores the expression; any
+  other spelling makes autogenerate re-create the indexes on every run. The
+  `classification_translations` one was migration-only until #2904, when it
+  moved into the model; every autogenerate before that proposed dropping it.
 - Covering index with `INCLUDE` columns: `ix_dee_module_type_entry`
   (`data_entry_emission.py`, #2527) — `(carbon_report_module_id, data_entry_type_id,
 data_entry_id) INCLUDE (kg_co2eq, emission_type_id, primary_factor_id, scope)`.

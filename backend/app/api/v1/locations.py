@@ -19,7 +19,9 @@ async def search_locations(
     query: str = Query(
         ...,
         min_length=2,
-        description="Search query string (minimum 2 characters)",
+        # As long as the longest searched column; every word costs index scans.
+        max_length=255,
+        description="Search query string (2 to 255 characters)",
     ),
     limit: int = Query(
         5,
@@ -27,6 +29,9 @@ async def search_locations(
         le=20,
         description="Maximum number of results to return (default: 5, max: 20)",
     ),
+    # The asyncpg dialect binds OFFSET as $n::INTEGER (int4); 10k pages of 20
+    # is past any result set.
+    page: int = Query(1, ge=1, le=10_000, description="Page number (1-indexed)"),
     transport_mode: TransportModeEnum | None = Query(
         None,
         description=(
@@ -47,6 +52,7 @@ async def search_locations(
     Args:
         query: Search query string (minimum 2 characters)
         limit: Maximum number of results (default: 5, max: 20)
+        page: Page number (1-indexed); a page shorter than ``limit`` is the last
         transport_mode: Filter by location transport mode ('train' or 'plane').
             If None, returns both types.
         db: Database session
@@ -72,6 +78,7 @@ async def search_locations(
     locations = await service.search_locations(
         query=query,
         limit=limit,
+        page=page,
         transport_mode=transport_mode,
     )
 
@@ -82,6 +89,7 @@ async def search_locations(
             "query": sanitize(query),
             "transport_mode": transport_mode,
             "limit": limit,
+            "page": page,
             "count": len(locations),
         },
     )

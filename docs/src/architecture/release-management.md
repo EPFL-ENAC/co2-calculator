@@ -129,7 +129,7 @@ Follow this checklist for each sprint release:
    - Create Pull request from stage to main that will be validated by external code-reviewer
      - once code review is validated, PR is merged to main, and release please create PR for release
    - Version increments MINOR (v0.X.0) (release-please)
-   - Automated changelog generation
+   - GitHub release notes from the top `CHANGELOG.md` entry
    - Deploy to pre-production
 
 4. **Post-Release**
@@ -161,12 +161,12 @@ First public release after sprint 10:
 
 ### Automated Release Tools
 
-We use `release-please` GitHub Action for automation:
+`release-please.yml` runs on a `stage → main` merge (the name is
+legacy, it no longer uses release-please):
 
-- Reads conventional commits
-- Generates CHANGELOG.md
-- Creates release PR
-- Publishes GitHub release
+- Tags `v<version>` from root `package.json`
+- Publishes a GitHub release with the top `CHANGELOG.md` entry,
+  written by hand on `dev` before the `dev → stage` promotion
 
 Configuration in `.github/workflows/release-please.yml`. For workflow
 details, see [CI/CD Workflows](cicd-workflows.md#release-pleaseyml-tag-and-release).

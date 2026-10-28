@@ -20,46 +20,17 @@
           <div class="destination-marker-outer">
             <div class="destination-marker-inner"></div>
           </div>
-          <q-select
+          <LocationSelectField
             v-if="transportMode && isAutocompleteEnabled"
             v-model="fromModel"
-            :options="fromOptions"
-            :loading="loadingFrom"
-            use-input
-            input-debounce="300"
-            hide-selected
-            fill-input
-            option-label="name"
-            dense
-            borderless
-            hide-dropdown-icon
+            :transport-mode="transportMode"
             class="marker-offset autocomplete-input"
             :label="$t(`${MODULES.ProfessionalTravel}-field-from`)"
             :placeholder="placeholders?.from"
-            hide-bottom-space
-            :disable="disable || !transportMode"
-            @filter="(val, update) => filterFrom(val, update)"
-            @update:model-value="handleFromSelection"
-          >
-            <template #option="scope">
-              <q-item v-bind="scope.itemProps">
-                <q-item-section>
-                  <q-item-label>{{ scope.opt.name }}</q-item-label>
-                  <q-item-label
-                    v-if="scope.opt.iata_code || scope.opt.country_code"
-                    caption
-                    class="text-grey"
-                  >
-                    {{
-                      [scope.opt.iata_code, scope.opt.country_code]
-                        .filter(Boolean)
-                        .join(', ')
-                    }}
-                  </q-item-label>
-                </q-item-section>
-              </q-item>
-            </template>
-          </q-select>
+            :disable="disable"
+            @update:model-value="(val) => emit('update:from', val)"
+            @location-selected="(loc) => emit('from-location-selected', loc)"
+          />
           <q-input
             v-else
             class="marker-offset"
@@ -80,46 +51,17 @@
           <div class="destination-marker-outer">
             <div class="destination-marker-inner"></div>
           </div>
-          <q-select
+          <LocationSelectField
             v-if="transportMode && isAutocompleteEnabled"
             v-model="toModel"
-            :options="toOptions"
-            :loading="loadingTo"
-            use-input
-            input-debounce="300"
-            hide-selected
-            fill-input
-            option-label="name"
-            dense
-            borderless
-            hide-dropdown-icon
+            :transport-mode="transportMode"
             class="marker-offset autocomplete-input"
             :label="$t(`${MODULES.ProfessionalTravel}-field-to`)"
             :placeholder="placeholders?.to"
-            hide-bottom-space
-            :disable="disable || !transportMode"
-            @filter="(val, update) => filterTo(val, update)"
-            @update:model-value="handleToSelection"
-          >
-            <template #option="scope">
-              <q-item v-bind="scope.itemProps">
-                <q-item-section>
-                  <q-item-label>{{ scope.opt.name }}</q-item-label>
-                  <q-item-label
-                    v-if="scope.opt.iata_code || scope.opt.country_code"
-                    caption
-                    class="text-grey"
-                  >
-                    {{
-                      [scope.opt.iata_code, scope.opt.country_code]
-                        .filter(Boolean)
-                        .join(', ')
-                    }}
-                  </q-item-label>
-                </q-item-section>
-              </q-item>
-            </template>
-          </q-select>
+            :disable="disable"
+            @update:model-value="(val) => emit('update:to', val)"
+            @location-selected="(loc) => emit('to-location-selected', loc)"
+          />
           <q-input
             v-else
             class="marker-offset"
@@ -162,8 +104,7 @@ import {
 import { ref, computed, watch } from 'vue';
 import { MODULES } from '@/constant/modules';
 import { useI18n } from 'vue-i18n';
-import { searchLocations } from '@/api/locations';
-import type { Location } from '@/constant/locations';
+import LocationSelectField from '@/components/molecules/LocationSelectField.vue';
 
 const { t: $t } = useI18n();
 
@@ -214,10 +155,6 @@ const emit = defineEmits<{
   (e: 'swap'): void;
 }>();
 
-const fromOptions = ref<Location[]>([]);
-const toOptions = ref<Location[]>([]);
-const loadingFrom = ref(false);
-const loadingTo = ref(false);
 const fromModel = ref<string>('');
 const toModel = ref<string>('');
 
@@ -261,27 +198,10 @@ watch(
   { immediate: true },
 );
 
-watch(fromModel, (newVal) => {
-  if (newVal && typeof newVal === 'object') {
-    fromModel.value = (newVal as Location).name || '';
-  }
-});
-
-watch(toModel, (newVal) => {
-  if (newVal && typeof newVal === 'object') {
-    toModel.value = (newVal as Location).name || '';
-  }
-});
-
 watch(
   () => props.transportMode,
   (newMode, oldMode) => {
     if (oldMode !== undefined && newMode !== oldMode) {
-      // Clear options
-      fromOptions.value = [];
-      toOptions.value = [];
-      loadingFrom.value = false;
-      loadingTo.value = false;
       fromModel.value = '';
       toModel.value = '';
       emit('update:from', '');
@@ -289,94 +209,6 @@ watch(
     }
   },
 );
-
-async function filterFrom(val: string, update: (fn: () => void) => void) {
-  if (!props.transportMode || val.length < 2) {
-    update(() => {
-      fromOptions.value = [];
-    });
-    return;
-  }
-
-  loadingFrom.value = true;
-  try {
-    const results = await searchLocations(val, props.transportMode, 20);
-    update(() => {
-      fromOptions.value = results;
-    });
-  } catch (error) {
-    console.error('Error fetching from locations:', error);
-    update(() => {
-      fromOptions.value = [];
-    });
-  } finally {
-    loadingFrom.value = false;
-  }
-}
-
-async function filterTo(val: string, update: (fn: () => void) => void) {
-  if (!props.transportMode || val.length < 2) {
-    update(() => {
-      toOptions.value = [];
-    });
-    return;
-  }
-
-  loadingTo.value = true;
-  try {
-    const results = await searchLocations(val, props.transportMode, 20);
-    update(() => {
-      toOptions.value = results;
-    });
-  } catch (error) {
-    console.error('Error fetching to locations:', error);
-    update(() => {
-      toOptions.value = [];
-    });
-  } finally {
-    loadingTo.value = false;
-  }
-}
-
-function handleFromSelection(value: Location | string | null) {
-  if (!value) {
-    emit('update:from', '');
-    fromModel.value = '';
-    return;
-  }
-
-  if (typeof value === 'string') {
-    fromModel.value = value;
-    emit('update:from', value);
-    return;
-  }
-
-  fromModel.value = value.name;
-  emit('update:from', value.name);
-  emit('from-location-selected', {
-    ...value,
-  });
-}
-
-function handleToSelection(value: Location | string | null) {
-  if (!value) {
-    emit('update:to', '');
-    toModel.value = '';
-    return;
-  }
-
-  if (typeof value === 'string') {
-    toModel.value = value;
-    emit('update:to', value);
-    return;
-  }
-
-  toModel.value = value.name;
-  emit('update:to', value.name);
-  emit('to-location-selected', {
-    ...value,
-  });
-}
 
 function swapValues() {
   const oldFrom = props.from;
