@@ -61,5 +61,8 @@ homepage, computed once at build time. No Lighthouse involvement; the nightly
   and the lazily-loaded route chunks. The HomePage
   route's own lazy chunk is small; adding it later means also summing
   `HomePage-[hash].{js,css}`.
+- Suisse Intl comes from enac-it-fonts.epfl.ch since 2026-10-28, so it is
+  not in `dist/spa`: `inject-co2.mjs` counts it from a table of served sizes
+  and throws on an external font it does not list.
 - With fonts (2026-09-02): 574.9 KB across 47 files + 5 fonts (328.9 KB of
   which are fonts) → ≈114 mg CO₂ per first load.
