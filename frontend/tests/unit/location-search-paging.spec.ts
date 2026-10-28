@@ -6,7 +6,8 @@
  * stopped at the first 20 matches.
  *
  * The menu also says why it is empty or short (too-short query, no match,
- * failed request) instead of closing on a blank.
+ * failed request) instead of closing on a blank, and a pick still reaches
+ * the form as a name plus the location.
  */
 import { test, expect } from '@playwright/experimental-ct-vue';
 import CO2DestinationInput from '@/components/atoms/CO2DestinationInput.vue';
@@ -186,4 +187,28 @@ test("a late failure of the previous query's page does not flag the new list", a
     page.getByRole('option', { name: 'Station p9-0' }),
   ).toBeVisible();
   await expect(page.locator('.q-menu').getByText(LOAD_ERROR)).toHaveCount(0);
+});
+
+test('picking a station emits its name and the location', async ({
+  mount,
+  page,
+}) => {
+  await page.route('**/api/v1/locations/search**', (route) =>
+    route.fulfill(json(stations(1, 3))),
+  );
+  const names: string[] = [];
+  const picked: { id: number }[] = [];
+  const component = await mount(CO2DestinationInput, {
+    props: { transportMode: 'train' },
+    on: {
+      'update:from': (name: string) => names.push(name),
+      'from-location-selected': (location: { id: number }) =>
+        picked.push(location),
+    },
+  });
+  await component.locator('input').first().fill('be');
+  await page.getByRole('option', { name: 'Station p1-1' }).click();
+
+  await expect.poll(() => names).toEqual(['Station p1-1']);
+  expect(picked.map((location) => location.id)).toEqual([101]);
 });
