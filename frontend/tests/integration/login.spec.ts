@@ -41,6 +41,11 @@ test('language-less /login keeps the reason and resolves the UI language', async
   await context.addCookies([
     { name: 'locale', value: 'fr-CH', url: baseURL ?? '' },
   ]);
+  // No backend behind the preview server: answer the session check as
+  // anonymous, or its 404 raises an error toast that is also an alert.
+  await page.route('**/api/v1/session', (route) =>
+    route.fulfill({ status: 401, body: '' }),
+  );
 
   await page.goto('/login?reason=accred-unavailable');
 

@@ -18,7 +18,10 @@ const SRC = new URL('../src/', import.meta.url).pathname;
 const ligatures = new Set(
   ['material-icons', 'material-icons-outlined'].flatMap((pkg) =>
     JSON.parse(
-      readFileSync(`node_modules/@quasar/extras/${pkg}/icons.json`, 'utf8'),
+      readFileSync(
+        `node_modules/@quasar/extras/exports/${pkg}/icons.json`,
+        'utf8',
+      ),
     ).map((name) =>
       name
         .replace(/^(mat|outlined)/, '')
