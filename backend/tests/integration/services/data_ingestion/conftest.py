@@ -183,7 +183,9 @@ async def pg_dsn(postgres_container):
         # the migrations add by hand first: the trigram indexes need pg_trgm,
         # and the locations ones index search_text(), which needs unaccent.
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
+        await conn.execute(
+            text("CREATE EXTENSION IF NOT EXISTS unaccent SCHEMA public")
+        )
         await conn.execute(text(SEARCH_TEXT_FUNCTION_SQL))
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)

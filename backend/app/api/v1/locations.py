@@ -19,7 +19,9 @@ async def search_locations(
     query: str = Query(
         ...,
         min_length=2,
-        description="Search query string (minimum 2 characters)",
+        # As long as the longest searched column; every word costs index scans.
+        max_length=255,
+        description="Search query string (2 to 255 characters)",
     ),
     limit: int = Query(
         5,
@@ -27,7 +29,9 @@ async def search_locations(
         le=20,
         description="Maximum number of results to return (default: 5, max: 20)",
     ),
-    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    # The asyncpg dialect binds OFFSET as $n::INTEGER (int4); 10k pages of 20
+    # is past any result set.
+    page: int = Query(1, ge=1, le=10_000, description="Page number (1-indexed)"),
     transport_mode: TransportModeEnum | None = Query(
         None,
         description=(

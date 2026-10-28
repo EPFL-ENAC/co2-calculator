@@ -29,7 +29,7 @@ def _stub_user():
 _TAIL = re.compile(r"locations\.id ASC\s+LIMIT %\((\w+)\)s\S* OFFSET %\((\w+)\)s")
 
 
-def _compiled(params: dict):
+def _search(params: dict) -> tuple[int, AsyncMock]:
     session = AsyncMock()
     session.execute.return_value = MagicMock(fetchall=MagicMock(return_value=[]))
     app.dependency_overrides[get_db] = lambda: session
@@ -39,7 +39,12 @@ def _compiled(params: dict):
             response = client.get("/api/v1/locations/search", params=params)
     finally:
         app.dependency_overrides.clear()
-    assert response.status_code == 200
+    return response.status_code, session
+
+
+def _compiled(params: dict):
+    status_code, session = _search(params)
+    assert status_code == 200
     return session.execute.call_args.args[0].compile(dialect=postgresql.dialect())
 
 
@@ -63,6 +68,22 @@ def test_page_defaults_to_the_first():
 def test_plane_search_pages_on_the_same_total_order():
     params = {"query": "be", "transport_mode": "plane", "page": 2}
     assert _limit_offset(params) == (5, 5)
+
+
+def test_page_past_the_cap_is_rejected_before_the_offset_overflows():
+    params = {"query": "be", "transport_mode": "train", "limit": 20}
+    assert _limit_offset({**params, "page": 10_000}) == (20, 199_980)
+    # Uncapped, page 107_374_184 overflows OFFSET $n::INTEGER: a 500.
+    status_code, session = _search({**params, "page": 10_001})
+    assert status_code == 422
+    session.execute.assert_not_called()
+
+
+def test_query_longer_than_the_searched_columns_is_rejected():
+    _compiled({"query": "a" * 255, "transport_mode": "train"})
+    status_code, session = _search({"query": "a" * 256, "transport_mode": "train"})
+    assert status_code == 422
+    session.execute.assert_not_called()
 
 
 def _word_patterns(query: str) -> list[str]:
