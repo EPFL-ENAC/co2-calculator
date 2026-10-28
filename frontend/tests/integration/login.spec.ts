@@ -27,3 +27,25 @@ test('clicking the login button navigates to the OAuth login endpoint', async ({
     button.click(),
   ]);
 });
+
+/**
+ * The backend redirects a callback it cannot finish (Accred down) to
+ * /login?reason=… because it does not know the UI language. It used to
+ * hard-code /en/login, so a French user always got the English banner.
+ */
+test('language-less /login keeps the reason and resolves the UI language', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.addCookies([
+    { name: 'locale', value: 'fr-CH', url: baseURL ?? '' },
+  ]);
+
+  await page.goto('/login?reason=accred-unavailable');
+
+  await expect(page).toHaveURL(/\/fr\/login\?reason=accred-unavailable$/);
+  await expect(page.getByRole('alert')).toContainText(
+    'EPFL Accred est indisponible',
+  );
+});

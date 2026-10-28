@@ -19,6 +19,10 @@ export default {
     en: 'Test Role',
     fr: 'Rôle de test',
   },
+  login_accred_unavailable_message: {
+    en: 'EPFL Accred is unavailable. Please try again later.',
+    fr: 'EPFL Accred est indisponible. Veuillez réessayer plus tard.',
+  },
   session_expired_notice: {
     en: 'Your session has expired. Please log in again.',
     fr: 'Votre session a expiré. Veuillez vous reconnecter.',
