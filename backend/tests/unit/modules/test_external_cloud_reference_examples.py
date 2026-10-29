@@ -4,8 +4,8 @@ Rows: back-office doc, "test calculation external_clouds". Factor:
 external_clouds_factors.csv, every provider 0.259 kg per EUR. The doc fixes
 the exchange rates, so the ECB lookup is patched to them.
 
-External AI is not covered: the doc and the code disagree on the request
-buckets, the working days and the unit (see the #2771 plan).
+External AI is not covered: the docs and the code disagree on the request
+buckets and the working days (see the #2771 plan).
 """
 
 from unittest.mock import patch
