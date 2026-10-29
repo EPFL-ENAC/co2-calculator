@@ -1,0 +1,115 @@
+publiccodeYmlVersion: "0.5.0"
+
+name: "CO2 Calculator"
+url: "https://github.com/EPFL-ENAC/co2-calculator"
+softwareVersion: "v1.4.19"
+releaseDate: "2026-09-28"
+
+platforms:
+  - web
+
+categories:
+  - data-collection
+  - data-analytics
+  - data-visualization
+
+developmentStatus: stable
+
+softwareType: standalone/web
+
+organisation:
+  name: "École Polytechnique Fédérale de Lausanne (EPFL)"
+  uri: "https://www.epfl.ch"
+
+description:
+  fr:
+    shortDescription: >
+      Outil open source de calcul de l'empreinte carbone d'une unité,
+      conforme au GHG Protocol.
+    longDescription: >
+      Le CO2 Calculator est une application web open source développée à
+      l'EPFL (École polytechnique fédérale de Lausanne) pour évaluer
+      l'empreinte carbone d'une unité conformément au
+      [GHG Protocol](https://ghgprotocol.org/corporate-standard), la norme
+      internationale de calcul des émissions de gaz à effet de serre.
+
+      Les utilisateurs saisissent les données d'activité dans plusieurs
+      modules — effectifs, bâtiments, infrastructures de recherche,
+      équipements, achats, informatique, déplacements professionnels, cloud
+      externe et services d'IA, émissions liées aux procédés — et
+      l'application les convertit en émissions de gaz à effet de serre à
+      l'aide de facteurs d'émission standards. Les résultats sont répartis
+      par périmètre (scopes) et par module, ce qui permet à chaque unité
+      d'identifier ses principales sources d'émissions et de suivre ses
+      objectifs de réduction dans le temps.
+
+      Initialement développé pour les unités de l'EPFL, l'outil est un
+      projet open source destiné à une adoption plus large. Il est déployé
+      comme application web complète (frontend Quasar/Vue.js et backend
+      FastAPI reposant sur PostgreSQL).
+    features:
+      - "Évaluation de l'empreinte carbone d'une unité selon le GHG Protocol"
+      - "Saisie des données d'activité dans plusieurs modules (effectifs, bâtiments, infrastructures de recherche, équipements, achats, informatique, déplacements professionnels, cloud externe et IA, émissions de procédés)"
+      - "Résultats répartis par périmètre (scopes) et par module pour identifier les principales sources d'émissions"
+      - "Définition et suivi d'objectifs de réduction"
+      - "Accès par unité avec authentification EPFL (OIDC)"
+      - "Interface bilingue (français / anglais)"
+      - "Application web complète open source, auto-hébergeable"
+
+  en:
+    shortDescription: >
+      Open-source tool to assess the carbon footprint of a unit in
+      accordance with the GHG Protocol.
+    longDescription: >
+      CO2 Calculator is an open-source web application developed at EPFL
+      (École Polytechnique Fédérale de Lausanne) to assess the carbon
+      footprint of a unit in accordance with the
+      [GHG Protocol](https://ghgprotocol.org/corporate-standard), the
+      international standard for calculating greenhouse gas emissions.
+
+      Users enter activity data across multiple modules — headcount,
+      buildings, research facilities, equipment, purchases, IT,
+      professional travel, external cloud and AI services, and process
+      emissions — and the application converts it into greenhouse gas
+      emissions using standard emission factors. Results are broken down
+      by scope and by module, so that each unit can identify its main
+      emission sources and track reduction objectives over time.
+
+      Originally developed as a tool for EPFL research units, the
+      calculator is an open-source project intended for broad adoption.
+      It is deployed as a full web application (Quasar/Vue.js frontend and
+      FastAPI backend backed by PostgreSQL).
+    features:
+      - "Carbon footprint assessment of a unit in accordance with the GHG Protocol"
+      - "Data entry across multiple activity modules (headcount, buildings, research facilities, equipment, purchases, IT, professional travel, external cloud and AI, process emissions)"
+      - "Results broken down by scope and by module to identify main emission sources"
+      - "Definition and tracking of reduction objectives"
+      - "Unit-based access with EPFL authentication (OIDC)"
+      - "Bilingual interface (English / French)"
+      - "Full open-source web application, self-hostable"
+
+legal:
+  license: "GPL-3.0-only"
+  mainCopyrightOwner: "École Polytechnique Fédérale de Lausanne (EPFL)"
+
+maintenance:
+  type: internal
+  contacts:
+    - name: "EPFL ENAC-IT4R"
+      email: "enacit4research@epfl.ch"
+      affiliation: "EPFL - ENAC"
+
+localisation:
+  localisationReady: true
+  availableLanguages:
+    - fr
+    - en
+
+intendedAudience:
+  countries:
+    - CH
+
+dependsOn:
+  open:
+    - name: PostgreSQL
+      optional: false
