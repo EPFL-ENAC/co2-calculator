@@ -3,7 +3,6 @@ import { outlinedViewCozy } from '@quasar/extras/material-icons-outlined';
 import { computed, inject, type ComputedRef } from 'vue';
 import type { PipelineProgress } from '@/stores/pipelineStream';
 import { useModuleConfig } from '@/composables/useModuleConfig';
-import { useRecalculation } from '@/composables/useRecalculation';
 import {
   useBackofficeDataManagement,
   TargetType,
@@ -27,9 +26,6 @@ const { getImportRow, downloadLastCsv, commonUploads, submodules } =
   useModuleConfig({
     module: props.module,
   });
-
-const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
-  useRecalculation();
 
 // Issue #1219 — the module's authoritative pipeline progress, provided
 // by ModuleConfig (the single SSE subscriber). Shared by every card in
@@ -98,22 +94,14 @@ async function handleAbortPipeline() {
             :pipeline-progress="pipelineProgress"
             :on-download="downloadLastCsv"
             @upload="openDataEntryDialog"
-            @recalculate="() => triggerTypeRecalculation(common)"
             @abort="handleAbortPipeline"
           />
           <UploadCardData
             v-if="getImportRow(common).hasData"
             :row="getImportRow(common)"
             :pipeline-progress="pipelineProgress"
-            :recalc-running="
-              recalcTypeRunning[
-                `${common.moduleTypeId}-${common.dataEntryTypeId}`
-              ]
-            "
-            :recalc-status="getRecalcStatus(common)"
             :on-download="downloadLastCsv"
             @upload="openDataEntryDialog"
-            @recalculate="() => triggerTypeRecalculation(common)"
             @abort="handleAbortPipeline"
           />
         </div>

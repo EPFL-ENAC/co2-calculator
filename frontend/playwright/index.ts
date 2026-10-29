@@ -27,6 +27,8 @@ import {
   QSelect,
   QTooltip,
   QCardSection,
+  QCardActions,
+  QSpace,
 } from 'quasar';
 import svgMaterialIcons from 'quasar/icon-set/svg-material-icons.js';
 import { i18n } from '@/boot/i18n';
@@ -78,4 +80,7 @@ beforeMount(async ({ app }) => {
   // LoginCard (login-card-reason.spec.ts) renders its form and logo.
   app.component('QForm', QForm);
   app.component('QImg', QImg);
+  // RecalculateEmissionsCard's toolbar spacer and confirm-dialog actions.
+  app.component('QSpace', QSpace);
+  app.component('QCardActions', QCardActions);
 });

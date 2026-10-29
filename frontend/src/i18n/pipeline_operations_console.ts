@@ -219,6 +219,34 @@ export default {
     en: 'Failed to trigger stats recompute',
     fr: 'Échec du déclenchement du recalcul des statistiques',
   },
+  pipeops_recalc_title: {
+    en: 'Recalculate emissions',
+    fr: 'Recalculer les émissions',
+  },
+  pipeops_recalc_hint: {
+    en: 'Recomputes the emissions of every imported row for one module and year, or for one data entry type only. Use after a factor or reference-data fix.',
+    fr: 'Recalcule les émissions de toutes les lignes importées pour un module et une année, ou pour un seul type de données. À utiliser après une correction de facteurs ou de données de référence.',
+  },
+  pipeops_recalc_data_entry_type_placeholder: {
+    en: 'All types',
+    fr: 'Tous les types',
+  },
+  pipeops_recalc_all_types: {
+    en: 'all types',
+    fr: 'tous les types',
+  },
+  pipeops_recalc_trigger: {
+    en: 'Recalculate',
+    fr: 'Recalculer',
+  },
+  pipeops_recalc_success: {
+    en: 'Emission recalculation started',
+    fr: 'Recalcul des émissions lancé',
+  },
+  pipeops_recalc_failed: {
+    en: 'Failed to trigger emission recalculation',
+    fr: 'Échec du déclenchement du recalcul des émissions',
+  },
   pipeops_live: { en: 'live', fr: 'live' },
   pipeops_empty: {
     en: 'No pipelines match the current filters.',
