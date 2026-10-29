@@ -52,28 +52,39 @@ parametrized with the doc's row id:
 | `test_external_cloud_reference_examples.py`      | clouds                   |
 | `test_professional_travel_reference_examples.py` | planes, trains           |
 
-## Doc ↔ code gaps (for the domain owner)
+## Findings (for the domain owner)
 
-| Row                     | Doc                 | Code / CSV                                   | In the tests                                  |
-| ----------------------- | ------------------- | -------------------------------------------- | --------------------------------------------- |
-| plane GVA-LHR           | 1024.57             | its own formula gives 1024.53                | strict xfail                                  |
-| plane LHR-JFK           | 8968.97             | its own formula gives 8968.95                | strict xfail                                  |
-| train Genève–London     | 90.78               | 980 × 1.2 × 0.0775 (RoW) = 91.14             | strict xfail                                  |
-| equipment, all rows     | 47 weeks/year       | `WEEKS_PER_YEAR` = 52                        | rows run at 47; one strict xfail pins the gap |
-| equipment EQ007 Servers | 500 W / 100 W       | `equipment_factors.csv`: 160 W / 30 W        | strict xfail                                  |
-| planes, trains          | unrounded km        | one-trip distance rounded to integer km      | not tested (pre_compute)                      |
-| trains, all rows        | `cabin_class` blank | `resolve_train` requires `first` or `second` | rows use `second`                             |
+The point of these tests is to tell a wrong implementation from a doc
+slip. Ranked by impact on published totals.
 
-## Not covered yet
+### Code questions — the code may be wrong
 
-- **external_ai** — the doc's numeric requests/day don't map to the code's
-  buckets (`1_5`, `5_20`, …); the doc uses 235 working days, the code
-  230 (5 × 46); the code divides by 1000 although the factor is
-  `ef_kg_co2eq_per_request` — a possible 1000× under-report.
-- **purchases_common** — rows 1, 2, 3, 5 only reproduce as
-  `spent × rate / 1.173 × ef / 1000` (tonnes, with an unexplained /1.173);
-  row 4's note gives 80.05, not its 0.088. The code returns
-  `spent_eur × ef_eur` in kg.
+| #   | Where            | Doc                                                                                                              | Code                                                                                 | Impact if the doc is right                                                    |
+| --- | ---------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 1   | external_ai      | `fte × requests × 235 × ef`, ef in kg per request                                                                | `… × 230 × ef / 1000`; the variable is `factor_g`, so the kg column is read as grams | code is 1000× too low                                                         |
+| 2   | purchases_common | rows 1, 2, 3, 5 equal the code's kg ÷ 1173 exactly: ÷ 1000 is tonnes, ÷ 1.173 is unexplained (a price deflator?) | `spent_eur × ef` in kg, no ÷ 1.173                                                   | code is 17.3 % too high                                                       |
+| 3   | equipment        | 47 weeks a year                                                                                                  | `WEEKS_PER_YEAR` = 52                                                                | code is 10.6 % too high                                                       |
+| 4   | external_ai      | 235 days = 47 weeks × 5                                                                                          | 230 days = 46 × 5                                                                    | code is 2 % too low; the code uses two week counts (52, 46), the doc one (47) |
+| 5   | external_ai      | the examples give numeric requests/day, the spec buckets                                                         | buckets count as 3, 12.5, 60 and 100 requests                                        | the bucket values need sign-off                                               |
+| 6   | planes           | the spec allows `cabin_class` first                                                                              | `PLANE_CABIN_MAP` has business and economy, no first factor rows                     | first-class rows are rejected at upload (loud, not silent)                    |
+
+### Doc slips — the code follows the doc's own spec
+
+| Row                     | Doc                                          | Code / CSV                                                         | In the tests             |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------ | ------------------------ |
+| plane GVA-LHR           | 1024.57                                      | the row's own formula gives 1024.53                                | strict xfail             |
+| plane LHR-JFK           | 8968.97                                      | the row's own formula gives 8968.95                                | strict xfail             |
+| train Genève–London     | 90.78, which is 976.1 km, not the note's 980 | 980 × 1.2 × 0.0775 (RoW) = 91.14                                   | strict xfail             |
+| equipment EQ007 Servers | 500 W / 100 W                                | `equipment_factors.csv`: 160 W / 30 W (or the CSV is stale)        | strict xfail             |
+| trains, all rows        | `cabin_class` blank                          | the spec marks it mandatory, the code requires `first` or `second` | rows use `second`        |
+| purchases_common row 4  | 0.088                                        | the row's own note gives 80.05 kg                                  | not tested               |
+| planes, trains          | unrounded km                                 | one-trip distance rounded to integer km                            | not tested (pre_compute) |
+
+### Not checked by these tests
+
+- **Factor selection** — factor values are hardcoded, so a wrong lookup
+  (haul band, country fallback, purchase code) still passes. Distances and
+  haul bands are pinned by `tests/unit/utils/test_distance_geography.py`.
 - **headcount, research facilities, embodied energy, planner** — no
   examples in the doc yet.
 
