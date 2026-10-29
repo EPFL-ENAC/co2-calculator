@@ -1116,6 +1116,22 @@ test.describe('Explorer — Simulation results', () => {
     const chart = page.locator('.module-carbon-chart');
     const canvas = chart.locator('canvas').first();
     await expect(canvas).toBeVisible();
+    // ECharts animates the bars in and the export renders the final frame, so
+    // snapshot only once two frames agree: mid-animation scored ~0.87 here.
+    let previous = '';
+    await expect
+      .poll(
+        async () => {
+          const url = await canvas.evaluate((c: HTMLCanvasElement) =>
+            c.toDataURL('image/png'),
+          );
+          const stable = url === previous;
+          previous = url;
+          return stable;
+        },
+        { intervals: [250] },
+      )
+      .toBe(true);
     const displayed = await canvas.evaluate((c: HTMLCanvasElement) => ({
       w: c.width,
       h: c.height,
