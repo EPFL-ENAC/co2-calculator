@@ -68,6 +68,7 @@ from app.utils.scoping import (
     can_view_module_flow,
     require_any_scope,
     require_module_or_config_view,
+    require_pipeline_ops_or_config_edit,
 )
 
 logger = get_logger(__name__)
@@ -1975,9 +1976,7 @@ async def recalculate_emissions_for_type(
     year: int,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("backoffice.configuration", "edit")
-    ),
+    current_user: User = Depends(require_pipeline_ops_or_config_edit()),
 ) -> SyncStatusResponse:
     """Trigger emission recalculation for a single data entry type.
 
@@ -2044,9 +2043,7 @@ async def recalculate_emissions_for_module(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     only_stale: bool = True,
-    current_user: User = Depends(
-        require_permission("backoffice.configuration", "edit")
-    ),
+    current_user: User = Depends(require_pipeline_ops_or_config_edit()),
 ) -> SyncStatusResponse:
     """Trigger bulk emission recalculation for all (or only stale) data entry types.
 

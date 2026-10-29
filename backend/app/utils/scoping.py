@@ -142,3 +142,34 @@ def require_module_or_config_view():
         return current_user
 
     return _dep
+
+
+def can_recalculate_emissions(user: User) -> bool:
+    """True if the user may trigger an emission recalculation (#3153).
+
+    Both the pipeline operations console and the configuration page offer
+    it, so either page's edit grant admits the caller.
+    """
+    perms = user.calculate_permissions()
+    return has_permission(
+        perms, "backoffice.pipeline_operations", "edit"
+    ) or has_permission(perms, "backoffice.configuration", "edit")
+
+
+def require_pipeline_ops_or_config_edit():
+    """FastAPI dependency gating the recalculate-emissions endpoints.
+
+    See ``can_recalculate_emissions`` for the allow rule.
+    """
+
+    async def _dep(
+        current_user: User = Depends(get_current_active_user),
+    ) -> User:
+        if not can_recalculate_emissions(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied",
+            )
+        return current_user
+
+    return _dep
