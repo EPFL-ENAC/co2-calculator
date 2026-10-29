@@ -25,13 +25,21 @@ async def test_either_edit_grant_passes(path):
 
 
 @pytest.mark.asyncio
-async def test_view_only_fails_closed():
-    user = _user_with_perms(
+@pytest.mark.parametrize(
+    "perms",
+    [
+        {},
         {
             "backoffice.pipeline_operations": ["view"],
             "backoffice.configuration": ["view"],
-        }
-    )
+        },
+        # A sub-perimeter grant must not unlock a recalc over every unit.
+        {"backoffice.configuration/1234": ["view", "edit"]},
+    ],
+    ids=["no-perms", "view-only", "scoped-edit"],
+)
+async def test_without_bare_edit_grant_fails_closed(perms):
+    user = _user_with_perms(perms)
     dep = require_pipeline_ops_or_config_edit()
     with pytest.raises(HTTPException) as exc:
         await dep(current_user=user)
