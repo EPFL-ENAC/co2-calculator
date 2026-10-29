@@ -25,7 +25,8 @@ examples; the tests copy them row for row.
   handler logs its "unknown" warning and the kg is unchanged. The distance helpers (+95 km, ×1.2, integer rounding, haul
   bands, train country) are already pinned by
   `tests/unit/utils/test_distance_geography.py`.
-- **Factor values are hardcoded** from the `INPUT_DATA` CSVs, each row
+- **Factor values are hardcoded** from the `INPUT_DATA` CSVs (v2.12.5,
+  2026-09-22), each row
   citing its file. `INPUT_DATA` is not in git, so CI cannot read it.
 - **Exchange rates** are patched to the doc's fixed rates (CHF 1.0672,
   USD 0.8849 → EUR). No ECB call.
@@ -79,15 +80,14 @@ values.
 
 ### Doc slips — the code follows the doc's own spec
 
-| Row                     | Doc                                          | Code / CSV                                                         | In the tests             |
-| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------ | ------------------------ |
-| plane GVA-LHR           | 1024.57                                      | the row's own formula gives 1024.53                                | strict xfail             |
-| plane LHR-JFK           | 8968.97                                      | the row's own formula gives 8968.95                                | strict xfail             |
-| train Genève–London     | 90.78, which is 976.1 km, not the note's 980 | 980 × 1.2 × 0.0775 (RoW) = 91.14                                   | strict xfail             |
-| equipment EQ007 Servers | 500 W / 100 W                                | `equipment_factors.csv`: 160 W / 30 W (or the CSV is stale)        | strict xfail             |
-| trains, all rows        | `cabin_class` blank                          | the spec marks it mandatory, the code requires `first` or `second` | rows use `second`        |
-| purchases_common row 4  | 0.088                                        | the row's own note gives 80.05 kg                                  | not tested               |
-| planes, trains          | unrounded km                                 | one-trip distance rounded to integer km                            | not tested (pre_compute) |
+| Row                    | Doc                                          | Code / CSV                                                         | In the tests             |
+| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------ | ------------------------ |
+| plane GVA-LHR          | 1024.57                                      | the row's own formula gives 1024.53                                | strict xfail             |
+| plane LHR-JFK          | 8968.97                                      | the row's own formula gives 8968.95                                | strict xfail             |
+| train Genève–London    | 90.78, which is 976.1 km, not the note's 980 | 980 × 1.2 × 0.0775 (RoW) = 91.14                                   | strict xfail             |
+| trains, all rows       | `cabin_class` blank                          | the spec marks it mandatory, the code requires `first` or `second` | rows use `second`        |
+| purchases_common row 4 | 0.088                                        | the row's own note gives 80.05 kg                                  | not tested               |
+| planes, trains         | unrounded km                                 | one-trip distance rounded to integer km                            | not tested (pre_compute) |
 
 ### Not checked by these tests
 
