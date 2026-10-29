@@ -16,7 +16,7 @@ graph LR
     M -->|Tag and Release + v*.*.* deploy| P[prod env]
     M -->|2. Sync back| S1 -->|3. Sync back| D[dev]
     D2[dev] -->|4. PR + merge - sprint n| S2[stage]
-    S2 -->|Generate Changelog + deploy| E[stage env]
+    S2 -->|deploy| E[stage env]
     S2 -->|5. Sync back| D2
 ```
 
@@ -24,7 +24,7 @@ graph LR
 
 Cuts the versioned GitHub release. The custom workflow `release-please.yml` ("Tag and Release") fires when a PR **from `stage`** merges into `main`, and releases the root `package.json` version. (The `release-please` name is legacy — it no longer uses that tool; read the file to see what it does.)
 
-1. **Check changelog and version.** `CHANGELOG.md` should already be present on `stage`, having been generated during the most recent `dev → stage` promotion (documented in section 2, and typically completed before this release). Confirm its top entry, and that root `package.json` `version` is the version to release — "Tag and Release" tags from this value.
+1. **Check changelog and version.** The top `CHANGELOG.md` entry on `stage` was written on `dev` before the last `dev → stage` promotion (section 2). Confirm it is for the root `package.json` `version`: "Tag and Release" tags from that value, publishes the entry as the release notes, and fails if the two differ.
 2. **Open the PR** `stage → main` and get external review per [Release Management](release-management.md#release-process). The workflow only fires for `head.ref == 'stage'`, so head **must** be `stage`:
    ```bash
    gh pr create --base main --head stage --title "chore(release): vX.Y.Z"
@@ -39,22 +39,20 @@ Cuts the versioned GitHub release. The custom workflow `release-please.yml` ("Ta
 
 ## 2. End-of-sprint promotion: dev to stage
 
-Ships the sprint to stage and generates the changelog. `changelog.yml` ("Generate Changelog") fires when a PR **from `dev`** merges into `stage` (trigger: `pull_request: closed` into `stage`, `head.ref == 'dev'`).
+Ships the sprint to stage. No workflow writes the changelog: it is written by hand.
 
-> **⚠️ Bump the version first.** Edit root `package.json` `version` (e.g. `0.10.0`) and commit on `dev` **before** opening the PR — otherwise the changelog is not generated with the right version.
+> **⚠️ Bump the version and write the changelog first.** On `dev`, set root `package.json` `version` (e.g. `1.4.21`), run `npm install --ignore-scripts` so `package-lock.json` follows, and add the `## [X.Y.Z](compare link) (date)` entry at the top of `CHANGELOG.md`, in the style of the previous ones. Commit **before** opening the PR.
 
 1. **Open the PR** `dev → stage`. Head **must** be `dev`. Example title: `chore: promote dev to stage (end of sprint 7)`:
    ```bash
    gh pr create --base stage --head dev --title "chore: promote dev to stage (end of sprint N)"
    ```
-2. **Merge the PR.** `deploy.yml` deploys to **stage**; "Generate Changelog" commits `CHANGELOG.md` to `stage`. Verify: Actions → "deploy" and "Generate Changelog" green; `CHANGELOG.md` updated on `stage`.
+2. **Merge the PR.** `deploy.yml` deploys to **stage**. Verify: Actions → "deploy" green.
 3. **Verify in ArgoCD** that stage is healthy; fix any issues — see [Troubleshooting](#troubleshooting-deployment).
-4. **Re-sync:** merge `stage` back into `dev` (brings back the changelog commit and any stage fixes):
+4. **Re-sync:** merge `stage` back into `dev` (brings back any stage fixes):
    ```bash
    git checkout dev && git pull && git merge origin/stage && git push
    ```
-
-> **Optional — human-readable changelog.** The `CHANGELOG.md` generated at step 2 is raw commit messages. Feed the new version's entry to an LLM to rewrite it under three headings — `## Key Changes`, `## Bug Fixes`, `## Technical Improvements (Non-functional)` — then commit it to `stage` before the step 4 re-sync.
 
 Done. The only remaining step is to **communicate the release**.
 

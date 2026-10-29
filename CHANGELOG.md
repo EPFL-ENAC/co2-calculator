@@ -1,29 +1,62 @@
+## [1.4.21](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.20...v1.4.21) (2026-10-28)
+
+A travel-search, sign-in and dependency release. One migration (search indexes, no stored data changes), no change to the emission formulas.
+
+### Travel
+
+- **The from/to search finds stations and airports however you type them.** Accents, hyphens and word order no longer matter: "genève aéroport" finds Genève-Aéroport, "hb zurich" finds Zürich HB. Every word typed must match. A one- or two-letter word matches the start of a word only: "be" finds Bern, not Oberhausen. (#939)
+- **Scrolling the from/to list loads more results.** The list used to stop at the first 20 matches, and asking for the next page returned the first one again, so a short search such as "be" could never reach most stations. (#939)
+- The from/to menu says why it is empty or short: query too short, no match, or a failed request. A failure used to look like "no match". (#939)
+
+### Sign-in
+
+- **An EPFL Accred outage now shows a message on the login page**, "EPFL Accred is unavailable. Please try again later.", in the user's language. On 2026-10-27 an Accred error stopped every login with a raw "Authentication failed" error and no alert fired. (#3140)
+- During an Accred outage, background role sync keeps each user's current roles and tries again later, instead of failing silently. (#3140)
+
+### Look
+
+- The brand font loads from the ENAC font server (`enac-it-fonts.epfl.ch`) shared by ENAC apps, instead of files bundled in the app. Hosts outside `epfl.ch`, including local dev off the EPFL network or VPN and CI, render the fallback font. (#3147)
+
+### Operations
+
+- **Do not upload the rebuilt train reference yet.** The builder now keeps railway stations only, and 8 prod trips point at bus stops it removes. Settle #3142 first. The plane reference can go anytime. (#939)
+- Migration `c69b88dfd949` adds the `unaccent` extension, a `search_text()` function and four trigram indexes for the location search (listed in `backend/alembic/CUSTOM_DB_OBJECTS.md`). (#939)
+- **New critical alert `AccredUnavailable`** on dev, stage and prod, fed by `accred_request_failures_total`. It counts Accred 5xx, 401/403 (rejected service credential), 429, timeouts, connection errors and missing Accred settings; a 404 is not an outage. Runbook and alert-catalog rows added. (#3140)
+- Admin `POST /v1/users/{id}/revoke-roles` answers 200 with outcome `skipped_provider_unavailable` during an Accred outage, instead of a 500. (#3140)
+- Dependencies: FastAPI 0.150, Starlette 1.9, SQLAlchemy 2.1.6, Authlib 1.9.1, pydantic-settings 2.16.1; Pinia 4, @quasar/extras 2.1, Quasar 2.35.2, vue-i18n 11.4.16, maplibre-gl 6.16; commitlint 21 and lefthook 2 for the git hooks.
+- Storybook drops its test runner, which CI never ran. The frontend `make audit` now checks every dependency at high level, and the list of accepted advisories is gone.
+
+### Known issues
+
+- A database blip while the app starts can send a signed-in user to the login page until they reload. (#2983)
+- Reduction-objective uploads made before 1.4.19 show their error count but not the row details. (#2983)
+
 ## [1.4.20](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.19...v1.4.20) (2026-10-19)
 
-      A security, dependency and stability release. No data migration, no change to the emission formulas.
+A security, dependency and stability release. No data migration, no change to the emission formulas.
 
-      ### Module pages
+### Module pages
 
-      - **Changing the provider of an external cloud row no longer fails.** A provider change clears the row's service type, and the edit used to be refused and rolled back. The row now saves as incomplete, with a blank footprint and the usual incomplete-row styling, until a service type is picked again. (#2992)
-      - "Business as usual" is now capitalised correctly in the reduction-objective scenarios.
+- **Changing the provider of an external cloud row no longer fails.** A provider change clears the row's service type, and the edit used to be refused and rolled back. The row now saves as incomplete, with a blank footprint and the usual incomplete-row styling, until a service type is picked again. (#2992)
+- "Business as usual" is now capitalised correctly in the reduction-objective scenarios.
 
-      ### Security
+### Security
 
-      - The back-office detailed export neutralises text cells that a spreadsheet would read as a formula (starting with `=`, `+`, `-` or `@`): they get a leading apostrophe, so Excel or LibreOffice shows them as text instead of evaluating them. (#3049)
-      - The back-office file-deletion endpoint normalises the path before checking that it stays under `tmp/`. (#3049)
-      - Runtime images run a full Alpine package upgrade on every build, instead of patching one package per CVE after a blocked deploy. urllib3 moves to 2.8.0. (#3000)
+- The back-office detailed export neutralises text cells that a spreadsheet would read as a formula (starting with `=`, `+`, `-` or `@`): they get a leading apostrophe, so Excel or LibreOffice shows them as text instead of evaluating them. (#3049)
+- The back-office file-deletion endpoint normalises the path before checking that it stays under `tmp/`. (#3049)
+- Runtime images run a full Alpine package upgrade on every build, instead of patching one package per CVE after a blocked deploy. urllib3 moves to 2.8.0. (#3000)
 
-      ### Operations
+### Operations
 
-      - **SQLAlchemy 2.1 and FastAPI 0.143.** The Postgres URL no longer carries `async_fallback`, which SQLAlchemy 2.1 passes on to libpq and libpq rejects. Dev rollouts failed readiness from 2026-10-07 to 2026-10-15 while the older pods kept serving. Stage and prod get the upgrade and the fix together.
-      - A Postgres restart behind PgBouncer is now logged as a restart, not as a full bouncer pool, and no longer counts toward the `DbBouncerQueueTimeout` alert. During the prod restarts of 2026-10-05 both pointed at pool sizing, which could not help. (#3050)
-      - `make audit` runs from the repo root, like the CI security job, and the Storybook dependencies have no high or critical findings left.
-      - Developer tooling: the dev servers read their ports from `BACKEND_PORT`, `FRONTEND_PORT` and `PREVIEW_PORT`, so several checkouts run side by side; wtx worktrees and git-board views are configured. (#3096, #3097)
+- **SQLAlchemy 2.1 and FastAPI 0.143.** The Postgres URL no longer carries `async_fallback`, which SQLAlchemy 2.1 passes on to libpq and libpq rejects. Dev rollouts failed readiness from 2026-10-07 to 2026-10-15 while the older pods kept serving. Stage and prod get the upgrade and the fix together.
+- A Postgres restart behind PgBouncer is now logged as a restart, not as a full bouncer pool, and no longer counts toward the `DbBouncerQueueTimeout` alert. During the prod restarts of 2026-10-05 both pointed at pool sizing, which could not help. (#3050)
+- `make audit` runs from the repo root, like the CI security job, and the Storybook dependencies have no high or critical findings left.
+- Developer tooling: the dev servers read their ports from `BACKEND_PORT`, `FRONTEND_PORT` and `PREVIEW_PORT`, so several checkouts run side by side; wtx worktrees and git-board views are configured. (#3096, #3097)
 
-      ### Known issues
+### Known issues
 
-      - A database blip while the app starts can send a signed-in user to the login page until they reload. (#2983)
-      - Reduction-objective uploads made before 1.4.19 show their error count but not the row details. (#2983)
+- A database blip while the app starts can send a signed-in user to the login page until they reload. (#2983)
+- Reduction-objective uploads made before 1.4.19 show their error count but not the row details. (#2983)
 
 
 ### Bug Fixes

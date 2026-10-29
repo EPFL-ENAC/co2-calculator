@@ -1,10 +1,17 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 import LoginCard from '@/components/organisms/login/LoginCard.vue';
+
+const route = useRoute();
+const reason = computed(() =>
+  typeof route.query.reason === 'string' ? route.query.reason : null,
+);
 </script>
 
 <template>
   <q-page class="login-page row items-center justify-evenly">
-    <login-card></login-card>
+    <login-card :reason="reason"></login-card>
   </q-page>
 </template>
 

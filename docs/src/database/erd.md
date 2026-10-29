@@ -166,7 +166,7 @@ erDiagram
     VARCHAR country_code "indexed"
     VARCHAR iata_code "indexed"
     INTEGER id PK
-    VARCHAR keywords "indexed"
+    VARCHAR keywords
     FLOAT latitude
     FLOAT longitude
     VARCHAR municipality "indexed"

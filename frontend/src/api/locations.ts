@@ -65,12 +65,14 @@ export async function searchRailwayStations(
  * @param query - Search query string (minimum 2 characters)
  * @param transportMode - Transport mode: 'plane' or 'train'
  * @param limit - Maximum number of results to return (default: 5, max: 20)
+ * @param page - 1-indexed page; a page shorter than `limit` is the last
  * @returns Promise resolving to an array of locations
  */
 export async function searchLocations(
   query: string,
   transportMode: TransportMode,
   limit?: number,
+  page?: number,
 ): Promise<Location[]> {
   const params = new URLSearchParams({
     query: query.trim(),
@@ -79,6 +81,9 @@ export async function searchLocations(
 
   if (limit !== undefined) {
     params.append('limit', limit.toString());
+  }
+  if (page !== undefined) {
+    params.append('page', page.toString());
   }
 
   const res = await api

@@ -152,6 +152,17 @@ const routes: RouteRecordRaw[] = [
         }),
       },
       {
+        // The backend redirects here when it cannot finish a login; it has
+        // no idea of the UI language, so the frontend picks it (cookie →
+        // browser). The ?reason= query survives the redirect.
+        path: 'login',
+        name: 'login-redirect',
+        redirect: (to) => ({
+          name: LOGIN_ROUTE_NAME,
+          params: { language: resolveLanguage(to) },
+        }),
+      },
+      {
         path: `:language(${LANGUAGE_PATTERN})`,
         name: 'language',
         children: [

@@ -186,6 +186,37 @@ async def _log_auth_audit_event(
             raise
 
 
+# Read by the frontend login page (src/utils/loginReason.ts) to show a banner.
+ACCRED_UNAVAILABLE_REASON = "accred-unavailable"
+
+
+async def _redirect_provider_unavailable(
+    db: AsyncSession, request: Request, error: RoleProviderNetworkError
+) -> RedirectResponse:
+    """Accred is down and the user can do nothing about it: land them on the
+    login page with a reason it renders, not on a JSON error body.
+    """
+    logger.error(
+        "Cannot authenticate: external service unavailable",
+        extra={"error": str(error)},
+    )
+    await _log_auth_audit_event(
+        db=db,
+        request=request,
+        change_type=AuditChangeTypeEnum.CREATE,
+        change_reason="Login failed: role provider unavailable",
+        handler_id="unknown",
+        changed_by=None,
+        data_snapshot={"event": "login_failed", "reason": "provider_unavailable"},
+        entity_id=0,
+    )
+    return RedirectResponse(
+        # No language: the frontend resolves it (cookie, then browser).
+        url=f"{settings.FRONTEND_URL}/login?reason={ACCRED_UNAVAILABLE_REASON}",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
 # ---------------------------------------------------------------------------
 # /auth/login-test (debug only)
 # ---------------------------------------------------------------------------
@@ -350,14 +381,7 @@ async def oauth_callback(
         try:
             provider_user = await role_provider.get_user_by_user_id(institutional_id)
         except RoleProviderNetworkError as e:
-            logger.error(
-                "Cannot authenticate: external service unavailable",
-                extra={"error": str(e)},
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Auth service unavailable. Please check your VPN.",
-            )
+            return await _redirect_provider_unavailable(db, request, e)
 
         logger.info(
             "User info retrieved from OAuth2",

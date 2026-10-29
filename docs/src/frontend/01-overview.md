@@ -46,19 +46,16 @@ frontend/src/
 ## Testing
 
 Playwright covers both component and end-to-end suites; there is no Vitest
-unit suite. Storybook interaction tests catch visual regressions.
+unit suite.
 
 ```bash
 npm run test-ct            # Playwright component tests
 npm run test:e2e           # Playwright integration tests
-npm run storybook:test     # Storybook test-runner
 npm run lint               # ESLint
 ```
 
 CI runs `test-ct` and `test:e2e` (see `.github/workflows/test.yml`). The
-Storybook test-runner is not yet wired into CI; run `npm run storybook:test`
-locally to exercise it. The deployed Storybook — components, states and the
-design-token reference — is at
+deployed Storybook — components, states and the design-token reference — is at
 [co2-calculator-storybook.epfl.ch](https://co2-calculator-storybook.epfl.ch/).
 
 ## Authorization
