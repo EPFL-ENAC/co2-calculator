@@ -58,36 +58,39 @@ parametrized with the doc's row id:
 The point of these tests is to tell a wrong implementation from a doc
 slip. Either side can be wrong: the back-office and dev teams agree
 which, then that side is fixed and the tests follow. Ranked by impact
-on published totals.
+on published totals. Sources: the back-office examples and the
+[user doc](https://epfl-enac.github.io/co2-calculator-user-doc/)
+methodology, both read 2026-10-29.
 
 ### Doc and code disagree on the formula
 
-| #   | Where            | Doc                                                                                                              | Code                                                                                 | Impact if the doc is right                                                    |
-| --- | ---------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| 1   | external_ai      | `fte × requests × 235 × ef`, ef in kg per request                                                                | `… × 230 × ef / 1000`; the variable is `factor_g`, so the kg column is read as grams | code is 1000× too low                                                         |
-| 2   | purchases_common | rows 1, 2, 3, 5 equal the code's kg ÷ 1173 exactly: ÷ 1000 is tonnes, ÷ 1.173 is unexplained (a price deflator?) | `spent_eur × ef` in kg, no ÷ 1.173                                                   | code is 17.3 % too high                                                       |
-| 3   | equipment        | 47 weeks a year                                                                                                  | `WEEKS_PER_YEAR` = 52                                                                | code is 10.6 % too high                                                       |
-| 4   | external_ai      | 235 days = 47 weeks × 5                                                                                          | 230 days = 46 × 5                                                                    | code is 2 % too low; the code uses two week counts (52, 46), the doc one (47) |
-| 5   | external_ai      | the examples give numeric requests/day, the spec buckets                                                         | buckets count as 3, 12.5, 60 and 100 requests                                        | the bucket values need sign-off                                               |
-| 6   | planes           | the spec allows `cabin_class` first                                                                              | `PLANE_CABIN_MAP` has business and economy, no first factor rows                     | first-class rows are rejected at upload (loud, not silent)                    |
+| #   | Where            | Docs                                                                                                           | Code                                                  | Gap                                                    |
+| --- | ---------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------ |
+| 1   | purchases_common | user doc: amount in 2019 EUR through an ECB inflation coefficient; back-office rows 1, 2, 3, 5 divide by 1.173 | `spent_eur × ef`, no inflation step anywhere          | code 17.3 % higher                                     |
+| 2   | equipment        | back-office: 47 weeks a year; user doc: `Weeksperyear`, no value                                               | `WEEKS_PER_YEAR` = 52                                 | code 10.6 % higher                                     |
+| 3   | external_ai      | both: 235 days = 5 × 47                                                                                        | 230 days = 5 × 46                                     | code 2 % lower                                         |
+| 4   | external_ai      | user doc: requests/day as reported; back-office spec: buckets, its examples: numbers                           | buckets count as 3, 12.5, 60 and 100                  | no source for the four values; > 100 counts as 100     |
+| 5   | external_clouds  | user doc: monetary factors are inflation-adjusted                                                              | no inflation, like the cloud examples                 | consistent today, unless clouds should be adjusted too |
+| 6   | planes           | back-office spec allows `cabin_class` first                                                                    | business and economy only, no first-class factor rows | first-class rows are rejected at upload                |
 
-On #1: the `/ 1000` dates from the grams column `factor_gCO2eq`
-(`d0452a37b`). #535 (`e7c36a007`, 2026-03-11) renamed it
-`ef_kg_co2eq_per_request` and kept the `/ 1000`. The factor CSV is not
-in git, so whether its values were converted at the rename is unknown;
-the factor file's owner settles it. v2.12.5 (2026-09-22) has the same
-values.
+### Slips — the code follows the published methodology
 
-### Doc slips — the code follows the doc's own spec
+| Row                        | Doc                                          | Code / CSV                                                                                                                        | In the tests                 |
+| -------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| external_ai, all rows      | back-office reads 0.0075 as kg: 88.125 kg    | user doc: 7.5 × 10⁻⁶ kg per text request; the CSV holds grams under an `ef_kg_co2eq_per_request` header, the code divides by 1000 | not tested (waits on #3, #4) |
+| purchases_common, all rows | expected results in tonnes                   | kg                                                                                                                                | not tested (waits on #1)     |
+| purchases_common row 4     | 0.088                                        | the row's own note gives 80.05 kg                                                                                                 | not tested                   |
+| plane GVA-LHR              | 1024.57                                      | the row's own formula gives 1024.53                                                                                               | strict xfail                 |
+| plane LHR-JFK              | 8968.97                                      | the row's own formula gives 8968.95                                                                                               | strict xfail                 |
+| train Genève–London        | 90.78, which is 976.1 km, not the note's 980 | 980 × 1.2 × 0.0775 (RoW) = 91.14                                                                                                  | strict xfail                 |
+| trains, all rows           | `cabin_class` blank                          | the spec marks it mandatory, the code requires `first` or `second`                                                                | rows use `second`            |
+| planes, trains             | unrounded km                                 | one-trip distance rounded to integer km                                                                                           | not tested (pre_compute)     |
 
-| Row                    | Doc                                          | Code / CSV                                                         | In the tests             |
-| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------ | ------------------------ |
-| plane GVA-LHR          | 1024.57                                      | the row's own formula gives 1024.53                                | strict xfail             |
-| plane LHR-JFK          | 8968.97                                      | the row's own formula gives 8968.95                                | strict xfail             |
-| train Genève–London    | 90.78, which is 976.1 km, not the note's 980 | 980 × 1.2 × 0.0775 (RoW) = 91.14                                   | strict xfail             |
-| trains, all rows       | `cabin_class` blank                          | the spec marks it mandatory, the code requires `first` or `second` | rows use `second`        |
-| purchases_common row 4 | 0.088                                        | the row's own note gives 80.05 kg                                  | not tested               |
-| planes, trains         | unrounded km                                 | one-trip distance rounded to integer km                            | not tested (pre_compute) |
+On the external_ai unit: the `/ 1000` dates from the grams column
+`factor_gCO2eq` (`d0452a37b`). #535 (`e7c36a007`, 2026-03-11) renamed
+it `ef_kg_co2eq_per_request` and kept the `/ 1000`; the values stayed
+grams (factors v2.12.5, 2026-09-22). The code is right and the header
+is wrong. Storing kg or renaming the column is for the teams to pick.
 
 ### Not checked by these tests
 
