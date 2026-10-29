@@ -26,6 +26,8 @@ import { api } from '@/api/http';
 import { BACKOFFICE_NAV } from '@/constant/navigation';
 import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
 import RecomputeStatsCard from '@/components/molecules/backoffice/RecomputeStatsCard.vue';
+import RecalculateEmissionsCard from '@/components/molecules/backoffice/RecalculateEmissionsCard.vue';
+import { PermissionAction, useAuthStore } from '@/stores/auth';
 import { usePipelineStream } from '@/composables/usePipelineStream';
 import { usePipelineStreamStore } from '@/stores/pipelineStream';
 import { useBackofficeDataManagement } from '@/stores/backofficeDataManagement';
@@ -59,6 +61,20 @@ const { t } = useI18n();
 const store = usePipelineOperationsConsole();
 const backofficeStore = useBackofficeDataManagement();
 const yearConfigStore = useYearConfigStore();
+const authStore = useAuthStore();
+
+// Either edit grant may recalc; the backend applies the same rule (#3153).
+const canRecalculate = computed(
+  () =>
+    authStore.hasUserPermission(
+      'backoffice.pipeline_operations',
+      PermissionAction.EDIT,
+    ) ||
+    authStore.hasUserPermission(
+      'backoffice.configuration',
+      PermissionAction.EDIT,
+    ),
+);
 
 // Only years with a year-configuration row are valid filter/recompute
 // targets — filtering by an arbitrary typed year could silently show
@@ -494,6 +510,10 @@ onUnmounted(() => {
         <div class="text-body1 q-mb-lg">{{ $t('pipeops_subtitle') }}</div>
 
         <recompute-stats-card />
+        <recalculate-emissions-card
+          v-if="canRecalculate"
+          @triggered="store.fetch()"
+        />
 
         <!-- Workers panel — surfaces "who's actually polling jobs right
              now" so an operator can spot a two-pods-on-different-code
