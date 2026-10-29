@@ -504,7 +504,7 @@ requires-dist = [
     { name = "elasticsearch", specifier = ">=8.0.0,<9.0.0" },
     { name = "email-validator", specifier = "==2.3.0" },
     { name = "enacit4r-files", git = "https://github.com/EPFL-ENAC/enacit4r-files?tag=1.4.0" },
-    { name = "fastapi", extras = ["standard"], specifier = "==0.150.0" },
+    { name = "fastapi", extras = ["standard"], specifier = "==0.159.1" },
     { name = "haversine", specifier = "==2.9.0" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "itsdangerous", specifier = "==2.2.0" },
@@ -763,7 +763,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.150.0"
+version = "0.159.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -773,9 +773,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/35/ae/3c8fe5ea133a13dbdb0c84e586087aa811f311cb11b00efdb11c364793e6/fastapi-0.150.0.tar.gz", hash = "sha256:97583806e6de1b6fc299866bdb88730fa311ff640829af876c9e847f4c3a3b29", size = 483799, upload-time = "2026-10-19T22:39:44.108Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9a/40/a212bffb9809afb9a94b250f11e0c29fd8b2589ec92e4bedd1cc7adf9938/fastapi-0.159.1.tar.gz", hash = "sha256:b45b1ec57f3aa4d2f80f09bfbcf068b46764a2ee892e56753f35bb3d9d845ce2", size = 522004, upload-time = "2026-10-21T20:59:29.054Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/14/41/7c472e281c147dae4f1dd4a85d9a1b7f6ce8b919e4053f14c83abb1488c7/fastapi-0.150.0-py3-none-any.whl", hash = "sha256:e566bc3f1347cfacf61f2f9ea1d7ab4576fbcff02eb9747c2807b8ced16d9e9a", size = 145281, upload-time = "2026-10-19T22:39:42.71Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/35/b03b5df04a1a8ee400c9df4b1795af84370b2bb6f1cc4be57c0b79688d00/fastapi-0.159.1-py3-none-any.whl", hash = "sha256:49b94c29afec2fca1390e9c39be202c59755d5cda8e4f1148a133761e4313e7e", size = 149604, upload-time = "2026-10-21T20:59:27.58Z" },
 ]
 
 [package.optional-dependencies]
