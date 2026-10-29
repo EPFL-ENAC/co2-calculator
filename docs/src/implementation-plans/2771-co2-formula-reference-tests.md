@@ -55,9 +55,11 @@ parametrized with the doc's row id:
 ## Findings (for the domain owner)
 
 The point of these tests is to tell a wrong implementation from a doc
-slip. Ranked by impact on published totals.
+slip. Either side can be wrong: the back-office and dev teams agree
+which, then that side is fixed and the tests follow. Ranked by impact
+on published totals.
 
-### Code questions — the code may be wrong
+### Doc and code disagree on the formula
 
 | #   | Where            | Doc                                                                                                              | Code                                                                                 | Impact if the doc is right                                                    |
 | --- | ---------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
@@ -67,6 +69,13 @@ slip. Ranked by impact on published totals.
 | 4   | external_ai      | 235 days = 47 weeks × 5                                                                                          | 230 days = 46 × 5                                                                    | code is 2 % too low; the code uses two week counts (52, 46), the doc one (47) |
 | 5   | external_ai      | the examples give numeric requests/day, the spec buckets                                                         | buckets count as 3, 12.5, 60 and 100 requests                                        | the bucket values need sign-off                                               |
 | 6   | planes           | the spec allows `cabin_class` first                                                                              | `PLANE_CABIN_MAP` has business and economy, no first factor rows                     | first-class rows are rejected at upload (loud, not silent)                    |
+
+On #1: the `/ 1000` dates from the grams column `factor_gCO2eq`
+(`d0452a37b`). #535 (`e7c36a007`, 2026-03-11) renamed it
+`ef_kg_co2eq_per_request` and kept the `/ 1000`. The factor CSV is not
+in git, so whether its values were converted at the rename is unknown;
+the factor file's owner settles it. v2.12.5 (2026-09-22) has the same
+values.
 
 ### Doc slips — the code follows the doc's own spec
 
