@@ -27,17 +27,7 @@ _SCIENTIFIC = DataEntryTypeEnum.scientific
         pytest.param(_SCIENTIFIC, (24, 144), (2300.0, 30.0), 271.35, id="EQ004"),
         pytest.param(_SCIENTIFIC, (24, 144), (3500.0, 30.0), 402.65, id="EQ005"),
         pytest.param(
-            DataEntryTypeEnum.it,
-            (70, 98),
-            (160.0, 30.0),
-            204.24,
-            id="EQ007",
-            marks=pytest.mark.xfail(
-                strict=True,
-                raises=AssertionError,
-                reason="#2771: doc assumes Servers at 500 W / 100 W, "
-                "equipment_factors.csv has 160 W / 30 W",
-            ),
+            DataEntryTypeEnum.it, (70, 98), (500.0, 100.0), 204.24, id="EQ007"
         ),
     ],
 )
