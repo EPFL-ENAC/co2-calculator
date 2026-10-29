@@ -20,7 +20,6 @@ import type {
   ImportRow,
   SyncJobResponse,
 } from '@/stores/backofficeDataManagement';
-import type { RecalculationStatusEntry } from '@/stores/yearConfig';
 import type { PipelineProgress } from '@/stores/pipelineStream';
 
 interface Props {
@@ -36,9 +35,6 @@ interface Props {
   lastJob?: SyncJobResponse;
   apiJob?: SyncJobResponse;
   targetType?: TargetType;
-  hasRecalcButton?: boolean;
-  recalcStatus?: RecalculationStatusEntry;
-  recalcRunning?: boolean;
   /** Issue #1219 — module-scoped pipeline progress (null when idle). */
   pipelineProgress?: PipelineProgress | null;
   hasComputedFactorButton?: boolean;
@@ -56,9 +52,6 @@ const props = withDefaults(defineProps<Props>(), {
   lastJob: undefined,
   apiJob: undefined,
   targetType: undefined,
-  hasRecalcButton: false,
-  recalcStatus: undefined,
-  recalcRunning: false,
   pipelineProgress: null,
   hasComputedFactorButton: false,
   computedFactorRunning: false,
@@ -69,7 +62,6 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: 'upload', row: ImportRow, targetType: TargetType, file?: File): void;
   (e: 'download', row: ImportRow, targetType: TargetType): void;
-  (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
   // Stops the whole pipeline this card is bound to (replaces the
   // legacy per-job ``cancel`` — see backofficeDataManagement.abortPipeline
@@ -157,8 +149,6 @@ function handleDownload() {
     emit('download', props.row, props.targetType);
   }
 }
-
-// TODO: remove emit('recalculate', props.row); related code in the frontend and backend
 
 function handleComputeFactors() {
   if (props.row) {

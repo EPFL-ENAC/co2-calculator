@@ -4,7 +4,7 @@ import {
   matLegendToggle,
   matPowerSettingsNew,
 } from '@quasar/extras/material-icons';
-import { ref, inject, computed, type ComputedRef, type Ref } from 'vue';
+import { ref, inject, computed, type ComputedRef } from 'vue';
 import { useSubmoduleConfig } from '@/composables/useSubmoduleConfig';
 import { useRecalculation } from '@/composables/useRecalculation';
 import {
@@ -50,10 +50,6 @@ const { getRecalcStatus } = useRecalculation();
 
 const backofficeStore = useBackofficeDataManagement();
 
-const triggerTypeRecalculation = inject<
-  (sub: SubmoduleConfig) => Promise<void>
->('triggerTypeRecalculation')!;
-
 // Issue #1219 / #1234 — share the module-scoped pipeline progress
 // from ModuleConfig (single SSE subscriber, provided up the tree).
 // Without this the per-submodule UploadCardData kept a green ✓ +
@@ -72,8 +68,6 @@ const openDataEntryDialog = inject<
 >('openDataEntryDialog')!;
 
 const handleJobCompleted = inject<() => Promise<void>>('handleJobCompleted')!;
-const recalcTypeRunning =
-  inject<Ref<Record<string, boolean>>>('recalcTypeRunning')!;
 
 const showComputedFactorConfirm = ref(false);
 
@@ -271,7 +265,6 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
         :pipeline-progress="pipelineProgress"
         :on-download="downloadLastCsv"
         @upload="openDataEntryDialog"
-        @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
         @abort="handleAbortPipeline"
       />
@@ -286,16 +279,9 @@ const activationLocked = computed(() => !!yearConfigStore.config?.is_started);
       <UploadCardData
         v-if="getImportRow(submodule).hasData"
         :row="getImportRow(submodule)"
-        :recalc-running="
-          recalcTypeRunning[
-            `${submodule.moduleTypeId}-${submodule.dataEntryTypeId}`
-          ]
-        "
-        :recalc-status="getRecalcStatus(submodule)"
         :pipeline-progress="pipelineProgress"
         :on-download="downloadLastCsv"
         @upload="openDataEntryDialog"
-        @recalculate="() => triggerTypeRecalculation(submodule)"
         @abort="handleAbortPipeline"
       />
     </div>

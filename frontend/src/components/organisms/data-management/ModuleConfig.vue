@@ -188,13 +188,8 @@ watch(
   },
 );
 
-const {
-  recalcRunning,
-  recalcTypeRunning,
-  confirmModuleRecalculation,
-  triggerTypeRecalculation,
-  staleTypesForModule,
-} = useRecalculation();
+const { recalcRunning, confirmModuleRecalculation, staleTypesForModule } =
+  useRecalculation();
 
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
@@ -285,11 +280,8 @@ const livePipelineJobsById = computed<ReadonlyMap<number, PipelineJob>>(() => {
 });
 
 provide('openDataEntryDialog', openDataEntryDialog);
-provide('getRecalcStatus', yearConfigStore.getRecalcStatus);
 provide('handleJobCompleted', handleJobCompleted);
 provide('handleJobProgressing', handleJobProgressing);
-provide('recalcTypeRunning', recalcTypeRunning);
-provide('triggerTypeRecalculation', triggerTypeRecalculation);
 provide('pipelineProgress', pipelineProgress);
 provide('livePipelineJobsById', livePipelineJobsById);
 // Exposed for the abort-pipeline flow: cards / sections that own a

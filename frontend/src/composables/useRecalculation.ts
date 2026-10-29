@@ -18,7 +18,6 @@ export function useRecalculation() {
   const yearConfigStore = useYearConfigStore();
 
   const recalcRunning = ref<Record<number, boolean>>({});
-  const recalcTypeRunning = ref<Record<string, boolean>>({});
 
   async function refreshAfterRecalc(): Promise<void> {
     await yearConfigStore.fetchConfig(yearConfigStore.selectedYear);
@@ -117,86 +116,6 @@ export function useRecalculation() {
     }
   }
 
-  async function triggerTypeRecalculation(
-    sub: SubmoduleConfigItem,
-  ): Promise<void> {
-    if (sub.dataEntryTypeId === undefined) return;
-    const key = `${sub.moduleTypeId}-${sub.dataEntryTypeId}`;
-    recalcTypeRunning.value[key] = true;
-    try {
-      const jobId =
-        await backofficeDataManagement.initiateEmissionRecalculation(
-          sub.moduleTypeId,
-          sub.dataEntryTypeId,
-          yearConfigStore.selectedYear,
-        );
-      backofficeDataManagement.subscribeToJobUpdates(
-        jobId,
-        (payload?: JobUpdatePayload) => {
-          const result = payload?.result;
-          if (result === IngestionResult.WARNING) {
-            Notify.create({
-              type: 'warning',
-              message: $t('data_management_recalculation_warning'),
-              caption: payload?.status_message ?? '',
-              position: 'top',
-              timeout: 5000,
-            });
-          } else if (result === IngestionResult.SUCCESS) {
-            Notify.create({
-              type: 'positive',
-              message: $t('data_management_recalculation_success'),
-              position: 'top',
-              timeout: 5000,
-            });
-          } else {
-            Notify.create({
-              type: 'negative',
-              message: $t('data_management_recalculation_error'),
-              caption: payload?.status_message ?? '',
-              position: 'top',
-              timeout: 5000,
-            });
-          }
-          recalcTypeRunning.value[key] = false;
-          void refreshAfterRecalc();
-        },
-        (payload?: JobUpdatePayload) => {
-          Notify.create({
-            type: 'negative',
-            message: $t('data_management_recalculation_error'),
-            caption: payload?.status_message ?? '',
-            position: 'top',
-            timeout: 5000,
-          });
-          recalcTypeRunning.value[key] = false;
-          void refreshAfterRecalc();
-        },
-        () => {
-          // See the matching onError branch in confirmModuleRecalculation
-          // above for why this needs its own Notify.
-          Notify.create({
-            type: 'negative',
-            message: $t('data_management_recalculation_error'),
-            caption: $t('data_management_recalculation_connection_lost'),
-            position: 'top',
-            timeout: 5000,
-          });
-          recalcTypeRunning.value[key] = false;
-        },
-      );
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '';
-      Notify.create({
-        type: 'negative',
-        message: $t('data_management_recalculation_error'),
-        caption: msg,
-        position: 'top',
-      });
-      recalcTypeRunning.value[key] = false;
-    }
-  }
-
   function staleTypesForModule(
     moduleTypeId: number,
   ): RecalculationStatusEntry[] {
@@ -209,10 +128,8 @@ export function useRecalculation() {
 
   return {
     recalcRunning,
-    recalcTypeRunning,
     getRecalcStatus,
     confirmModuleRecalculation,
-    triggerTypeRecalculation,
     staleTypesForModule,
   };
 }

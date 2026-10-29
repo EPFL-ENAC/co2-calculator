@@ -4,15 +4,12 @@ import { useUploadCard } from '@/composables/useUploadCard';
 import { mergeLivePipelineJob } from '@/composables/useModuleConfig';
 import { TargetType, IngestionState } from '@/stores/backofficeDataManagement';
 import type { ImportRow } from '@/stores/backofficeDataManagement';
-import type { RecalculationStatusEntry } from '@/stores/yearConfig';
 import type { PipelineJob, PipelineProgress } from '@/stores/pipelineStream';
 import UploadCard from './UploadCard.vue';
 
 interface Props {
   row: ImportRow;
   isDisabled?: boolean;
-  recalcRunning?: boolean;
-  recalcStatus?: RecalculationStatusEntry;
   /** Issue #1219 — module-scoped pipeline progress (null when idle). */
   pipelineProgress?: PipelineProgress | null;
   onDownload?: (row: ImportRow, targetType: TargetType) => void;
@@ -20,15 +17,12 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   isDisabled: false,
-  recalcRunning: false,
-  recalcStatus: undefined,
   pipelineProgress: null,
   onDownload: undefined,
 });
 
 const emit = defineEmits<{
   (e: 'upload', row: ImportRow, targetType: TargetType, file?: File): void;
-  (e: 'recalculate', item: ImportRow): void;
   (e: 'abort'): void;
 }>();
 
@@ -56,10 +50,6 @@ function handleUpload(_row: ImportRow, _targetType: TargetType, file?: File) {
 function handleDownload(row: ImportRow, targetType: TargetType) {
   props.onDownload?.(row, targetType);
 }
-
-function handleRecalculate(item: ImportRow) {
-  emit('recalculate', item);
-}
 </script>
 
 <template>
@@ -74,13 +64,9 @@ function handleRecalculate(item: ImportRow) {
     :last-job="effectiveDataJob"
     :api-job="row.lastApiDataJob"
     :target-type="TargetType.DATA_ENTRIES"
-    :has-recalc-button="row.hasFactors"
-    :recalc-status="recalcStatus"
-    :recalc-running="recalcRunning"
     :pipeline-progress="pipelineProgress"
     @upload="handleUpload"
     @download="handleDownload"
-    @recalculate="handleRecalculate"
     @abort="emit('abort')"
   />
 </template>

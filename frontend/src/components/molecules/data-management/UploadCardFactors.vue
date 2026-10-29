@@ -32,7 +32,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'upload', row: ImportRow, targetType: TargetType, file?: File): void;
-  (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
   (e: 'abort'): void;
 }>();
@@ -76,10 +75,6 @@ function handleDownload(row: ImportRow, targetType: TargetType) {
   props.onDownload?.(row, targetType);
 }
 
-function handleRecalculate(item: ImportRow) {
-  emit('recalculate', item);
-}
-
 function handleComputeFactors(item: ImportRow) {
   emit('compute-factors', item);
 }
@@ -97,14 +92,12 @@ function handleComputeFactors(item: ImportRow) {
     :is-loading="effectiveFactorJob?.state === IngestionState.RUNNING"
     :last-job="effectiveFactorJob"
     :target-type="TargetType.FACTORS"
-    :has-recalc-button="true"
     :pipeline-progress="pipelineProgress"
     :has-computed-factor-button="hasComputedFactor"
     :computed-factor-running="computedFactorRunning"
     :is-computed-factor-disabled="props.anyComputedFactorRunning"
     @upload="handleUpload"
     @download="handleDownload"
-    @recalculate="handleRecalculate"
     @compute-factors="handleComputeFactors"
     @abort="emit('abort')"
   />

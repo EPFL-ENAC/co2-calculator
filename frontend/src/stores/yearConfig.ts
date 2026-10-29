@@ -624,16 +624,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return map;
   });
 
-  function getRecalcStatus(
-    moduleTypeId: number,
-    dataEntryTypeId?: number,
-  ): RecalculationStatusEntry | undefined {
-    if (dataEntryTypeId === undefined) return undefined;
-    return recalculationStatus.value[moduleTypeId]?.data_entry_types.find(
-      (d) => d.data_entry_type_id === dataEntryTypeId,
-    );
-  }
-
   return {
     // State
     config,
@@ -656,7 +646,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     getSubmodule,
     getModuleNameFromSubmodule,
     getModuleConfig,
-    getRecalcStatus,
     isModuleVisible,
     isSubmoduleVisible,
     isModuleEnabled,
