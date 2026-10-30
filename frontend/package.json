@@ -42,7 +42,7 @@
     "@quasar/app-vite": "=3.10.3",
     "@types/node": "=26.6.5",
     "@vue/eslint-config-typescript": "=14.9.0",
-    "autoprefixer": "=10.6.1",
+    "autoprefixer": "=10.6.2",
     "eslint": "=10.13.0",
     "eslint-config-prettier": "=10.1.8",
     "eslint-plugin-vue": "=10.11.1",
