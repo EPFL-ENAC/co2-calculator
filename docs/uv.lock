@@ -27,7 +27,7 @@ requires-dist = [
     { name = "mkdocs", specifier = ">=1.6.1,<1.7.0" },
     { name = "mkdocs-gen-files", specifier = ">=0.5.0" },
     { name = "mkdocs-git-authors-plugin", specifier = ">=0.10.0" },
-    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.6.0" },
+    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.6.2" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.1" },
     { name = "mkdocs-material", specifier = ">=9.7.7" },
     { name = "mkdocs-material-extensions", specifier = ">=1.3.1" },
@@ -181,14 +181,14 @@ wheels = [
 
 [[package]]
 name = "gitpython"
-version = "3.1.61"
+version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gitdb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6f/61/3285044215fb596bf093e39ccb96ece0a1076a8ca57a61e069a6a33cdb1b/gitpython-3.1.61.tar.gz", hash = "sha256:f51c24d8c0f733a195447385f5774a5dfe8767f5acfd7994a33755644c6ecc95", size = 231680, upload-time = "2026-08-28T11:01:13.761Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/ff/fee293f1ec3e1b64db6eb270e00964f29c086d769201474cedb8d1608930/gitpython-3.2.1.tar.gz", hash = "sha256:0f1229ec5c057bdabdeeda8bda4f17bda679ab33dbccc00f24e6a480553c8613", size = 241688, upload-time = "2026-10-14T12:20:20.589Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6f/5e/49cc172da4d0578644ba37cec5cb365b1fefc603b26edea9bcac1c7f830a/gitpython-3.1.61-py3-none-any.whl", hash = "sha256:8ab28c9da863cdd9e7d7694ec46cf3e6c9a12d8a30a1acd3447aec11975d530c", size = 222118, upload-time = "2026-08-28T11:01:12.262Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/50/2a923c4dc02522ff9567f07c67ed1deca6d5fa9474f4708168b8088dfa37/gitpython-3.2.1-py3-none-any.whl", hash = "sha256:d66b0832aa8755c1a84892937282df0befb16c97e5a64aeebd68be9c5e323f53", size = 231548, upload-time = "2026-10-14T12:20:18.844Z" },
 ]
 
 [[package]]
@@ -339,7 +339,7 @@ wheels = [
 
 [[package]]
 name = "mkdocs-git-revision-date-localized-plugin"
-version = "1.6.0"
+version = "1.6.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "babel" },
@@ -348,9 +348,9 @@ dependencies = [
     { name = "packaging" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f1/a7/ded2f0e2321213862225f9f657a51493af8f92626e3dd0a02ce9ef9b1131/mkdocs_git_revision_date_localized_plugin-1.6.0.tar.gz", hash = "sha256:469af4b344a4d493a6402aa92eec87a6138e1dac444e9551c1af06991453954b", size = 36957, upload-time = "2026-09-14T12:57:04.84Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/d0/b2910714ae14ee925c99535b2e5c2a19d49669a53cbac9d4242fca0f8906/mkdocs_git_revision_date_localized_plugin-1.6.2.tar.gz", hash = "sha256:9f38e5cfef3d180f1c479a7190d72617267a5d79d8159b12e3ae39c80f6e7488", size = 40432, upload-time = "2026-10-26T07:55:53.746Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5a/f7/d4aeef9f48150900634e7f864b076038e69014fb3ae4e515035803bca561/mkdocs_git_revision_date_localized_plugin-1.6.0-py3-none-any.whl", hash = "sha256:88b2d524d24c49a05cd6c9b1456f7dc0c8fa5e233b09ecf8a1dd12aebc127990", size = 27966, upload-time = "2026-09-14T12:57:03.607Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/a2/bd8403a2e1f2d7a4566fffa28bc5bbb5f8361754ee988d1b3ceff32e436b/mkdocs_git_revision_date_localized_plugin-1.6.2-py3-none-any.whl", hash = "sha256:9db79422039f856e582df62b360f9b9bde0f1b7c978d253bdb2a1b73a18b7774", size = 29404, upload-time = "2026-10-26T07:55:52.202Z" },
 ]
 
 [[package]]
