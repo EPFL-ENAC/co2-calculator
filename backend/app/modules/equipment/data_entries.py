@@ -38,10 +38,12 @@ class _EquipmentUsageHoursValidationMixin:
     if TYPE_CHECKING:
 
         @property
-        def active_usage_hours_per_week(self) -> int | None: ...
+        def active_usage_hours_per_week(self) -> int | None:
+            """Declared by each model."""
 
         @property
-        def standby_usage_hours_per_week(self) -> int | None: ...
+        def standby_usage_hours_per_week(self) -> int | None:
+            """Declared by each model."""
 
     @field_validator(
         "active_usage_hours_per_week", "standby_usage_hours_per_week", mode="after"

@@ -103,6 +103,7 @@ async def _close_all(conns: list[psycopg.AsyncConnection]) -> None:
         try:
             await asyncio.wait_for(c.close(), 2)
         except TimeoutError, psycopg.Error:
+            # Best-effort cleanup: the probe's verdict is already decided.
             pass
 
 

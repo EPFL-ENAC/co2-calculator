@@ -320,6 +320,8 @@ async def run_job(job_id: int) -> None:
                     try:
                         await handler_task
                     except asyncio.CancelledError, Exception:
+                        # Shutting down: the handler's writes are rolled back
+                        # below, so how it ended no longer matters.
                         pass
                     await data_session.rollback()
                     await job_session.rollback()

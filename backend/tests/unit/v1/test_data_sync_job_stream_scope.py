@@ -62,9 +62,7 @@ class _FakeSessionCM:
 
 def _patch_session(monkeypatch):
     monkeypatch.setattr(data_sync_module, "DataIngestionRepository", _FakeRepo)
-    monkeypatch.setattr(
-        data_sync_module.db_module, "SessionLocal", lambda: _FakeSessionCM()
-    )
+    monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", _FakeSessionCM)
 
 
 @pytest.mark.asyncio

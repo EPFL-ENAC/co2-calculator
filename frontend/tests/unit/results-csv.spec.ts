@@ -16,7 +16,6 @@
 import { test, expect } from 'playwright/test';
 
 import type { ReportStats } from '../../src/utils/emissionStatsAdapter';
-import { toEmissionBreakdown } from '../../src/utils/emissionStatsAdapter';
 import { buildCarbonFootprintCsvRows } from '../../src/utils/results-csv';
 
 /** Export everything; the validation guard has its own test below. */

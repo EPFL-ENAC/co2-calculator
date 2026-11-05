@@ -22,7 +22,7 @@ class _ForbiddenSession:
     """
 
     def __getattr__(self, name: str):
-        raise AssertionError(
+        raise AttributeError(
             f"station lookup must not run when country_code is missing "
             f"(accessed session.{name})"
         )

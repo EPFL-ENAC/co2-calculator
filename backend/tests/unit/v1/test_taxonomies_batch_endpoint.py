@@ -160,7 +160,8 @@ def test_batch_route_response_has_no_coefficients_or_classification():
     even though the underlying factors have them.
     """
     fake_user = MagicMock()
-    app.dependency_overrides[get_db] = lambda: MagicMock()
+    fake_session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: fake_session
     app.dependency_overrides[get_current_user] = lambda: fake_user
 
     factors = [
@@ -207,8 +208,10 @@ def _taxonomy_bodies(module: str, entry: str, factors: list[Factor]) -> list[dic
     (#2391 decision 1). A `response_model` set on only one of them would be
     invisible otherwise.
     """
-    app.dependency_overrides[get_db] = lambda: MagicMock()
-    app.dependency_overrides[get_current_user] = lambda: MagicMock()
+    fake_session = MagicMock()
+    fake_user = MagicMock()
+    app.dependency_overrides[get_db] = lambda: fake_session
+    app.dependency_overrides[get_current_user] = lambda: fake_user
     try:
         with (
             patch.object(
@@ -291,7 +294,8 @@ def test_batch_route_wins_over_single_entry_catch_all():
     by the single-entry route registered after it.
     """
     fake_user = MagicMock()
-    app.dependency_overrides[get_db] = lambda: MagicMock()
+    fake_session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: fake_session
     app.dependency_overrides[get_current_user] = lambda: fake_user
 
     try:

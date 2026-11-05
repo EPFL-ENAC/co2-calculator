@@ -8,11 +8,13 @@ from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
 
 
 class DerivedEntryWorkflow(Protocol):
-    def __init__(self, session: AsyncSession): ...
+    def __init__(self, session: AsyncSession):
+        """Bind the workflow to the session it writes through."""
 
     # Receives a whole ingest batch; the workflow selects the rows it
     # derives from and ignores the rest.
-    async def create_derived_entries_for(self, entries: list[DataEntry]) -> int: ...
+    async def create_derived_entries_for(self, entries: list[DataEntry]) -> int:
+        """Create the derived rows; returns how many were created."""
 
 
 DERIVED_ENTRY_WORKFLOWS: dict[DataEntryTypeEnum, type[DerivedEntryWorkflow]] = {

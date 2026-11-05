@@ -19,20 +19,17 @@ silences ruff's "imported but unused" warning since the import IS the
 intent here.
 """
 
-_BOOTSTRAPPED = False
+from functools import cache
 
 
+@cache
 def bootstrap_handlers() -> None:
     """Idempotent: import the handler modules so their decorators fire.
 
     Safe to call from multiple sites (lifespan, runner first call) —
-    a module-level guard makes repeats free.  Pure ``import`` would
-    work as well, but the guard makes intent explicit when reading
-    crash backtraces.
+    ``cache`` makes repeats free.  Pure ``import`` would work as well, but
+    the decorator makes intent explicit when reading crash backtraces.
     """
-    global _BOOTSTRAPPED
-    if _BOOTSTRAPPED:
-        return
     from app.tasks import (
         aggregation_tasks,  # noqa: F401
         emission_recalculation_tasks,  # noqa: F401
@@ -41,5 +38,3 @@ def bootstrap_handlers() -> None:
         simulator_plan_tasks,  # noqa: F401
         unit_sync_tasks,  # noqa: F401
     )
-
-    _BOOTSTRAPPED = True

@@ -55,10 +55,6 @@ _IT_RESEARCH_TYPES: frozenset[EmissionType] = frozenset(
     ]
 )
 
-IT_EMISSION_TYPES: frozenset[EmissionType] = (
-    _IT_EQUIPMENT_TYPES | _IT_PURCHASES_TYPES | _IT_CLOUD_AI_TYPES | _IT_RESEARCH_TYPES
-)
-
 # Ordered list of IT categories for deterministic output
 IT_CATEGORIES_ORDER: list[str] = [
     IT_CATEGORY_EQUIPMENT,

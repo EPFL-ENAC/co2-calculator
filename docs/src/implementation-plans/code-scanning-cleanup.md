@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: none (GitHub code-scanning sweep)
-last_updated: 2026-07-16
+last_updated: 2026-11-05
 summary: Resolve all 84 open CodeQL code-scanning alerts — 2 security fixes with regression tests, ~30 mechanical cleanups, and triage dismissals for false positives / deliberate patterns.
 ---
 
@@ -45,7 +45,12 @@ https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning.
   through `JSON.parse` before staging, so non-JSON responses fall back to
   the snapshot.
 
-## Dismissed as false positive / won't fix (not code changes)
+## Triaged as false positive / won't fix (not code changes)
+
+Not all of these were dismissed on GitHub: 35 alerts were on 2026-07-20, but
+others were still open in November. See
+[#3185](3185-code-scanning-sweep.md), which fixes some in code and lists the
+rest for dismissal.
 
 - `py/ineffectual-statement` on `...` bodies: `typing.Protocol` stubs.
 - `py/unused-import` on side-effect imports (model registration in

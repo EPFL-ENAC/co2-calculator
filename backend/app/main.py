@@ -686,7 +686,6 @@ async def health_deps():
     instead of parsing the body — safe here specifically because nothing
     routes this endpoint's status into a probe or the Service.
     """
-    details = {}
     role_provider_status = "skipped"
     uses_accred = (
         settings.ROLE_PROVIDER_TYPE == RoleProviderType.ACCRED
@@ -709,7 +708,11 @@ async def health_deps():
                     role_provider_status = f"error ({resp.status_code})"
         except Exception as e:
             role_provider_status = "error"
-            details["role_provider_error"] = str(e)
+            # Stays in the log: this route is public, the error must not be in
+            # the response body. repr, as httpx timeouts have an empty str(e).
+            logger.warning(
+                "Accred health check failed", extra={"role_provider_error": repr(e)}
+            )
 
     is_healthy = role_provider_status in ("skipped", "ok")
     status_code = (
@@ -717,7 +720,7 @@ async def health_deps():
     )
     return JSONResponse(
         status_code=status_code,
-        content={"role_provider": role_provider_status, "details": details},
+        content={"role_provider": role_provider_status},
     )
 
 

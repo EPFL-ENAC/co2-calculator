@@ -128,14 +128,24 @@ class FactorHandler(Protocol[T]):
     value_fields: list[str]
 
     @property
-    def expected_columns(self) -> set[str]: ...
-    @property
-    def required_columns(self) -> set[str]: ...
+    def expected_columns(self) -> set[str]:
+        """All CSV columns the create DTO declares."""
 
-    def to_response(self, factor: T) -> FactorResponseGen: ...
-    def validate_create(self, payload: dict) -> FactorCreate: ...
-    def validate_update(self, payload: dict) -> FactorUpdate: ...
-    def validate_year_factors(self, factors: list[Factor]) -> None: ...
+    @property
+    def required_columns(self) -> set[str]:
+        """Mandatory CSV columns."""
+
+    def to_response(self, factor: T) -> FactorResponseGen:
+        """Build the response DTO for a factor."""
+
+    def validate_create(self, payload: dict) -> FactorCreate:
+        """Validate a payload against the create DTO."""
+
+    def validate_update(self, payload: dict) -> FactorUpdate:
+        """Validate a payload against the update DTO."""
+
+    def validate_year_factors(self, factors: list[Factor]) -> None:
+        """Cross-row check on the factor set of one (type, year)."""
 
 
 FACTOR_HANDLERS: dict[DataEntryTypeEnum, FactorHandler] = {}
