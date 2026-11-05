@@ -8,7 +8,7 @@ name here since the model hasn't been renamed.
 
 Single source of truth for the ceiling numbers. Both
 ``scripts/generate_perf_test_csvs.py`` and the load-test backdrop seeder
-(``app/seed/random_generator/seed_data_entries.py``, ``SEED_CEILING_SCALE``
+(``scripts/random_generator/seed_data_entries.py``, ``SEED_CEILING_SCALE``
 mode) read this table rather than keeping their own copy.
 """
 

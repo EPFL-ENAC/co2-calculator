@@ -128,7 +128,7 @@ seed-data: ## Seed the database with initial data
 
 .PHONY: seed-data-random
 seed-data-random: ## Seed ~800k random data_entry rows via Faker (issue #222)
-	$(UV) run -m app.seed.random_generator.seed_all
+	$(UV) run -m scripts.random_generator.seed_all
 
 .PHONY: seed-units
 seed-units: ## Seed units from accred
@@ -179,7 +179,7 @@ perf-seed: ## Seed the #2295 load-test backdrop (SEED_NUM_UNITS/SEED_YEARS/SEED_
 	SEED_YEARS="$${SEED_YEARS:-2021 2022 2023 2024 2025}" \
 	SEED_CEILING_SCALE=$${SEED_CEILING_SCALE:-0.1} \
 	SEED_CEILING_UNITS_PREFIX=$${SEED_CEILING_UNITS_PREFIX:-U0} \
-	$(UV) run -m app.seed.random_generator.seed_all
+	$(UV) run -m scripts.random_generator.seed_all
 
 .PHONY: perf-load
 perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES="ExplorerReadUser"

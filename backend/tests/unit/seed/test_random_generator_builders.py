@@ -18,9 +18,9 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
-from app.seed.random_generator import seed_data_entries
-from app.seed.random_generator.populate_units_and_users import NUM_UNITS
-from app.seed.random_generator.seed_data_entries import (
+from scripts.random_generator import seed_data_entries
+from scripts.random_generator.populate_units_and_users import NUM_UNITS
+from scripts.random_generator.seed_data_entries import (
     DATA_ENTRY_TYPE_TO_DTO,
     DTO_BUILDERS,
     ENTRIES_PER_MODULE_MAX,

@@ -2,7 +2,7 @@
 status: delivered
 issue: "3185"
 last_updated: 2026-11-05
-summary: Code Auditor follow-up. Drop the unused, unmaintained passlib (and its bcrypt and types-passlib baggage) from the backend, and bump certifi in the docs lock.
+summary: Code Auditor follow-up. Drop passlib and other forgotten dependencies, move the FastAPI OTel instrumentation to main deps, move the dev-only Faker seeders out of app/, and bump certifi in the docs lock.
 ---
 
 # 3185 — Code Auditor follow-up: drop passlib, refresh certifi
@@ -14,6 +14,14 @@ summary: Code Auditor follow-up. Drop the unused, unmaintained passlib (and its 
   The lock also drops `bcrypt` and picks up brotli 1.2.0 → 1.2.1.
 - `docs/uv.lock`: certifi 2025.10.5 → 2026.10.23.
 - Tech-stack page and a `ty.toml` comment no longer mention passlib.
+- Other forgotten dependencies removed: `pytest-mock` and
+  `pytest-elasticsearch` (no test uses their fixtures) and the frontend's
+  `unwrapped` (never imported).
+- `opentelemetry-instrumentation-fastapi` moves from the dev group to the
+  main dependencies, since `app/main.py` imports it at startup.
+- The Faker seeders move from `app/seed/random_generator` to
+  `scripts/random_generator`. They are dev and perf tooling, they import
+  the dev-only `asyncpg`, and they no longer ship in the image.
 
 ## Audit on 2026-11-05
 

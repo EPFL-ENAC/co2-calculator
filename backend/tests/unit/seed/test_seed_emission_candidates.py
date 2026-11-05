@@ -10,7 +10,7 @@ import pytest
 
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.modules.emissions.registry import MODULE_STAT_BUCKETS
-from app.seed.random_generator.seed_data_entries import seed_emission_candidates
+from scripts.random_generator.seed_data_entries import seed_emission_candidates
 
 _ALL_DATA_ENTRY_TYPES = [
     (module_type, data_entry_type)
