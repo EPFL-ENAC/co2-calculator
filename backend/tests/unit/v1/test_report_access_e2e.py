@@ -180,3 +180,17 @@ def test_status_patch_on_shared_plan_is_allowed(client):
 def test_global_role_reads_any_report(client, url):
     _wire(_user(USER_IID, [_superadmin()]))
     assert client.get(url).status_code == 200
+
+
+@pytest.mark.parametrize("url", STATS_URLS)
+def test_missing_report_is_404(client, url):
+    _wire(_member())
+    _ROWS[CarbonReport] = None
+    assert client.get(url).status_code == 404
+
+
+@pytest.mark.parametrize("url", STATS_URLS)
+def test_report_of_missing_unit_is_404(client, url):
+    _wire(_user(USER_IID, [_superadmin()]))
+    _ROWS[Unit] = None
+    assert client.get(url).status_code == 404
