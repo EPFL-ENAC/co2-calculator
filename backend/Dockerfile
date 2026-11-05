@@ -18,14 +18,6 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --compile-bytecode
 
-# Install OpenTelemetry instrumentation packages
-# https://opentelemetry.io/docs/zero-code/python/troubleshooting/#bootstrap-using-uv
-ENV PATH="/app/.venv/bin:$PATH"
-# Call the venv binary directly: `uv run` would implicitly sync the default
-# dependency groups (including dev), re-adding pytest/mypy/locust to the
-# runtime venv and making bootstrap instrument those packages too.
-RUN opentelemetry-bootstrap -a requirements | uv pip install --requirement -
-
 # Copy application source and config only
 COPY app/ app/
 COPY otel_sampler/ otel_sampler/

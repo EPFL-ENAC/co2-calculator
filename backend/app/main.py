@@ -9,6 +9,7 @@ import httpx
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.trace import TracerProvider as SdkTracerProvider
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
@@ -365,7 +366,6 @@ def exclude_per_chunk_asgi_spans(app: FastAPI) -> None:
     """
     if not getattr(app, "_is_instrumented_by_opentelemetry", False):
         return
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
     FastAPIInstrumentor.uninstrument_app(app)
     FastAPIInstrumentor.instrument_app(app, exclude_spans=["receive", "send"])
