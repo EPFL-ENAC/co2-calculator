@@ -62,7 +62,8 @@
   "overrides": {
     "vue-i18n": "$vue-i18n",
     "esbuild": "=0.28.2",
-    "js-yaml": "=4.3.2"
+    "js-yaml": "=4.3.2",
+    "minimatch@^10": "=11.0.4"
   },
   "type": "module",
   "packageManager": "npm@11.14.1",
