@@ -18,6 +18,7 @@ import pytest
 from enacit4r_files.services import FileNode
 from fastapi.testclient import TestClient
 
+from app.api.deps import get_db
 from app.api.v1 import files as files_module
 from app.main import app
 from app.models.user import User
@@ -215,8 +216,6 @@ def test_delete_accepts_the_callers_own_temporary_file(client):
 
 
 def test_dispatch_refuses_another_users_temporary_file(client):
-    from app.api.deps import get_db
-
     async def _no_db():
         yield MagicMock()
 
