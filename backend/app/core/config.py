@@ -439,7 +439,7 @@ class Settings(BaseSettings):
     # NOTE: Elastic SEARCH OPDO/27001/27701 compatiblity
 
     ELASTICSEARCH_HOSTS: str = Field(
-        default="https://locahost:9200",
+        default="https://localhost:9200",
         description="Comma-separated list of Elasticsearch hosts",
     )
     ELASTICSEARCH_INDEX: str = Field(
