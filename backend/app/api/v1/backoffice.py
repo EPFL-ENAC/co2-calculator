@@ -63,6 +63,7 @@ from app.schemas.backoffice import (
     PaginationMeta,
     UnitReportingData,
 )
+from app.utils.csv_safe import SafeCsvWriter
 from app.utils.scoping import (
     build_scope_subtree_predicate,
     gate_backoffice,
@@ -71,20 +72,11 @@ from app.utils.scoping import (
 logger = get_logger(__name__)
 router = APIRouter()
 
+
 # A user-entered value (module data-entry payloads reach the detailed export
 # verbatim) must never start a CSV cell that a spreadsheet reads as a formula,
 # or Excel/LibreOffice evaluates it when the file is opened (CSV injection,
 # CWE-1236). An apostrophe prefix keeps the text literal.
-_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
-
-
-def _csv_safe(value: Any) -> Any:
-    """Neutralize a string cell that a spreadsheet would read as a formula."""
-    if isinstance(value, str) and value.startswith(_CSV_FORMULA_PREFIXES):
-        return "'" + value
-    return value
-
-
 class BackofficeFilters(NamedTuple):
     """Unified filter parameters for all backoffice reporting endpoints."""
 
@@ -571,7 +563,7 @@ async def report_detailed(
                     )
                 else:
                     with open(file_path, "w", newline="", encoding="utf-8-sig") as f:
-                        writer = csv.writer(f)
+                        writer = SafeCsvWriter(f)
                         # Build a stable header list across all rows to avoid
                         # misalignment
                         headers: list[str] = []
@@ -581,9 +573,7 @@ async def report_detailed(
                                     headers.append(key)
                         writer.writerow(headers)
                         for row in data:
-                            writer.writerow(
-                                [_csv_safe(row.get(h, "")) for h in headers]
-                            )
+                            writer.writerow([row.get(h, "") for h in headers])
 
         zip_fd, zip_path = tempfile.mkstemp(suffix=".zip")
         os.close(zip_fd)
