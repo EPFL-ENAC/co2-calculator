@@ -26,8 +26,8 @@ from otel_sampler import SqlRatioSampler
 def _settings(**overrides) -> SimpleNamespace:
     defaults = {
         "LOCAL_ENVIRONMENT": False,
-        "JWT_HMAC_KEY": "jwt-key",
-        "SESSION_HMAC_KEY": "session-key",
+        "JWT_HMAC_KEY": "j" * 64,
+        "SESSION_HMAC_KEY": "s" * 64,
         "CREDENTIALS_ENCRYPTION_KEY": "key",
         "CREDENTIALS_ENCRYPTION_SALT": "salt",
         "CONNECTOR_ALLOWED_HOST_SUFFIXES": "epfl.ch",
@@ -67,6 +67,26 @@ def test_non_local_raises_when_a_required_setting_is_empty(missing_field):
     with pytest.raises(RuntimeError) as exc:
         assert_security_settings(settings)
     assert missing_field in str(exc.value)
+
+
+@pytest.mark.parametrize("key_field", ["JWT_HMAC_KEY", "SESSION_HMAC_KEY"])
+@pytest.mark.parametrize(
+    "weak_value",
+    ["change-me-in-production-use-openssl-rand-hex-32", "too-short"],
+)
+def test_non_local_raises_on_a_weak_signing_key(key_field, weak_value):
+    settings = _settings(**{key_field: weak_value})
+    with pytest.raises(RuntimeError) as exc:
+        assert_security_settings(settings)
+    assert key_field in str(exc.value)
+
+
+def test_local_environment_accepts_the_placeholder_keys():
+    placeholder = "change-me-in-production-use-openssl-rand-hex-32"
+    settings = _settings(
+        LOCAL_ENVIRONMENT=True, JWT_HMAC_KEY=placeholder, SESSION_HMAC_KEY=placeholder
+    )
+    assert_security_settings(settings)  # must not raise
 
 
 def test_non_local_passes_when_all_required_settings_set():
