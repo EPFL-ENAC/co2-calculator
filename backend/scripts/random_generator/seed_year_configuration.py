@@ -14,7 +14,7 @@ import asyncpg
 
 from app.core.config import get_settings
 from app.models.user import UserProvider
-from app.seed.random_generator.seed_carbon_reports import YEARS
+from scripts.random_generator.seed_carbon_reports import YEARS
 
 
 async def get_connection():

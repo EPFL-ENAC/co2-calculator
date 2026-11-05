@@ -125,7 +125,7 @@ local compose — real backend/worker pods are already on it. Run in order:
 - [ ] `SEED_ALLOW_REMOTE=1 make perf-seed` — refuses to run without the flag
       ("unrecoverable" per `seed_all.py`); if units/reports/factors already
       exist but `data_entries` was 0, resume with just
-      `SEED_ALLOW_REMOTE=1 uv run python -m app.seed.random_generator.seed_data_entries`
+      `SEED_ALLOW_REMOTE=1 uv run python -m scripts.random_generator.seed_data_entries`
 - [ ] `psql "$DB_URL" -tAc "show max_connections"` and `... "select count(*) from pg_stat_activity"`
       — pick `--workers` × (`DB_POOL_SIZE`+`DB_MAX_OVERFLOW`) with headroom below the gap
 - [ ] add `RUN_BACKGROUND_POLLER=False` to `.env` — backend won't start

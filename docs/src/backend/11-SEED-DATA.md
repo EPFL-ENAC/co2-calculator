@@ -33,7 +33,7 @@ with the generated equipment `(class, sub_class)` payloads.
 
 ## What `seed-data-random` produces
 
-Run order (see `backend/app/seed/random_generator/seed_all.py`):
+Run order (see `backend/scripts/random_generator/seed_all.py`):
 
 1. **500 units + 4000 users + 2 admins** — units have `institutional_code`
    `U00000`-`U00499` and `institutional_id` `CF00000`-`CF00499`.
@@ -78,9 +78,9 @@ make db-drop && make db-create && make db-migrate && make seed-data-random
 `seed-data-random` volume is driven by four constants:
 
 - `NUM_UNITS`, `NUM_USERS` in
-  `backend/app/seed/random_generator/populate_units_and_users.py`
+  `backend/scripts/random_generator/populate_units_and_users.py`
 - `ENTRIES_PER_MODULE_MIN`, `ENTRIES_PER_MODULE_MAX` in
-  `backend/app/seed/random_generator/seed_data_entries.py`
+  `backend/scripts/random_generator/seed_data_entries.py`
 
 Expected total rows = `NUM_UNITS × YEARS (3) × ALL_MODULE_TYPE_IDS (8) ×
 avg(ENTRIES_PER_MODULE)`. The smoke test

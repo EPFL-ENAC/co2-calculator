@@ -81,7 +81,6 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 - **Database Drivers**: [psycopg](https://www.psycopg.org/) (PostgreSQL), [aiosqlite](https://aiosqlite.omnilib.dev/en/stable/) (SQLite)
 - **Config Management**: [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
 - **JWT Handling**: [joserfc](https://jose.authlib.org/en/#)
-- **Password Hashing**: [passlib](https://passlib.readthedocs.io/en/stable/) (bcrypt)
 - **HTTP Client**: [httpx](https://www.python-httpx.org/)
 
 ### Development

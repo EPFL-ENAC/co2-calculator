@@ -10,7 +10,7 @@ redundant-cast = "warn"
 # matches the old mypy.ini: deprecated-call checking (PEP 702) was never enabled
 deprecated = "ignore"
 
-# Silence missing stubs/imports for third-party libs (pydantic, passlib, sqlalchemy, sqlmodel, etc.)
+# Silence missing stubs/imports for third-party libs (pydantic, sqlalchemy, sqlmodel, etc.)
 # ty handles unresolved imports more gracefully by default, but you can tune per-module below
 
 [src]
