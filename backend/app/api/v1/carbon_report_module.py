@@ -1023,10 +1023,14 @@ async def get(
         f"GET item: carbon_report_id={sanitize(carbon_report_id)}, "
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
+    data_entry_type = DataEntryTypeEnum[submodule_id.replace("-", "_")]
     item: HeadcountItemResponse | DataEntryResponse
-    item = await DataEntryService(db).get(
-        id=item_id,
-    )
+    try:
+        item = await DataEntryService(db).get(
+            item_id, _module.id, data_entry_type.value
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     logger.info(f"Retrieved item {sanitize(item_id)}")
 
     return item
@@ -1133,6 +1137,7 @@ async def delete(
 
         await CarbonReportModuleWorkflow(db).delete(
             carbon_report_module=carbon_report_module,
+            data_entry_type_id=data_entry_type.value,
             data_entry_id=item_id,
             current_user=UserRead.model_validate(current_user),
             request_context=request_context,

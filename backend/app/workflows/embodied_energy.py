@@ -114,6 +114,7 @@ class EmbodiedEnergyWorkflow:
         for entry_id in surplus_ids:
             await workflow.delete(
                 carbon_report_module=carbon_report_module,
+                data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
                 data_entry_id=entry_id,
                 current_user=current_user,
                 request_context=request_context,

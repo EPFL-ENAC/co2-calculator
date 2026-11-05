@@ -202,7 +202,7 @@ async def test_delete_data_entry_success(db_session: AsyncSession):
 
     # Verify deletion
     with pytest.raises(ValueError, match="not found"):
-        await service.get(entry.id)
+        await service.get(entry.id, module.id, DataEntryTypeEnum.plane.value)
 
 
 @pytest.mark.asyncio
@@ -250,7 +250,7 @@ async def test_get_data_entry_success(db_session: AsyncSession):
     db_session.add(entry)
     await db_session.flush()
 
-    result = await service.get(entry.id)
+    result = await service.get(entry.id, module.id, DataEntryTypeEnum.plane.value)
 
     assert result.id == entry.id
     assert result.data["name"] == "Test Trip"
@@ -262,7 +262,44 @@ async def test_get_data_entry_not_found_raises_error(db_session: AsyncSession):
     service = DataEntryService(db_session)
 
     with pytest.raises(ValueError, match="not found"):
-        await service.get(99999)
+        await service.get(99999, 1, DataEntryTypeEnum.plane.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", ["other_module", "other_type"])
+async def test_get_data_entry_outside_addressed_scope_raises(
+    db_session: AsyncSession, scope: str
+):
+    """An entry of another module or type reads as missing (#3185)."""
+    service = DataEntryService(db_session)
+    modules = [
+        CarbonReportModule(
+            carbon_report_id=report_id,
+            module_type_id=ModuleTypeEnum.professional_travel.value,
+            status="in_progress",
+        )
+        for report_id in (1, 2)
+    ]
+    db_session.add_all(modules)
+    await db_session.flush()
+    entry = DataEntry(
+        carbon_report_module_id=modules[0].id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Test Trip"},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    module_id = modules[0].id
+    type_id = DataEntryTypeEnum.plane.value
+    if scope == "other_module":
+        module_id = modules[1].id
+    if scope == "other_type":
+        type_id = DataEntryTypeEnum.train.value
+
+    with pytest.raises(ValueError, match="not found"):
+        await service.get(entry.id, module_id, type_id)
 
 
 # ======================================================================

@@ -715,3 +715,27 @@ async def test_write_scope_carries_year_and_unit_from_the_report():
     assert scope.unit_id == 7
     assert scope.module.id == 42
     assert scope.is_simulator is False
+
+
+# ── get (single data entry) ───────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_entry_is_scoped_to_addressed_module_and_type():
+    """The lookup carries the URL's module and type; a miss is 404 (#3185)."""
+    report, module = _resolved()
+    svc = MagicMock()
+    svc.get = AsyncMock(side_effect=ValueError("Data entry with id=5 not found"))
+    with (
+        patch.object(
+            crm, "resolve_report_module", AsyncMock(return_value=(report, module))
+        ),
+        patch.object(crm, "check_module_permission_for_report", AsyncMock()),
+        patch.object(crm, "DataEntryService", return_value=svc),
+    ):
+        with pytest.raises(HTTPException) as exc:
+            await crm.get(
+                1, "headcount", "member", 5, MagicMock(), MagicMock(), _user()
+            )
+    assert exc.value.status_code == 404
+    svc.get.assert_awaited_once_with(5, module.id, DataEntryTypeEnum.member.value)
