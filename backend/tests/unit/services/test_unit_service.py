@@ -3,19 +3,8 @@
 import pytest
 from fastapi import HTTPException
 
-from app.models.user import GlobalScope, Role, RoleName, UnitScope, User
+from app.models.user import GlobalScope, Role, RoleName, UnitScope
 from app.services.unit_service import UnitService
-
-
-@pytest.fixture
-def mock_unit_service_policy_allow(monkeypatch):
-    """Patch query_policy as imported by unit_service (no filters, allow)."""
-
-    async def _mock(*args, **kwargs):
-        return {"allow": True, "filters": {}}
-
-    monkeypatch.setattr("app.services.unit_service.query_policy", _mock)
-    return _mock
 
 
 class TestGetUserUnitsLevelFilter:
@@ -27,7 +16,6 @@ class TestGetUserUnitsLevelFilter:
         make_unit,
         make_user,
         make_unit_user,
-        mock_unit_service_policy_allow,
     ):
         """User holding roles across levels 2, 3, 4 sees only the level-4 unit."""
         user = await make_user(db_session)
@@ -53,7 +41,6 @@ class TestGetUserUnitsLevelFilter:
         make_unit,
         make_user,
         make_unit_user,
-        mock_unit_service_policy_allow,
     ):
         """User with only level-3 roles → empty list (filter excludes everything)."""
         user = await make_user(db_session)
@@ -76,7 +63,6 @@ class TestGetUserUnitsLevelFilter:
         make_unit,
         make_user,
         make_unit_user,
-        mock_unit_service_policy_allow,
     ):
         """Baseline: level-4-only users see all their labs (no regression)."""
         user = await make_user(db_session)
@@ -94,60 +80,6 @@ class TestGetUserUnitsLevelFilter:
         result = await service.get_user_units(user)
 
         assert sorted(row["name"] for row in result) == ["LabA", "LabB"]
-
-
-class TestBuildPolicyInput:
-    """Tests for _build_policy_input method."""
-
-    def test_build_policy_input_without_unit(self):
-        """Test building policy input without unit context."""
-        user = User(
-            id="test-user",
-            email="test@example.com",
-            display_name="Test User",
-            provider="test",
-        )
-        user.roles = [Role(role=RoleName.CO2_USER_STD, on=GlobalScope())]
-
-        service = UnitService(session=None)
-        input_data = service._build_policy_input(user, "read")
-
-        assert input_data["action"] == "read"
-        assert input_data["resource_type"] == "unit"
-        assert input_data["user"]["id"] == "test-user"
-        assert input_data["user"]["email"] == "test@example.com"
-        assert len(input_data["user"]["roles"]) == 1
-        assert "resource" not in input_data
-
-    def test_build_policy_input_different_actions(self):
-        """Test building policy input for different actions."""
-        user = User(
-            id="test-user",
-            email="test@example.com",
-            display_name="Test User",
-            provider="test",
-        )
-
-        service = UnitService(session=None)
-
-        for action in ["read", "create", "update", "delete"]:
-            input_data = service._build_policy_input(user, action)
-            assert input_data["action"] == action
-
-    def test_build_policy_input_user_without_roles(self):
-        """Test building policy input for user without roles."""
-        user = User(
-            id="test-user",
-            email="test@example.com",
-            display_name="Test User",
-            provider="test",
-        )
-        user.roles = []
-
-        service = UnitService(session=None)
-        input_data = service._build_policy_input(user, "read")
-
-        assert input_data["user"]["roles"] == []
 
 
 class TestGetByIdReadPolicy:
@@ -233,7 +165,6 @@ class TestGetUserUnitsNoTruncation:
         make_unit,
         make_user,
         make_unit_user,
-        mock_unit_service_policy_allow,
     ):
         user = await make_user(db_session)
         for _ in range(101):
