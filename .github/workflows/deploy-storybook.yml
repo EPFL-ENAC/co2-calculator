@@ -69,7 +69,7 @@ jobs:
           ) && \
           echo "Deploying application to dev" && \
           echo "Payload: $payload" && \
-          curl -X POST \
-          -H "Authorization: Bearer ${{ secrets.token }}" \
+          curl -fsS -X POST \
+          -H "Authorization: Bearer ${{ secrets.CD_TOKEN }}" \
           https://api.github.com/repos/EPFL-ENAC/enack8s-app-config/dispatches \
           -d "$payload"
