@@ -1,3 +1,35 @@
+## [1.4.22](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.21...v1.4.22) (2026-11-05)
+
+An access-control, back-office and dependency release. No migration, no change to the emission formulas.
+
+### Security
+
+- **Report reads and module status updates now check the caller against the addressed report.** Report statistics, validated totals, the results summary, the module listing and the module status update all check unit access, Plan scope and Explore ownership. A caller outside that scope is refused. Fetching a single report now applies Plan scope too. (#3185)
+- **Data entries are looked up within the module and entry type in the URL.** On GET, PATCH and DELETE, an entry outside them now answers 404, like a missing one. (#3185)
+- The public `/health/deps` no longer returns exception text. The error goes to the log, and the `details` key is gone from the response. Status codes are unchanged. (#3185)
+
+### Back office
+
+- **The pipeline console has a Recalculate emissions card**, next to Recompute stats. Pick a module, an optional data entry type and a configured year, then confirm the overwrite warning. It used to take a browser-console fetch. The card and its endpoints require `backoffice.pipeline_operations` edit or `backoffice.configuration` edit. (#3153)
+
+### Module pages
+
+- A data-entry URL with an unknown submodule answers 404 instead of a 500, and a PATCH on a missing entry answers 404 instead of 400. (#3185)
+
+### Operations
+
+- **The train reference block from 1.4.21 is lifted.** #3142 is settled, and prod was uploaded on 2026-10-29. An upload to dev or stage needs the same steps: the hand-run SQL right after the upload, then a train recalc per affected year. (#3142)
+- OpenTelemetry instrumentation is now declared in `uv.lock` at 0.66b2. The image no longer runs `opentelemetry-bootstrap`, so production packages no longer bypass the lock and the audits. (#3185)
+- The Faker seeders move from `app/` to `scripts/random_generator` and no longer ship in the image. (#3185)
+- The CI security job uses `uv audit` instead of `uv-audit`, which also covers dev dependencies and the docs lock. (#3185)
+- Dependencies: FastAPI 0.162, Starlette 1.10, pydantic 2.14.2, pydantic-settings 2.16.2, python-multipart 0.0.33, vue-i18n 11.4.17. minimatch is overridden to 11.0.4 for GHSA-g3hv-75wg-m249. passlib, `unwrapped`, pytest-mock and pytest-elasticsearch are removed. (#3185)
+
+### Known issues
+
+- New reference tests run the back-office doc's worked examples through the emission formulas. The docs and the code disagree in places, for example on purchase inflation and on 47 or 52 weeks a year for equipment. The domain owner has yet to decide which side is right, so the formulas are unchanged. The #2771 plan lists the gaps. (#2771)
+- A database blip while the app starts can send a signed-in user to the login page until they reload. (#2983)
+- Reduction-objective uploads made before 1.4.19 show their error count but not the row details. (#2983)
+
 ## [1.4.21](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.20...v1.4.21) (2026-10-28)
 
 A travel-search, sign-in and dependency release. One migration (search indexes, no stored data changes), no change to the emission formulas.
