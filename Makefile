@@ -42,7 +42,7 @@ help: ## Show available targets
 	@echo "  make type-check       Run type checking"
 	@echo "  make test             Run all tests"
 	@echo "  make build            Build all projects"
-	@echo "  make audit            Run security audits (npm, uv-audit, bandit)"
+	@echo "  make audit            Run security audits (npm, uv audit, bandit)"
 	@echo ""
 	@echo "✨ Code Formatting:"
 	@echo "  make format           Format all code"

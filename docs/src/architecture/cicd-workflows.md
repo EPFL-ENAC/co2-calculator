@@ -86,7 +86,7 @@ under the `backend-integration` flag.
 
 **Trigger:** PR to `main`/`dev`/`stage`, push to `main`, weekly cron
 (Mon 00:00 UTC). **Jobs:** `npm-audit` (root + frontend),
-`python-security` (`uvx uv-audit` + Bandit), `codeql` (JavaScript +
+`python-security` (`uv audit` + Bandit), `codeql` (JavaScript +
 Python matrix), `secrets-scan` (TruffleHog).
 
 ### `lighthouse.yml` — Lighthouse CI (daily)

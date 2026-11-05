@@ -88,9 +88,9 @@ lint-fix: ## Fix code formatting issues
 	fi
 
 .PHONY: audit
-audit: ## Run security audits with uv-audit and bandit
+audit: ## Run security audits with uv audit and bandit
 	@set -e; \
-	uvx uv-audit --verbose && \
+	uv audit --frozen && \
 	uvx bandit -r ./app/ -x tests,.venv
 
 .PHONY: type-check
