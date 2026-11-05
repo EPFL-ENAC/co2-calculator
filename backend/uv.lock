@@ -171,11 +171,11 @@ wheels = [
 
 [[package]]
 name = "asgiref"
-version = "3.12.1"
+version = "3.13.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e6/26/3b59f2bdae5f640389becb1f673cded775287f5fc4f816309d9ca9a3f93d/asgiref-3.12.1.tar.gz", hash = "sha256:59dcb51c272ad209d59bed5708a64a333083e86017d7fcdd67498eeab7784340", size = 42378, upload-time = "2026-07-14T09:56:18.087Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/90/f5fce14e95fccf53b58e8e2c47cd84d40d105d64073ae1ac75166db150e0/asgiref-3.13.0.tar.gz", hash = "sha256:034cc8cbf72d00553b4be256703ac545120b4e50af13b49dec99da899aeeecb4", size = 52941, upload-time = "2026-10-23T08:13:14.715Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/1b/54f4ad77cd8a584fa70746c47df988e002cf1ee1eba43364d46f87803647/asgiref-3.12.1-py3-none-any.whl", hash = "sha256:fe386d1c2bff7259ea95929266d12a8cf9a8b5a1c2598402967d8792e7a7c094", size = 25478, upload-time = "2026-07-14T09:56:16.926Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/b0/ec211e1f7966247cb6469158d856bac9aa4c2fe13621bd6a352e4f850453/asgiref-3.13.0-py3-none-any.whl", hash = "sha256:f9596a2434512686473d50f96ff6207fbba49ae1a785dfac614df4aeb085674d", size = 27593, upload-time = "2026-10-23T08:13:13.394Z" },
 ]
 
 [[package]]
@@ -414,6 +414,7 @@ dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-distro" },
     { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-instrumentation-fastapi" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -432,14 +433,11 @@ dev = [
     { name = "faker" },
     { name = "httpx" },
     { name = "locust" },
-    { name = "opentelemetry-instrumentation-fastapi" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-benchmark" },
     { name = "pytest-cov" },
-    { name = "pytest-elasticsearch" },
     { name = "pytest-env" },
-    { name = "pytest-mock" },
     { name = "ruff" },
     { name = "ty" },
     { name = "types-pyyaml" },
@@ -462,6 +460,7 @@ requires-dist = [
     { name = "opentelemetry-api", specifier = ">=1.44.0" },
     { name = "opentelemetry-distro", specifier = ">=0.65b0" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.44.0" },
+    { name = "opentelemetry-instrumentation-fastapi", specifier = "==0.66b1" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = "==3.3.6" },
     { name = "pydantic", specifier = "==2.14.2" },
     { name = "pydantic-settings", specifier = "==2.16.2" },
@@ -480,14 +479,11 @@ dev = [
     { name = "faker", specifier = ">=40.43.0" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "locust", specifier = ">=2.47.0" },
-    { name = "opentelemetry-instrumentation-fastapi", specifier = "==0.66b1" },
     { name = "pytest", specifier = ">=9.1.0" },
     { name = "pytest-asyncio", specifier = ">=1.4.1" },
     { name = "pytest-benchmark", specifier = ">=5.1" },
     { name = "pytest-cov", specifier = ">=7.1" },
-    { name = "pytest-elasticsearch", specifier = ">=5.0" },
     { name = "pytest-env", specifier = ">=1.8.4" },
-    { name = "pytest-mock", specifier = ">=3.16.0" },
     { name = "ruff", specifier = ">=0.17.3" },
     { name = "ty", specifier = ">=0.0.95" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20260815" },
@@ -1295,18 +1291,6 @@ wheels = [
 ]
 
 [[package]]
-name = "mirakuru"
-version = "3.0.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "psutil", marker = "sys_platform != 'cygwin'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/89/d2/d6a4299c4d1b2bdfc4123f489490f1bddaf3f93411cc153e89b1cb496937/mirakuru-3.0.4.tar.gz", hash = "sha256:3bed186bf5df9dff100252d76465262d039c84bc6997b066b3fb8b0c8cea813c", size = 29127, upload-time = "2026-10-03T12:50:10.157Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/40/e5cbeab872b8ed81ccc9d792458fcd05b602157f715545665ae3ebe0f4de/mirakuru-3.0.4-py3-none-any.whl", hash = "sha256:9a490afcd3f6c7f354655bcb15604f4952488ced3605217cf4ad61efa88b4684", size = 28993, upload-time = "2026-10-03T12:50:08.632Z" },
-]
-
-[[package]]
 name = "msgpack"
 version = "1.2.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1622,15 +1606,6 @@ wheels = [
 ]
 
 [[package]]
-name = "port-for"
-version = "1.1.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/20/2e/f27375fad2df4e6ce1b921080d290cdae9bef5af37143de1cba23e1eb331/port_for-1.1.1.tar.gz", hash = "sha256:59fce22a7bf18b88744d034c6cb5ed11ef8a8c8ba003e03bece5f4a0e565abce", size = 17449, upload-time = "2026-10-05T16:31:41.92Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/51/12/00d6829609a0541ed708b6a0e15e246a3f0b8f74602f2467387aec27c05b/port_for-1.1.1-py3-none-any.whl", hash = "sha256:086524a0e374ec8283066c0d16fde93e09f2b4eccdb9a85f76bf0843317ad0b4", size = 17040, upload-time = "2026-10-05T16:31:40.569Z" },
-]
-
-[[package]]
 name = "propcache"
 version = "0.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1933,21 +1908,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pytest-elasticsearch"
-version = "6.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "elasticsearch" },
-    { name = "mirakuru" },
-    { name = "port-for" },
-    { name = "pytest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/1a/51/0a16726defe38a24a1d3f270a708778f61d04a21e6ec54854fddf62b311e/pytest_elasticsearch-6.0.0.tar.gz", hash = "sha256:275ee07a40392523f7e9ad04b74d3487a4259420c67c948e359ff7f3b90fa24a", size = 18065, upload-time = "2026-10-10T13:51:32.121Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b1/31/8a002dff2e04835c2a20447f115a29efcd3be62e7042171dc946230c1e22/pytest_elasticsearch-6.0.0-py3-none-any.whl", hash = "sha256:1150393964855c605443d1f61e1dea22e7d69f61cd70b1030fca0addcffc10d1", size = 15899, upload-time = "2026-10-10T13:51:30.783Z" },
-]
-
-[[package]]
 name = "pytest-env"
 version = "1.8.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1958,18 +1918,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0d/44/a07a2ce0b9fe720af16723dcd9fe103cbd144bbf856a03316aaf66decaf9/pytest_env-1.8.4.tar.gz", hash = "sha256:1054caabdbcc6d6ef1b06b010413f8bd482f7ea19487b27cd61e3385f5262bc1", size = 52683, upload-time = "2026-10-31T14:45:17.556Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/53/72/eca247172bb54ab2c9acdcb00045609d296c3f1b6d8eae133956ed3a0872/pytest_env-1.8.4-py3-none-any.whl", hash = "sha256:5b2d0685f3075ce7edce79d45a3cfa1117f01ec2098d209d1de15765fe3e8105", size = 9952, upload-time = "2026-10-31T14:45:16.134Z" },
-]
-
-[[package]]
-name = "pytest-mock"
-version = "3.17.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pytest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/97/c2/28b9f5b955ff2bcd4727a6f768e2ca9b586cd7c37b95ea5f7b9b873ac7b3/pytest_mock-3.17.0.tar.gz", hash = "sha256:e36576e0985e01027e999891e7a966c67822d40c89ef1b4c8b6e22737e3590b4", size = 43064, upload-time = "2026-10-17T16:21:42.435Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/ea/47fbdc8f37410956fd445720e927589b1e2a47772c5f28109f0ce2fa26d9/pytest_mock-3.17.0-py3-none-any.whl", hash = "sha256:1b82aa4b37137248bd687055e109723debeb07b489de1565297dc9589c5f2d6b", size = 11248, upload-time = "2026-10-17T16:21:41.265Z" },
 ]
 
 [[package]]

@@ -6,7 +6,6 @@ import sys
 import traceback
 from urllib.parse import urlsplit
 
-from app.core.config import get_settings
 from app.seed.random_generator.populate_units_and_users import (
     main as seed_units_users,
 )
@@ -17,6 +16,8 @@ from app.seed.random_generator.seed_post_all import main as seed_post_all
 from app.seed.random_generator.seed_year_configuration import (
     main as seed_year_configuration,
 )
+
+from app.core.config import get_settings
 
 # Canonical CSV-based factor seeder; replaces random_generator.seed_factors,
 # which drifted from the current factor schema and produced duplicate
