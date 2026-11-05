@@ -103,9 +103,7 @@ async def _drain(response) -> list[str]:
 
 @pytest.fixture
 def fake_db(monkeypatch):
-    monkeypatch.setattr(
-        data_sync_module.db_module, "SessionLocal", lambda: _FakeSessionCM()
-    )
+    monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", _FakeSessionCM)
 
     async def _instant_sleep(_seconds):
         return None

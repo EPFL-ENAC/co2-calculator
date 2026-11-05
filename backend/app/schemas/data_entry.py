@@ -198,35 +198,46 @@ class ModuleHandler(Protocol[T]):
         would otherwise be flushed back to ``DataEntry.data`` and corrupt the
         source-of-truth column.
         """
-        ...
 
-    def validate_create(self, payload: dict) -> DataEntryCreate: ...
-    def validate_update(self, payload: dict) -> DataEntryUpdate: ...
+    def validate_create(self, payload: dict) -> DataEntryCreate:
+        """Validate a payload against the create DTO."""
+
+    def validate_update(self, payload: dict) -> DataEntryUpdate:
+        """Validate a payload against the update DTO."""
+
     async def enrich_csv_row(
         self,
         data: dict,
         session: AsyncSession,
-    ) -> tuple[dict, str | None]: ...
+    ) -> tuple[dict, str | None]:
+        """Derive CSV-time fields; returns the row and an error, if any."""
+
     async def pre_compute(
         self,
         data_entry: Any,
         session: AsyncSession,
-    ) -> dict: ...
+    ) -> dict:
+        """Context values needed before factor retrieval."""
+
     async def prefetch_slice(
         self,
         entries: list[Any],
         session: AsyncSession,
         *,
         year: int | None = None,
-    ) -> dict: ...
+    ) -> dict:
+        """Bulk-load what is constant across a recalc slice."""
+
     def resolve_computations(
         self,
         data_entry: Any,
         emission_type: Any,
         ctx: dict,
-    ) -> list[EmissionComputation]: ...
+    ) -> list[EmissionComputation]:
+        """One computation per factor to apply for this emission type."""
 
-    def to_label(self, name: str) -> str: ...
+    def to_label(self, name: str) -> str:
+        """Turn a field name into a display label."""
 
 
 # ----------- ModuleHandlers --------------------------------- #

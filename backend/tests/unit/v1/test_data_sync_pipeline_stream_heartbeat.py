@@ -77,9 +77,7 @@ class _FakeRequest:
 async def test_pipeline_stream_heartbeat_fires_within_15s_not_16(monkeypatch):
     """See module docstring: the ping must fire by 14s of quiet, not 16s."""
     monkeypatch.setattr(data_sync_module, "DataIngestionRepository", _FakeRepo)
-    monkeypatch.setattr(
-        data_sync_module.db_module, "SessionLocal", lambda: _FakeSessionCM()
-    )
+    monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", _FakeSessionCM)
 
     async def _allow_scope(*_args, **_kwargs):
         return None

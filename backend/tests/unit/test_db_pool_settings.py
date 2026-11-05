@@ -278,7 +278,7 @@ async def test_successful_checkout_does_not_increment_the_counter(monkeypatch):
     [
         "FATAL:  sorry, too many clients already",
         "FATAL:  remaining connection slots are reserved for roles with the "
-        "SUPERUSER attribute",
+        + "SUPERUSER attribute",
         'FATAL:  too many connections for role "app"',
         'FATAL:  too many connections for database "app"',
     ],

@@ -371,5 +371,4 @@ def get_unit_provider(
         case UnitProviderType.TEST | UserProvider.TEST:
             logger.info("Using TestUnitProvider (for testing)")
             return TestUnitProvider()
-        case _:
-            raise ValueError(f"Unknown unit provider type: {provider_type!r}")
+    raise ValueError(f"Unknown unit provider type: {provider_type!r}")

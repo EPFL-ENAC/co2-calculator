@@ -22,7 +22,7 @@ class _ForbiddenSession:
     """
 
     def __getattr__(self, name: str):
-        raise AssertionError(
+        raise AttributeError(
             f"room lookup must not run when room_name is missing "
             f"(accessed session.{name})"
         )

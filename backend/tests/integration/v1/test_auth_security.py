@@ -22,7 +22,6 @@ from joserfc.jwk import OctKey
 
 import app.api.v1.auth as auth_module
 import app.core.config as config
-import app.core.security as security_module
 from app.core.security import create_access_token, decode_jwt
 from app.main import app
 from app.models.user import User, UserProvider
@@ -261,8 +260,8 @@ def session_lengths(monkeypatch):
     """Pin 8 h idle / 24 h cap so the renewal cases below do not depend on
     whatever a developer's .env or the deployed default says.
     """
-    monkeypatch.setattr(security_module.settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 480)
-    monkeypatch.setattr(security_module.settings, "REFRESH_TOKEN_EXPIRE_HOURS", 24)
+    monkeypatch.setattr("app.core.security.settings.ACCESS_TOKEN_EXPIRE_MINUTES", 480)
+    monkeypatch.setattr("app.core.security.settings.REFRESH_TOKEN_EXPIRE_HOURS", 24)
 
 
 @pytest.fixture

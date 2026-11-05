@@ -396,9 +396,9 @@ async def test_recalculate_reports_progress_time_based(monkeypatch):
     a single update). With the throttle forced open, every entry reports,
     plus the terminal N/N update after the loop.
     """
-    import app.workflows.emission_recalculation as wf_mod
-
-    monkeypatch.setattr(wf_mod, "PROGRESS_REPORT_INTERVAL_S", -1.0)
+    monkeypatch.setattr(
+        "app.workflows.emission_recalculation.PROGRESS_REPORT_INTERVAL_S", -1.0
+    )
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 

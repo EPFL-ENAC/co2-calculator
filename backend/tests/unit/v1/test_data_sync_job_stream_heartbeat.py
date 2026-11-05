@@ -74,9 +74,7 @@ class _FakeRequest:
 @pytest.mark.asyncio
 async def test_job_stream_emits_heartbeat_on_quiet_connection(monkeypatch):
     monkeypatch.setattr(data_sync_module, "DataIngestionRepository", _FakeRepo)
-    monkeypatch.setattr(
-        data_sync_module.db_module, "SessionLocal", lambda: _FakeSessionCM()
-    )
+    monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", _FakeSessionCM)
 
     async def _instant_sleep(_seconds):
         return None
@@ -123,9 +121,7 @@ async def test_job_stream_heartbeat_fires_within_15s_not_16(monkeypatch):
     the fixed threshold=14 it must already have fired.
     """
     monkeypatch.setattr(data_sync_module, "DataIngestionRepository", _FakeRepo)
-    monkeypatch.setattr(
-        data_sync_module.db_module, "SessionLocal", lambda: _FakeSessionCM()
-    )
+    monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", _FakeSessionCM)
 
     async def _instant_sleep(_seconds):
         return None

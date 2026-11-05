@@ -762,5 +762,4 @@ def get_role_provider(
         case RoleProviderType.TEST | UserProvider.TEST:
             logger.info("Using TestRoleProvider (for testing)")
             return TestRoleProvider()
-        case _:
-            raise ValueError(f"Unknown role provider type: {provider_type!r}")
+    raise ValueError(f"Unknown role provider type: {provider_type!r}")
