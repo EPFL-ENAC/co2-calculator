@@ -197,6 +197,17 @@ class DataEntryRepository:
         result = await self.session.exec(statement)
         return result.one_or_none()
 
+    async def get_in_module(
+        self, id: int, carbon_report_module_id: int, data_entry_type_id: int
+    ) -> DataEntry | None:
+        statement = select(DataEntry).where(
+            col(DataEntry.id) == id,
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+            col(DataEntry.data_entry_type_id) == data_entry_type_id,
+        )
+        result = await self.session.exec(statement)
+        return result.one_or_none()
+
     async def create(self, data: DataEntry) -> DataEntry:
         # 1. Convert Input Model to Table Model
 

@@ -324,3 +324,40 @@ async def test_update_building_change_persists_incomplete_room_row():
     # resolver returns no leaves and the upsert deletes stale rows.
     emission_service.upsert_by_data_entry.assert_awaited_once()
     session.commit.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_entry_outside_addressed_module_is_404_and_unwritten():
+    """The lookup is scoped to the URL's module and type (#3185); a miss
+    is a 404, not a 400 from the validation block, and nothing is written.
+    """
+    session = MagicMock()
+    _stub_inputs_deactivated_lookup(session)
+    data_entry_service = MagicMock()
+    data_entry_service.get = AsyncMock(
+        side_effect=ValueError("Data entry with id=1 not found")
+    )
+    data_entry_service.update = AsyncMock()
+
+    with patch(
+        "app.workflows.carbon_report_module.DataEntryService",
+        return_value=data_entry_service,
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await CarbonReportModuleWorkflow(session).update(
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=4
+                ),
+                data_entry_type_id=DataEntryTypeEnum.other.value,
+                item_id=1,
+                item_data={"name": "x"},
+                current_user=_CURRENT_USER,
+                request_context={},
+                background_tasks=MagicMock(),
+            )
+
+    assert exc_info.value.status_code == 404
+    data_entry_service.get.assert_awaited_once_with(
+        1, 18036, DataEntryTypeEnum.other.value
+    )
+    data_entry_service.update.assert_not_called()

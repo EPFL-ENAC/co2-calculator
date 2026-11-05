@@ -715,3 +715,68 @@ async def test_write_scope_carries_year_and_unit_from_the_report():
     assert scope.unit_id == 7
     assert scope.module.id == 42
     assert scope.is_simulator is False
+
+
+# ── unknown submodule slug ────────────────────────────────────────────────────
+
+_REQ = MagicMock()
+_BG = MagicMock()
+SUBMODULE_ROUTES = {
+    "list": lambda u: crm.get_submodule(
+        1, "headcount", "nope", 1, 100, "id", "asc", None, "en", MagicMock(), u
+    ),
+    "check_unique": lambda u: crm.check_unique(
+        1, "headcount", "nope", "f", "v", None, MagicMock(), u
+    ),
+    "create": lambda u: crm.create(
+        1, "headcount", "nope", {}, _REQ, _BG, MagicMock(), u
+    ),
+    "get": lambda u: crm.get(1, "headcount", "nope", 5, _REQ, MagicMock(), u),
+    "update": lambda u: crm.update(
+        1, "headcount", "nope", 5, {}, _REQ, _BG, MagicMock(), u
+    ),
+    "delete": lambda u: crm.delete(
+        1, "headcount", "nope", 5, _REQ, _BG, MagicMock(), u
+    ),
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", SUBMODULE_ROUTES)
+async def test_unknown_submodule_slug_is_404(route):
+    report, module = _resolved()
+    scope = MagicMock(report=report, module=module)
+    with (
+        patch.object(
+            crm, "resolve_report_module", AsyncMock(return_value=(report, module))
+        ),
+        patch.object(crm, "resolve_write_scope", AsyncMock(return_value=scope)),
+        patch.object(crm, "check_module_permission_for_report", AsyncMock()),
+    ):
+        with pytest.raises(HTTPException) as exc:
+            await SUBMODULE_ROUTES[route](_user())
+    assert exc.value.status_code == 404
+
+
+# ── get (single data entry) ───────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_entry_is_scoped_to_addressed_module_and_type():
+    """The lookup carries the URL's module and type; a miss is 404 (#3185)."""
+    report, module = _resolved()
+    svc = MagicMock()
+    svc.get = AsyncMock(side_effect=ValueError("Data entry with id=5 not found"))
+    with (
+        patch.object(
+            crm, "resolve_report_module", AsyncMock(return_value=(report, module))
+        ),
+        patch.object(crm, "check_module_permission_for_report", AsyncMock()),
+        patch.object(crm, "DataEntryService", return_value=svc),
+    ):
+        with pytest.raises(HTTPException) as exc:
+            await crm.get(
+                1, "headcount", "member", 5, MagicMock(), MagicMock(), _user()
+            )
+    assert exc.value.status_code == 404
+    svc.get.assert_awaited_once_with(5, module.id, DataEntryTypeEnum.member.value)

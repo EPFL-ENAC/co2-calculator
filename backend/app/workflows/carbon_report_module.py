@@ -410,9 +410,11 @@ class CarbonReportModuleWorkflow:
                 DataEntryTypeEnum(data_entry_type_id),
                 current_user,
             )
+        existing_entry = await self._get_entry(
+            carbon_report_module, data_entry_type_id, item_id
+        )
+        existing_data = existing_entry.data
         try:
-            existing_entry = await DataEntryService(self.session).get(id=item_id)
-            existing_data = existing_entry.data if existing_entry else {}
             # Overlay the incoming partial PATCH on the persisted data so factor
             # resolution and validation see the full record. A classification
             # PATCH (e.g. sub_class only) otherwise drops the persisted kind
@@ -482,8 +484,6 @@ class CarbonReportModuleWorkflow:
             )
         if not is_policy_exempt(data_entry_type):
             module_type = ModuleTypeEnum(carbon_report_module.module_type_id)
-            # DataEntryService.get() (line 226) always raises on a missing
-            # entry, never returns None — existing_entry is guaranteed here.
             allowed = writable_fields_for_row(
                 module_type, data_entry_type, existing_entry.source
             )
@@ -580,20 +580,34 @@ class CarbonReportModuleWorkflow:
         logger.info(f"Updated item {item_id}")
         return item
 
+    async def _get_entry(
+        self,
+        carbon_report_module: CarbonReportModuleRead,
+        data_entry_type_id: int,
+        item_id: int,
+    ) -> DataEntryResponse:
+        """Load an entry of the addressed module and type, else 404."""
+        try:
+            return await DataEntryService(self.session).get(
+                item_id, carbon_report_module.id, data_entry_type_id
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
+            ) from e
+
     async def delete(
         self,
         carbon_report_module: CarbonReportModuleRead,
+        data_entry_type_id: int,
         data_entry_id: int,
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
     ) -> None:
-        try:
-            entry = await DataEntryService(self.session).get(id=data_entry_id)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
-            ) from e
+        entry = await self._get_entry(
+            carbon_report_module, data_entry_type_id, data_entry_id
+        )
         data_entry_type = DataEntryTypeEnum(entry.data_entry_type_id)
         await self._reject_when_inputs_deactivated(
             carbon_report_module, data_entry_type, current_user

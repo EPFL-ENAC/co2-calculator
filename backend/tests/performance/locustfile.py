@@ -12,7 +12,7 @@ Run (see backend/Makefile):
 
 User classes — pass the class names on the CLI to pick a scenario:
     ExplorerReadUser   dashboard/explorer read mix (50/100/200/500/1000)
-    ModuleReadUser     module/submodule page reads
+    ModuleReadUser     module/submodule page reads + per-report stats
     ExploreCreateUser  parallel Simulator-Explore report creation (10-40)
     PlanUser           parallel project-plan create → prefill → read → delete
     CsvUploadUser      parallel CSV upload → dispatch → poll to completion
@@ -358,6 +358,28 @@ class ModuleReadUser(CO2User):
         self.client.get(
             f"/v1/workspace/{self.pick_unit()}/{self.pick_year()}/home",
             name="/v1/workspace/[unit]/[year]/home",
+        )
+
+    # The per-report stats a module page loads, gated per report since #3185.
+    @task(1)
+    def report_stats(self):
+        self._report_stats_read("report-stats")
+
+    @task(1)
+    def results_summary(self):
+        self._report_stats_read("results-summary")
+
+    @task(1)
+    def validated_totals(self):
+        self._report_stats_read("validated-totals")
+
+    def _report_stats_read(self, leaf: str):
+        report = self.report_id(self.pick_unit(), self.pick_year())
+        if report is None:
+            return
+        self.client.get(
+            f"/v1/modules-stats/{report}/{leaf}",
+            name=f"/v1/modules-stats/[id]/{leaf}",
         )
 
 

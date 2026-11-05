@@ -759,9 +759,16 @@ class DataEntryService:
 
         return True
 
-    async def get(self, id: int) -> DataEntryResponse:
-        """Get record by ID."""
-        entry = await self.repo.get(id)
+    async def get(
+        self, id: int, carbon_report_module_id: int, data_entry_type_id: int
+    ) -> DataEntryResponse:
+        """Get an entry of the addressed module and type.
+
+        An entry elsewhere raises like a missing one, so ids can't be probed.
+        """
+        entry = await self.repo.get_in_module(
+            id, carbon_report_module_id, data_entry_type_id
+        )
         if entry is None:
             raise ValueError(f"Data entry with id={id} not found")
         return DataEntryResponse.model_validate(entry)

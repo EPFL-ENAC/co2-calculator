@@ -83,6 +83,17 @@ def _module_type_from_slug(module_id: str) -> ModuleTypeEnum:
         ) from exc
 
 
+def _entry_type_from_slug(submodule_id: str) -> DataEntryTypeEnum:
+    """Map a URL submodule slug (e.g. 'external-clouds') to its enum."""
+    try:
+        return DataEntryTypeEnum[submodule_id.replace("-", "_")]
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Submodule {submodule_id} not found",
+        ) from exc
+
+
 async def resolve_report_module(
     carbon_report_id: int,
     module_id: str,
@@ -809,13 +820,7 @@ async def get_submodule(
     offset = (page - 1) * limit
 
     # Fetch submodule data from database
-    submodule_key = submodule_id.replace("-", "_")
-    data_entry_type_id = DataEntryTypeEnum[submodule_key].value
-    if data_entry_type_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Submodule {submodule_id} not found",
-        )
+    data_entry_type_id = _entry_type_from_slug(submodule_id).value
     institutional_id_filter = await _get_professional_travel_institutional_id_filter(
         db=db,
         report=report,
@@ -906,8 +911,7 @@ async def check_unique(
         report=report,
     )
 
-    submodule_key = submodule_id.replace("-", "_")
-    data_entry_type_id = DataEntryTypeEnum[submodule_key].value
+    data_entry_type_id = _entry_type_from_slug(submodule_id).value
 
     is_unique = await DataEntryService(db).check_json_field_unique(
         carbon_report_module_id=module.id,
@@ -971,8 +975,7 @@ async def create(
         f"module_id={sanitize(module_id)}, user={sanitize(current_user.id)}"
     )
 
-    submodule_key = submodule_id.replace("-", "_")
-    data_entry_type = DataEntryTypeEnum[submodule_key]
+    data_entry_type = _entry_type_from_slug(submodule_id)
     data_entry_type_id = data_entry_type.value
     request_context = await get_request_context(request)
 
@@ -1023,10 +1026,14 @@ async def get(
         f"GET item: carbon_report_id={sanitize(carbon_report_id)}, "
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
+    data_entry_type = _entry_type_from_slug(submodule_id)
     item: HeadcountItemResponse | DataEntryResponse
-    item = await DataEntryService(db).get(
-        id=item_id,
-    )
+    try:
+        item = await DataEntryService(db).get(
+            item_id, _module.id, data_entry_type.value
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     logger.info(f"Retrieved item {sanitize(item_id)}")
 
     return item
@@ -1065,8 +1072,7 @@ async def update(
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
-    submodule_key = submodule_id.replace("-", "_")
-    data_entry_type = DataEntryTypeEnum[submodule_key]
+    data_entry_type = _entry_type_from_slug(submodule_id)
     data_entry_type_id = data_entry_type.value
 
     request_context = await get_request_context(request)
@@ -1126,13 +1132,13 @@ async def delete(
         f"item_id={sanitize(item_id)}, "
         f"user={sanitize(current_user.id)}"
     )
-    submodule_key = submodule_id.replace("-", "_")
-    data_entry_type = DataEntryTypeEnum[submodule_key]
+    data_entry_type = _entry_type_from_slug(submodule_id)
     try:
         request_context = await get_request_context(request)
 
         await CarbonReportModuleWorkflow(db).delete(
             carbon_report_module=carbon_report_module,
+            data_entry_type_id=data_entry_type.value,
             data_entry_id=item_id,
             current_user=UserRead.model_validate(current_user),
             request_context=request_context,

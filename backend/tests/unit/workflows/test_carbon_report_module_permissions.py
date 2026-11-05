@@ -447,6 +447,7 @@ async def test_delete_unit_specific_upload_row_succeeds():
             carbon_report_module=SimpleNamespace(
                 id=18036, carbon_report_id=99, module_type_id=4
             ),
+            data_entry_type_id=DataEntryTypeEnum.other.value,
             data_entry_id=1,
             current_user=_CURRENT_USER,
             request_context={},
@@ -470,6 +471,7 @@ async def test_delete_imported_row_is_403():
                 carbon_report_module=SimpleNamespace(
                     id=18036, carbon_report_id=99, module_type_id=4
                 ),
+                data_entry_type_id=DataEntryTypeEnum.other.value,
                 data_entry_id=1,
                 current_user=_CURRENT_USER,
                 request_context={},
@@ -501,6 +503,7 @@ async def test_delete_missing_row_is_404_not_500():
                 carbon_report_module=SimpleNamespace(
                     id=18036, carbon_report_id=99, module_type_id=4
                 ),
+                data_entry_type_id=DataEntryTypeEnum.other.value,
                 data_entry_id=1,
                 current_user=_CURRENT_USER,
                 request_context={},
@@ -508,6 +511,10 @@ async def test_delete_missing_row_is_404_not_500():
             )
 
     assert exc_info.value.status_code == 404
+    # Scoped to the URL's module and type (#3185), not the row's own.
+    data_entry_service.get.assert_awaited_once_with(
+        1, 18036, DataEntryTypeEnum.other.value
+    )
     data_entry_service.delete.assert_not_called()
 
 
@@ -524,6 +531,7 @@ async def test_delete_user_row_succeeds():
             carbon_report_module=SimpleNamespace(
                 id=18036, carbon_report_id=99, module_type_id=4
             ),
+            data_entry_type_id=DataEntryTypeEnum.other.value,
             data_entry_id=1,
             current_user=_CURRENT_USER,
             request_context={},
@@ -747,6 +755,7 @@ async def test_delete_is_403_when_inputs_deactivated():
         with pytest.raises(HTTPException) as exc_info:
             await workflow.delete(
                 carbon_report_module=_RF_MODULE,
+                data_entry_type_id=DataEntryTypeEnum.other.value,
                 data_entry_id=1,
                 current_user=_CURRENT_USER,
                 request_context={},

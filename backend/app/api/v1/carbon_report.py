@@ -6,13 +6,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.logging import get_logger
 from app.core.policy import (
-    require_explore_ownership,
     require_module_unit_scope,
-    require_plan_scope_for_report,
+    require_report_access,
     require_unit_access,
 )
 from app.db import SessionLocal
-from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport
 from app.models.unit import Unit
 from app.models.user import User
@@ -217,11 +215,7 @@ async def get_carbon_report(
     report = await service.get(carbon_report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
-    unit = await db.get(Unit, report.unit_id)
-    require_unit_access(current_user, unit)
-    if report.carbon_project_id is not None:
-        project = await db.get(CarbonProject, report.carbon_project_id)
-        require_explore_ownership(current_user, project)
+    await require_report_access(db, current_user, report, "view")
     return await _carbon_report_read(db, report)
 
 
@@ -247,8 +241,7 @@ async def list_carbon_report_modules(
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
 
-    unit = await db.get(Unit, report.unit_id)
-    require_unit_access(current_user, unit)
+    await require_report_access(db, current_user, report, "view")
 
     module_service = CarbonReportModuleService(db)
     return await module_service.list_modules(carbon_report_id)
@@ -278,16 +271,11 @@ async def update_carbon_report_module_status(
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
 
-    unit = await db.get(Unit, report.unit_id)
-    require_unit_access(current_user, unit)
+    unit = await require_report_access(db, current_user, report, "edit")
     # Validating a module's status is a unit-level action: principal/global
     # only. A standard user (own breadth) is rejected here even though they may
     # edit their own records.
-    require_module_unit_scope(
-        current_user,
-        module_type_id,
-        (unit.institutional_id or "") if unit else "",
-    )
+    require_module_unit_scope(current_user, module_type_id, unit.institutional_id or "")
 
     module_service = CarbonReportModuleService(db)
     try:
@@ -333,9 +321,7 @@ async def update_carbon_report_module_active(
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
 
-    unit = await db.get(Unit, report.unit_id)
-    require_unit_access(current_user, unit)
-    await require_plan_scope_for_report(db, current_user, report, "edit")
+    await require_report_access(db, current_user, report, "edit")
 
     module_service = CarbonReportModuleService(db)
     result = await module_service.update_is_active(
@@ -368,9 +354,7 @@ async def _require_plan_report_edit(
     report = await report_service.get(carbon_report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
-    unit = await db.get(Unit, report.unit_id)
-    require_unit_access(current_user, unit)
-    await require_plan_scope_for_report(db, current_user, report, "edit")
+    await require_report_access(db, current_user, report, "edit")
     return report_service, report
 
 

@@ -135,6 +135,9 @@ async def api_pod_app(pg_dsn, monkeypatch):
     monkeypatch.setattr(
         "app.api.v1.carbon_report_module.check_module_permission_for_report", _allow
     )
+    monkeypatch.setattr(
+        "app.api.v1.carbon_report_module_stats.require_report_access", _allow
+    )
 
     import app.tasks._background as background
 
