@@ -20,7 +20,7 @@ from app.main import app
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
-from app.models.user import RoleName
+from app.models.user import Role, RoleName, UnitScope
 
 EQUIPMENT = ModuleTypeEnum.equipment.value
 EMISSION_ID = str(EmissionType.food.value)
@@ -118,6 +118,15 @@ async def workspace(
     await _seed_unit("Lab-A", 1000.0, 10.0, reachable=True)
     await _seed_unit("Lab-B", 3000.0, 5.0, reachable=True)
     await _seed_unit("Lab-Forbidden", 9999.0, 1.0, reachable=False)
+    # A principal holds the role as well as the membership row: the single
+    # report routes check the role (#3185), the merged ones the membership.
+    user.roles = [
+        Role(
+            role=RoleName.CO2_USER_PRINCIPAL,
+            on=UnitScope(institutional_id=units[name].institutional_id),
+        )
+        for name in ("Lab-A", "Lab-B")
+    ]
     await db_session.commit()
 
     async def _override_db():

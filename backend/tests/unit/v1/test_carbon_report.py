@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 import app.api.v1.carbon_report as module
+import app.core.policy as policy
 
 
 def _db():
@@ -129,7 +130,7 @@ async def test_get_carbon_report_found():
     module.CarbonReportService = lambda db: svc
     try:
         with (
-            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_report_access", AsyncMock()),
             patch.object(module, "require_module_unit_scope"),
             patch.object(
                 module, "_carbon_report_read", AsyncMock(return_value=sentinel)
@@ -193,7 +194,7 @@ async def test_get_carbon_report_denies_non_creator_explore_by_id():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with patch.object(policy, "require_unit_access"):
             with pytest.raises(HTTPException) as exc:
                 await module.get_carbon_report(7, db, current_user)
         assert exc.value.status_code == 404
@@ -218,7 +219,7 @@ async def test_get_carbon_report_allows_creator_explore_by_id():
     module.CarbonReportService = lambda db: svc
     try:
         with (
-            patch.object(module, "require_unit_access"),
+            patch.object(policy, "require_unit_access"),
             patch.object(
                 module, "_carbon_report_read", AsyncMock(return_value=sentinel)
             ),
@@ -247,7 +248,10 @@ async def test_get_carbon_report_plan_report_ignores_creator_mismatch():
     module.CarbonReportService = lambda db: svc
     try:
         with (
-            patch.object(module, "require_unit_access"),
+            patch.object(policy, "require_unit_access"),
+            patch.object(
+                policy.PlanPolicy, "for_unit", AsyncMock(return_value=MagicMock())
+            ),
             patch.object(
                 module, "_carbon_report_read", AsyncMock(return_value=sentinel)
             ),
@@ -277,7 +281,7 @@ async def test_list_carbon_report_modules_found():
     module.CarbonReportModuleService = lambda db: module_svc
     try:
         with (
-            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_report_access", AsyncMock()),
             patch.object(module, "require_module_unit_scope"),
         ):
             result = await module.list_carbon_report_modules(1, db, _user())
@@ -325,7 +329,7 @@ async def test_update_status_success():
     try:
         update_payload = MagicMock()
         with (
-            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_report_access", AsyncMock()),
             patch.object(module, "require_module_unit_scope"),
         ):
             result = await module.update_carbon_report_module_status(
@@ -371,7 +375,7 @@ async def test_update_status_module_not_found():
     module.CarbonReportModuleService = lambda db: module_svc
     try:
         with (
-            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_report_access", AsyncMock()),
             patch.object(module, "require_module_unit_scope"),
         ):
             with pytest.raises(HTTPException) as exc:
@@ -399,7 +403,7 @@ async def test_update_status_value_error_raises_400():
     module.CarbonReportModuleService = lambda db: module_svc
     try:
         with (
-            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_report_access", AsyncMock()),
             patch.object(module, "require_module_unit_scope"),
         ):
             with pytest.raises(HTTPException) as exc:
@@ -602,8 +606,7 @@ async def _call_reference_percentage(report):
     module.CarbonReportModuleService = lambda db: module_svc
     try:
         with (
-            patch.object(module, "require_unit_access"),
-            patch.object(module, "require_plan_scope_for_report", AsyncMock()),
+            patch.object(module, "require_report_access", AsyncMock()),
         ):
             result = await module.update_carbon_report_module_reference_percentage(
                 report.id, 5, SimpleNamespace(percentage=40.0), db, _user()
@@ -651,8 +654,7 @@ async def test_submodule_budget_stays_grant_only():
     module.CarbonReportService = lambda db: report_svc
     try:
         with (
-            patch.object(module, "require_unit_access"),
-            patch.object(module, "require_plan_scope_for_report", AsyncMock()),
+            patch.object(module, "require_report_access", AsyncMock()),
         ):
             with pytest.raises(HTTPException) as exc:
                 await module._require_grant_report_edit(db, _user(), 42)

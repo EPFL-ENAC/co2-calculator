@@ -17,6 +17,7 @@ from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
+from app.core.policy import require_report_access
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.module_type import ModuleTypeEnum
@@ -309,6 +310,20 @@ async def get_merged_results_summary(
     )
 
 
+async def _load_viewable_report(
+    db: AsyncSession, current_user: User, carbon_report_id: int
+) -> CarbonReport:
+    """Load the addressed report, 404 when missing, then gate it for "view"."""
+    report = await db.get(CarbonReport, carbon_report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Carbon report {carbon_report_id} not found",
+        )
+    await require_report_access(db, current_user, report, "view")
+    return report
+
+
 @router.get("/{carbon_report_id}/report-stats", response_model=dict)
 async def get_report_stats(
     carbon_report_id: int,
@@ -321,12 +336,7 @@ async def get_report_stats(
     by the frontend to refresh charts after mutations without refetching the
     whole home bundle.
     """
-    report = await db.get(CarbonReport, carbon_report_id)
-    if report is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Carbon report {carbon_report_id} not found",
-        )
+    report = await _load_viewable_report(db, current_user, carbon_report_id)
     stats = dict(report.stats or {})
     # Derived at read time so reports persisted before the section existed
     # still serve quantity donut data without waiting for a recompute.
@@ -343,6 +353,7 @@ async def get_validated_totals(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Validated-only totals per module (tonnes; FTE for headcount)."""
+    await _load_viewable_report(db, current_user, carbon_report_id)
     return await build_validated_totals(db, carbon_report_id)
 
 
@@ -360,6 +371,7 @@ async def get_results_summary(
     - equivalent_car_km, previous year comparison
     """
     logger.info(f"GET results summary: carbon_report_id={sanitize(carbon_report_id)}")
+    await _load_viewable_report(db, current_user, carbon_report_id)
 
     try:
         raw = await UnitTotalsService(db).get_results_summary(carbon_report_id)

@@ -643,13 +643,14 @@ def require_explore_ownership(
 
 
 async def require_report_access(
-    db: AsyncSession, current_user: User, report: Any
+    db: AsyncSession, current_user: User, report: Any, action: str
 ) -> Unit:
-    """Gate a report-addressed route: unit access, then Explore ownership.
+    """Gate a report-addressed route: unit access, Plan scope, Explore ownership.
 
     The one enforcer every route taking a ``carbon_report_id`` consults, so
-    a new route cannot forget half of the checks. Returns the loaded ``Unit``
-    for callers that need its ``institutional_id``.
+    a new route cannot forget one of the three checks. ``action`` is
+    ``"view"`` or ``"edit"``, as for ``require_plan_scope_for_report``.
+    Returns the loaded ``Unit`` for callers that need its ``institutional_id``.
     """
     unit = await db.get(Unit, report.unit_id)
     require_unit_access(current_user, unit)
@@ -658,9 +659,8 @@ async def require_report_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unit {report.unit_id} not found",
         )
-    if report.carbon_project_id is not None:
-        project = await db.get(CarbonProject, report.carbon_project_id)
-        require_explore_ownership(current_user, project)
+    project = await require_plan_scope_for_report(db, current_user, report, action)
+    require_explore_ownership(current_user, project)
     return unit
 
 
