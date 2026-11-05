@@ -47,7 +47,8 @@ https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning.
 
 ## Triaged as false positive / won't fix (not code changes)
 
-These were never dismissed on GitHub and were still open in November. See
+Not all of these were dismissed on GitHub: 35 alerts were on 2026-07-20, but
+others were still open in November. See
 [#3185](3185-code-scanning-sweep.md), which fixes some in code and lists the
 rest for dismissal.
 
