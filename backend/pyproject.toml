@@ -15,7 +15,6 @@ dependencies = [
     "alembic==1.20.1",
     "authlib==1.9.1",
     # to remove once, we use entra or keycloak
-    "passlib[bcrypt]==1.7.4",
     # "python-dotenv==1.0.0",
     "pydantic==2.14.2",
     "pydantic-settings==2.16.2",
@@ -23,7 +22,6 @@ dependencies = [
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
     "joserfc>=1.7.5",
-    "types-passlib>=1.7.7.20250602",
     "sqlmodel>=0.0.45",
     "enacit4r-files",
     "haversine==2.9.0",
