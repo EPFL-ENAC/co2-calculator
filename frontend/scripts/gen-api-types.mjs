@@ -11,8 +11,7 @@
  * without re-running the generator.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,7 +24,7 @@ const API_URL =
   `http://localhost:${process.env.BACKEND_PORT ?? 8000}/openapi.json`;
 const FETCH_TIMEOUT_MS = 3000;
 
-async function tryFetchLive() {
+async function liveSchemaAvailable() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -34,67 +33,50 @@ async function tryFetchLive() {
       console.warn(
         `[gen-api-types] live fetch HTTP ${res.status}, falling back to snapshot`,
       );
-      return null;
+      return false;
     }
-    // Round-trip through JSON.parse so a non-schema response (proxy error
-    // page, wrong URL) falls back to the snapshot instead of being staged.
-    return JSON.stringify(await res.json());
+    // Parse so a non-schema response (proxy error page, wrong URL) falls
+    // back to the snapshot instead of reaching openapi-typescript.
+    await res.json();
+    return true;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.warn(
       `[gen-api-types] live fetch failed (${reason}), falling back to snapshot`,
     );
-    return null;
+    return false;
   } finally {
     clearTimeout(timer);
   }
 }
 
 async function main() {
-  let schemaText = await tryFetchLive();
-  let usedSource;
-
-  if (schemaText) {
-    usedSource = `live ${API_URL}`;
-  } else {
-    if (!existsSync(SNAPSHOT_PATH)) {
-      console.error(
-        `[gen-api-types] no live backend and no snapshot at ${SNAPSHOT_PATH}`,
-      );
-      process.exit(1);
-    }
-    usedSource = `snapshot ${SNAPSHOT_PATH}`;
-  }
-
-  // openapi-typescript reads from a file path or URL. Stage live JSON in a
-  // tmpfile so the tool sees a stable on-disk input either way.
-  const stagingDir = mkdtempSync(join(tmpdir(), 'openapi-ts-'));
-  const stagedInput = join(stagingDir, 'openapi.json');
-  try {
-    if (schemaText) {
-      writeFileSync(stagedInput, schemaText);
-    }
-    const inputPath = schemaText ? stagedInput : SNAPSHOT_PATH;
-    console.log(`[gen-api-types] generating from ${usedSource}`);
-    // `--no-install` pins the binary to the repo's devDependency: avoids
-    // surprise downloads and the interactive install prompt in CI.
-    const result = spawnSync(
-      'npx',
-      ['--no-install', 'openapi-typescript', inputPath, '-o', OUTPUT_PATH],
-      { cwd: FRONTEND_ROOT, stdio: 'inherit' },
+  const live = await liveSchemaAvailable();
+  if (!live && !existsSync(SNAPSHOT_PATH)) {
+    console.error(
+      `[gen-api-types] no live backend and no snapshot at ${SNAPSHOT_PATH}`,
     );
-    if (result.status !== 0) {
-      if (result.error || result.status === 127) {
-        console.error(
-          '[gen-api-types] openapi-typescript binary not found — did you run `npm install`?',
-        );
-      }
-      process.exit(result.status ?? 1);
-    }
-    console.log(`[gen-api-types] wrote ${OUTPUT_PATH}`);
-  } finally {
-    rmSync(stagingDir, { recursive: true, force: true });
+    process.exit(1);
   }
+
+  const inputPath = live ? API_URL : SNAPSHOT_PATH;
+  console.log(`[gen-api-types] generating from ${inputPath}`);
+  // `--no-install` pins the binary to the repo's devDependency: avoids
+  // surprise downloads and the interactive install prompt in CI.
+  const result = spawnSync(
+    'npx',
+    ['--no-install', 'openapi-typescript', inputPath, '-o', OUTPUT_PATH],
+    { cwd: FRONTEND_ROOT, stdio: 'inherit' },
+  );
+  if (result.status !== 0) {
+    if (result.error || result.status === 127) {
+      console.error(
+        '[gen-api-types] openapi-typescript binary not found — did you run `npm install`?',
+      );
+    }
+    process.exit(result.status ?? 1);
+  }
+  console.log(`[gen-api-types] wrote ${OUTPUT_PATH}`);
 }
 
 main().catch((err) => {
