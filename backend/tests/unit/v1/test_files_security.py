@@ -181,3 +181,53 @@ def test_safe_image_stays_inline(client):
         resp = client.get("/api/v1/files/processed/152/preview.png")
     assert resp.status_code == 200, resp.text
     assert "attachment" not in resp.headers.get("content-disposition", "")
+
+
+# --- Temporary uploads belong to their uploader (#3185) ---------------------
+
+
+def test_upload_writes_into_the_callers_own_folder(client):
+    with patch.object(
+        files_module.files_store,
+        "write_file",
+        new=AsyncMock(return_value=FileNode(name="data.csv", is_file=True)),
+    ) as write:
+        resp = client.post(
+            "/api/v1/files/temp-upload",
+            files={"files": ("data.csv", b"col1\n1\n", "text/csv")},
+        )
+    assert resp.status_code == 200, resp.text
+    assert write.call_args.kwargs["folder"].startswith("tmp/1/")
+
+
+def test_delete_refuses_another_users_temporary_file(client):
+    with patch.object(files_module.files_store, "delete_file", new=AsyncMock()) as rm:
+        resp = client.delete("/api/v1/files/tmp/2/123/data.csv")
+    assert resp.status_code == 403
+    rm.assert_not_called()
+
+
+def test_delete_accepts_the_callers_own_temporary_file(client):
+    with patch.object(files_module.files_store, "delete_file", new=AsyncMock()) as rm:
+        resp = client.delete("/api/v1/files/tmp/1/123/data.csv")
+    assert resp.status_code == 204
+    rm.assert_awaited_once()
+
+
+def test_dispatch_refuses_another_users_temporary_file(client):
+    from app.api.deps import get_db
+
+    async def _no_db():
+        yield MagicMock()
+
+    app.dependency_overrides[get_db] = _no_db
+    resp = client.post(
+        "/api/v1/sync/dispatch",
+        json={
+            "ingestion_method": 1,
+            "target_type": 0,
+            "file_path": "tmp/2/123/data.csv",
+        },
+    )
+    assert resp.status_code == 403, resp.text
+    assert "your own temporary uploads" in resp.text

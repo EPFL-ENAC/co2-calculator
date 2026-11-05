@@ -70,6 +70,7 @@ from app.utils.scoping import (
     require_module_or_config_view,
     require_pipeline_ops_or_config_edit,
 )
+from app.utils.temp_uploads import owns_temp_upload
 
 logger = get_logger(__name__)
 
@@ -733,7 +734,7 @@ async def sync_module_data_entries(
         "carbon_report_module_id": 123,
         "filters": {},
         "config": {},
-        "file_path": "tmp/1770129151949277/seed_equipment_data.csv"
+        "file_path": "tmp/42/1770129151949277/seed_equipment_data.csv"
     }
 
     example of request body for carbon_report_module_id only:
@@ -745,6 +746,14 @@ async def sync_module_data_entries(
         "config": {}
     }
     """
+    if syncRequest.file_path and not owns_temp_upload(
+        syncRequest.file_path, current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="file_path must be one of your own temporary uploads",
+        )
+
     # Global (backoffice) dispatch requires backoffice.configuration (the
     # Configuration page triggers global data-sync); otherwise fall through to
     # the unit-scoped modules.<name>.sync path below.
