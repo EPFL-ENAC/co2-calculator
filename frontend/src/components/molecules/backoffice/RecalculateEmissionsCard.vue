@@ -90,6 +90,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { Notify } from 'quasar';
+import { HTTPError } from 'ky';
 import { useI18n } from 'vue-i18n';
 import { useBackofficeDataManagement } from '@/stores/backofficeDataManagement';
 import { useYearConfigStore } from '@/stores/yearConfig';
@@ -186,8 +187,9 @@ async function onConfirm(): Promise<void> {
     confirmDialog.value = false;
     emit('triggered');
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : t('pipeops_recalc_failed');
-    Notify.create({ type: 'negative', message: msg });
+    // The api client already toasts the backend's detail for HTTP errors.
+    if (err instanceof HTTPError) return;
+    Notify.create({ type: 'negative', message: t('pipeops_recalc_failed') });
   } finally {
     triggering.value = false;
   }

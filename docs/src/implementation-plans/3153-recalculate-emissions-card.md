@@ -47,7 +47,9 @@ endpoints and the store actions wrapping them were still there. So was a
   provides, and `yearConfig.getRecalcStatus`. The module-level
   `ModuleRecalculationDialog` and the "recalculation needed" badge stay.
 - **Tests.**
-  - `backend/tests/unit/utils/test_recalc_emissions_gate.py` covers three
-    cases: each edit key passes, and view-only gets 403.
+  - `backend/tests/unit/utils/test_recalc_emissions_gate.py` covers each
+    edit key passing, and 403 for no permissions, view-only, and a
+    scoped `backoffice.configuration/<cf>` edit grant. Denials log the
+    same `Permission check denied` line as `require_permission`.
   - `frontend/tests/unit/recalculate-emissions-card.spec.ts` checks the
     per-type POST and the module POST with `only_stale=false`.

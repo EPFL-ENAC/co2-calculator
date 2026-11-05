@@ -12,10 +12,14 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col
 
+from app.core.logging import _sanitize_for_log as sanitize
+from app.core.logging import get_logger
 from app.core.security import get_current_active_user
 from app.models.unit import Unit
 from app.models.user import User
 from app.utils.permissions import derive_backoffice_affiliations, has_permission
+
+logger = get_logger(__name__)
 
 
 def build_scope_subtree_predicate(scope_cfs: set[str]) -> ColumnElement[bool]:
@@ -166,6 +170,15 @@ def require_pipeline_ops_or_config_edit():
         current_user: User = Depends(get_current_active_user),
     ) -> User:
         if not can_recalculate_emissions(current_user):
+            # Same greppable line as require_permission's denials (#2934).
+            logger.warning(
+                "Permission check denied",
+                extra={
+                    "user_id": sanitize(current_user.id),
+                    "path": "backoffice.pipeline_operations|backoffice.configuration",
+                    "action": "edit",
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Permission denied",
