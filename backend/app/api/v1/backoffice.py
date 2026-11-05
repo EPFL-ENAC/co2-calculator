@@ -1,6 +1,5 @@
 """Backoffice API endpoints."""
 
-import csv
 import io
 import json
 import os
@@ -381,7 +380,7 @@ async def export_reporting(
     else:
         # CSV export
         output = io.StringIO()
-        writer = csv.writer(output)
+        writer = SafeCsvWriter(output)
         writer.writerow(EXPORT_CSV_HEADERS)
 
         for doc in reporting_data.data:
@@ -491,7 +490,7 @@ async def report_usage(
         )
     else:
         output = io.StringIO()
-        writer = csv.writer(output)
+        writer = SafeCsvWriter(output)
         if data:
             # Build a stable header list across all rows to avoid misalignment
             headers: list[str] = []
@@ -646,7 +645,7 @@ async def report_results(
         )
     else:
         output = io.StringIO()
-        writer = csv.writer(output)
+        writer = SafeCsvWriter(output)
         if data:
             # Build a stable header list across all rows to avoid misalignment
             headers: list[str] = []
