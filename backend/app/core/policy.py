@@ -642,6 +642,28 @@ def require_explore_ownership(
         )
 
 
+async def require_report_access(
+    db: AsyncSession, current_user: User, report: Any
+) -> Unit:
+    """Gate a report-addressed route: unit access, then Explore ownership.
+
+    The one enforcer every route taking a ``carbon_report_id`` consults, so
+    a new route cannot forget half of the checks. Returns the loaded ``Unit``
+    for callers that need its ``institutional_id``.
+    """
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit {report.unit_id} not found",
+        )
+    if report.carbon_project_id is not None:
+        project = await db.get(CarbonProject, report.carbon_project_id)
+        require_explore_ownership(current_user, project)
+    return unit
+
+
 async def check_module_permission_for_report(
     *,
     current_user: User,

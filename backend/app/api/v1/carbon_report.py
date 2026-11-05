@@ -6,13 +6,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.logging import get_logger
 from app.core.policy import (
-    require_explore_ownership,
     require_module_unit_scope,
     require_plan_scope_for_report,
+    require_report_access,
     require_unit_access,
 )
 from app.db import SessionLocal
-from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport
 from app.models.unit import Unit
 from app.models.user import User
@@ -217,11 +216,7 @@ async def get_carbon_report(
     report = await service.get(carbon_report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
-    unit = await db.get(Unit, report.unit_id)
-    require_unit_access(current_user, unit)
-    if report.carbon_project_id is not None:
-        project = await db.get(CarbonProject, report.carbon_project_id)
-        require_explore_ownership(current_user, project)
+    await require_report_access(db, current_user, report)
     return await _carbon_report_read(db, report)
 
 
