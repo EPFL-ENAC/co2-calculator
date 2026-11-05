@@ -15,6 +15,7 @@ from app.main import app
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.unit import Unit
+from app.schemas.carbon_report import CarbonReportRead
 from tests.browser import SAME_ORIGIN_HEADERS
 from tests.integration.v1.test_unit_gating_e2e import (
     OTHER_IID,
@@ -33,7 +34,8 @@ STATS_URLS = [
 ]
 LIST_MODULES_URL = "/api/v1/carbon-reports/1/modules/"
 STATUS_URL = "/api/v1/carbon-reports/1/modules/1/status"
-READ_URLS = [*STATS_URLS, LIST_MODULES_URL]
+REPORT_URL = "/api/v1/carbon-reports/1"
+READ_URLS = [*STATS_URLS, LIST_MODULES_URL, REPORT_URL]
 
 OWNER_ID = 1
 OTHER_USER_ID = 2
@@ -85,6 +87,10 @@ def _stub_services(monkeypatch):
     report_svc.recompute_report_progress = AsyncMock()
     monkeypatch.setattr(
         "app.api.v1.carbon_report.CarbonReportService", lambda db: report_svc
+    )
+    monkeypatch.setattr(
+        "app.api.v1.carbon_report._carbon_report_read",
+        AsyncMock(return_value=CarbonReportRead(id=1, year=2024, unit_id=1)),
     )
     module_svc = MagicMock()
     module_svc.list_modules = AsyncMock(return_value=[])
@@ -163,6 +169,24 @@ def test_explore_report_hidden_from_other_member(client, url):
 @pytest.mark.parametrize("url", READ_URLS)
 def test_explore_report_visible_to_its_creator(client, url):
     _wire(_member(OWNER_ID), CarbonReportType.SIMULATOR_EXPLORE)
+    assert client.get(url).status_code == 200
+
+
+@pytest.mark.parametrize("url", READ_URLS)
+def test_unshared_plan_hidden_from_other_member(client, url):
+    _wire(_member(OTHER_USER_ID), CarbonReportType.SIMULATOR_PLAN, shared=False)
+    assert client.get(url).status_code == 404
+
+
+@pytest.mark.parametrize("url", READ_URLS)
+def test_unshared_plan_visible_to_its_creator(client, url):
+    _wire(_member(OWNER_ID), CarbonReportType.SIMULATOR_PLAN, shared=False)
+    assert client.get(url).status_code == 200
+
+
+@pytest.mark.parametrize("url", READ_URLS)
+def test_shared_plan_visible_to_other_member(client, url):
+    _wire(_member(OTHER_USER_ID), CarbonReportType.SIMULATOR_PLAN, shared=True)
     assert client.get(url).status_code == 200
 
 
