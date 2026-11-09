@@ -16,7 +16,7 @@ dependencies = [
     "authlib==1.9.1",
     # to remove once, we use entra or keycloak
     # "python-dotenv==1.0.0",
-    "pydantic==2.14.2",
+    "pydantic==2.14.3",
     "pydantic-settings==2.16.2",
     "email-validator==2.3.0",
     "httpx==0.28.1",
