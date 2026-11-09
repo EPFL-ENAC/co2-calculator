@@ -9,7 +9,7 @@
     "build": "storybook build --config-dir .storybook"
   },
   "devDependencies": {
-    "@storybook/addon-a11y": "=10.6.5",
+    "@storybook/addon-a11y": "=10.6.6",
     "@storybook/addon-docs": "=10.6.5",
     "@storybook/vue3-vite": "=10.6.5",
     "@vitejs/plugin-vue": "^6.0.10",
