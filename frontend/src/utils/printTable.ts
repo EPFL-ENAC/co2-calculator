@@ -1,4 +1,4 @@
-import type { ModuleField } from '@/constant/moduleConfig';
+import type { ModuleField, Submodule } from '@/constant/moduleConfig';
 import { resolveTravelerName } from '@/constant/module-config/traveler-options';
 
 export type PrintRow = Record<string, unknown>;
@@ -11,6 +11,15 @@ export interface PrintColumn {
   options?: Array<{ value: string; label: string }>;
   optionLabelsFromTaxonomy?: boolean;
   optionsId?: string;
+}
+
+/** Submodules whose kind labels the print page resolves from the taxonomy tree. */
+export function printTaxonomyEntries(
+  submodules: Array<Pick<Submodule, 'id' | 'moduleFields'>>,
+): string[] {
+  return submodules
+    .filter((sub) => sub.moduleFields.some((f) => f.optionsId === 'kind'))
+    .map((sub) => sub.id);
 }
 
 export type PrintTranslateFn = (
