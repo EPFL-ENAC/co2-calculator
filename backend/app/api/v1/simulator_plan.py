@@ -134,11 +134,15 @@ async def get_simulator_plan(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a simulator plan by ID."""
+    """Get a simulator plan by ID, with its running prefill job if any."""
     service = await _require_plan_access(db, current_user, plan_id, "view")
     result = await service.get_plan(plan_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Plan not found")
+    # A reloaded page must keep waiting on the prefill its PATCH queued (#2778).
+    result.prefill_job_id = await DataIngestionRepository(
+        db
+    ).get_unfinished_prefill_job_id(plan_id)
     return result
 
 
