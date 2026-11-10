@@ -13,12 +13,18 @@ export interface PrintColumn {
   optionsId?: string;
 }
 
-/** Submodules whose kind labels the print page resolves from the taxonomy tree. */
+/**
+ * Submodules whose kind labels the print page resolves from the taxonomy
+ * tree. Server-searched kinds (purchase, ~17k nodes) are left out: their
+ * rows carry backend-resolved `labels` (#2391, #2401, #2160).
+ */
 export function printTaxonomyEntries(
   submodules: Array<Pick<Submodule, 'id' | 'moduleFields'>>,
 ): string[] {
   return submodules
-    .filter((sub) => sub.moduleFields.some((f) => f.optionsId === 'kind'))
+    .filter((sub) =>
+      sub.moduleFields.some((f) => f.optionsId === 'kind' && !f.optionsSearch),
+    )
     .map((sub) => sub.id);
 }
 
@@ -156,7 +162,8 @@ export function renderPrintCell(
 
   // Label sources, in order: i18n-keyed static options (travel cabin
   // classes), then the backend taxonomy labels — vocabulary selects
-  // (sius_code, room_type) and kind/subkind columns alike (#2613).
+  // (sius_code, room_type) and kind/subkind columns alike (#2613) — then
+  // the row's own labels, for server-searched kinds with no tree (#2160).
   if (typeof val === 'string') {
     const option = col.options?.find((opt) => opt.value === val);
     if (option && ctx.te(option.label)) return ctx.t(option.label);
@@ -166,7 +173,9 @@ export function renderPrintCell(
       col.optionsId === 'kind' ||
       col.optionsId === 'subkind'
     ) {
-      return ctx.taxonomyKindLabels[val] ?? val;
+      const rowLabels = row['labels'] as
+        Record<string, string> | null | undefined;
+      return ctx.taxonomyKindLabels[val] ?? rowLabels?.[col.field] ?? val;
     }
 
     return option?.label ?? val;
