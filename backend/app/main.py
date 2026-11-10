@@ -522,6 +522,18 @@ app = FastAPI(
     # Swagger UI lives at /api/docs externally, but /docs internally works too
     root_path=settings.API_DOCS_PREFIX,
     lifespan=lifespan,
+    # In the constructor, not add_exception_handler(): under
+    # opentelemetry-instrument, exclude_per_chunk_asgi_spans() builds the
+    # middleware stack, which copies the handlers then -- any added later
+    # were silently dropped in prod (#3218: 500 instead of 503, and 403s).
+    # DB outages answer 503; the DB handler re-raises other DBAPIErrors (500).
+    exception_handlers={
+        PermissionDeniedError: permission_denied_handler,
+        InsufficientScopeError: permission_denied_handler,
+        RecordAccessDeniedError: permission_denied_handler,
+        SQLAlchemyTimeoutError: db_unavailable_handler,
+        DBAPIError: db_unavailable_handler,
+    },
 )
 
 
@@ -552,15 +564,6 @@ app.add_middleware(SessionRenewalMiddleware)
 # Must run after every add_middleware() call above -- see the function's
 # docstring for why order here is load-bearing, not stylistic (#2397).
 exclude_per_chunk_asgi_spans(app)
-
-# Register exception handlers for permission-based access control
-app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
-app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
-app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
-# DB outages answer 503 JSON, not a bare 500; the handler re-raises any
-# other DBAPIError, so bugs stay 500.
-app.add_exception_handler(SQLAlchemyTimeoutError, db_unavailable_handler)
-app.add_exception_handler(DBAPIError, db_unavailable_handler)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_VERSION)

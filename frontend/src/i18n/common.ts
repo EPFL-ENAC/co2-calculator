@@ -563,6 +563,10 @@ export default {
     en: 'FTE',
     fr: 'EPT',
   },
+  database_unavailable_notice: {
+    en: 'The service is temporarily unavailable. Your changes were not saved. Please try again in a few moments.',
+    fr: 'Le service est momentanément indisponible. Vos modifications ne sont pas enregistrées. Réessayez dans quelques instants.',
+  },
   http_error_occurred: {
     en: 'An error occurred: {status} {text}',
     fr: 'Une erreur est survenue : {status} {text}',
