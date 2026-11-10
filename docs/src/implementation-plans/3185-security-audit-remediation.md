@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 3185
-last_updated: 2026-11-05
+last_updated: 2026-11-10
 summary: "Remediate the security audit job-d0adab0d: object-level authorization and dependencies first, then boot, session and policy hardening, CSV neutralization, CI hygiene and temporary-upload scoping."
 ---
 
@@ -83,7 +83,13 @@ clean lockfile (its #35).
 
 ## Left for later
 
-The rescan (job-0631fe40) reported no CSP, HSTS, X-Frame-Options or
-Referrer-Policy headers. It is Low and not part of this plan. When they are
-added, note that nginx drops `server`-level headers in any `location` with its
-own `add_header`, and `frontend/nginx.conf` has several.
+The rescans (job-0631fe40, job-945ed7b9) reported no CSP, HSTS,
+X-Frame-Options or Referrer-Policy headers. The load balancer already sends
+HSTS. `frontend/nginx.conf` now sends X-Frame-Options, X-Content-Type-Options,
+Referrer-Policy and a CSP limited to `frame-ancestors`, `base-uri` and
+`object-src`, with `add_header_inherit merge` (nginx 1.29.3+) so the locations
+that add their own headers keep them.
+
+Still open: a `script-src` CSP. It has to allow the font host, the map tile
+hosts, the analytics host and the GlitchTip host, which differs per
+environment, so it needs its own tested change.
