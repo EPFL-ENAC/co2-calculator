@@ -46,8 +46,8 @@ jobs:
       skip_vulnerability_scan: false
       # GIT_SHA is baked into the frontend bundle as its APP_VERSION (see
       # frontend/quasar.config.js) so GlitchTip events carry the exact deploy
-      # SHA, and into the backend image as GIT_SHA (#2436). The docs image
-      # ignores both; Docker just warns.
+      # SHA, and into the backend image as GIT_SHA (#2436). Every image also
+      # uses it to re-run its `apk upgrade` layer on each build.
       build_args: |
         GIT_SHA=${{ github.sha }}
       # APP_VERSION (#2437): shared with .gitlab-ci.yml, see the script

@@ -29,7 +29,8 @@ include:
         --set backend.existingSecret.name=ci-existing-secret
         --set backend.existingSecret.enabled=false --set backend.secrets.JWT_HMAC_KEY=ci-render-check --set backend.secrets.SESSION_HMAC_KEY=ci-render-check
       # GIT_SHA: the frontend's APP_VERSION for GlitchTip and the backend's
-      # GIT_SHA (#2436); the docs image ignores it.
+      # GIT_SHA (#2436). Every image also uses it to re-run its `apk upgrade`
+      # layer on each build.
       build_args: |
         GIT_SHA=$CI_COMMIT_SHA
       # APP_VERSION (#2437): shared with deploy.yml, see the script

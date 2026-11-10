@@ -32,6 +32,16 @@ FROM python:3.14-alpine AS runtime
 # The alpine 3.24 base lags Alpine's package repo and Trivy blocks the deploy
 # on every HIGH it finds there: take every fixed package at build time rather
 # than naming them one CVE at a time (#3000).
+#
+# Declared before the upgrade on purpose: BuildKit folds an ARG into the cache
+# key of every later RUN, so each commit re-runs the upgrade. Cached, it kept
+# fixed CVEs out whenever the base digest did not move (frontend and docs,
+# musl 1.2.6-r2).
+#
+# CI also passes GIT_SHA on every build (deploy.yml's build_args); the ENV
+# below hands it to Settings.GIT_SHA so the workers view can tell pods on
+# different revisions apart (#2436).
+ARG GIT_SHA=""
 RUN apk upgrade --no-cache
 
 WORKDIR /app
@@ -53,14 +63,6 @@ COPY --from=builder /app/app /app/app
 COPY --from=builder /app/otel_sampler /app/otel_sampler
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
-
-# CI already passes this on every build (deploy.yml's build_args), but this
-# stage never declared it, so Docker warned and dropped it and Settings.GIT_SHA
-# stayed None in every environment — the pod heartbeat has been logging
-# `git_sha=None` since it was added. Declaring the ARG is the whole fix; the
-# workers view can then tell two pods on different revisions apart, which is
-# what that telemetry exists for.
-ARG GIT_SHA=""
 
 # The version the app reports, from root package.json via deploy.yml (#2437).
 # It used to be typed by hand into each gitops overlay, where nothing checked
