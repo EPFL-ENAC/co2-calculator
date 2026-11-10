@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 3185
 last_updated: 2026-11-10
 summary: "Remediate the security audit job-d0adab0d: object-level authorization and dependencies first, then boot, session and policy hardening, CSV neutralization, CI hygiene and temporary-upload scoping."
@@ -17,10 +17,10 @@ tests. The rest of the code-scanning work is in
 | ----- | ---------------------------------------------- | -------------------------- |
 | 1     | Object-level authorization                     | Released in 1.4.22 (#3186) |
 | 2     | Vulnerable and unused dependencies             | Released in 1.4.22 (#3187) |
-| 3     | Boot guard, logout cookie, policy default-deny | On this branch             |
-| 4     | CSV formula neutralization                     | On this branch             |
-| 5     | CI, container and config hygiene               | On this branch             |
-| 6     | Temporary upload scoping                       | On this branch             |
+| 3     | Boot guard, logout cookie, policy default-deny | On dev (#3217)             |
+| 4     | CSV formula neutralization                     | On dev (#3217)             |
+| 5     | CI, container and config hygiene               | On dev (#3217)             |
+| 6     | Temporary upload scoping                       | On dev (#3217)             |
 
 Outside this repository, `enacit4r-files` got an `immutable-tags` ruleset and a
 clean lockfile (its #35).
@@ -52,6 +52,9 @@ clean lockfile (its #35).
   now uses `CD_TOKEN` and `curl -fsS`, so a refused dispatch fails the job.
 - All 55 action references are pinned to commit SHAs, and Dependabot's new
   `github-actions` entry keeps them current.
+- Every image declares `ARG GIT_SHA` above its `apk upgrade`, so each commit
+  re-runs it. A cached layer kept musl 1.2.6-r2 in the frontend and docs
+  images, and Trivy blocked the first dev deploy of #3217.
 - The `locahost` default is fixed. The CA default keeps its name because the helm
   chart mounts the certificate under that filename.
 
