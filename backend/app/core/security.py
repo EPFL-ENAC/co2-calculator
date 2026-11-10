@@ -28,7 +28,6 @@ from app.core.config import get_settings
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
-from app.core.session_renewal import RENEWED_COOKIE_STATE_KEY
 from app.db import get_db
 from app.models.user import User, UserProvider
 from app.services.user_service import UserService
@@ -245,58 +244,66 @@ async def resolve_user_by_jwt_payload(
     return user
 
 
-def _renew_session(
-    payload: dict,
+async def get_session_claims(auth_token: str | None = Cookie(None)) -> dict | None:
+    """The validated claims of the session cookie, ``None`` without one.
+
+    A dependency of its own so ``GET /session`` can renew from the claims
+    ``get_optional_user`` already decoded: FastAPI caches it per request.
+    """
+    if not auth_token:
+        return None
+    return decode_jwt(auth_token)
+
+
+def renew_session_if_due(
+    claims: dict,
     user: User,
     request: Request,
+    response: Response,
     background_tasks: BackgroundTasks,
 ) -> None:
-    """Re-issue the cookie and record the renewal off-request.
+    """Re-issue the cookie past half-life and record the renewal off-request.
 
-    The ``Set-Cookie`` value is parked on the request state, and
-    ``SessionRenewalMiddleware`` appends it to whatever response goes out:
-    a route returning its own ``Response`` (304, download, stream) would
-    otherwise drop it. Both side effects run after the response is sent,
-    each with its own DB session: the audit row because a renewal is a
-    session event like a login, the role sync because this is the cadence
-    ``POST /session`` used to give it (plan 2539).
+    Only ``GET /session`` calls this (#2983): renewing on every request
+    wrote one audit row and queued one role sync per parallel call, and a
+    data call answered after logout signed the user back in. The claims
+    come from ``user``, as at login, so a changed email reaches the cookie.
+    Both side effects run after the response, each with its own DB session.
     """
-    carrier = Response()
+    if not session_needs_renewal(claims, int(time.time())):
+        return
+    if user.id is None:
+        raise ValueError("Cannot renew a session for a user without an id")
     issue_session_cookie(
-        carrier,
-        sub=str(payload["sub"]),
-        email=str(payload["email"]),
-        institutional_id=str(payload["institutional_id"]),
-        provider=str(payload["provider"]),
-        auth_time=int(payload["auth_time"]),
+        response,
+        sub=str(claims["sub"]),
+        email=user.email,
+        institutional_id=user.institutional_id,
+        provider=str(user.provider.value),
+        auth_time=int(claims["auth_time"]),
     )
-    setattr(request.state, RENEWED_COOKIE_STATE_KEY, carrier.headers["set-cookie"])
     background_tasks.add_task(
         audit_session_renewal,
-        user_id=user.id or 0,
+        user_id=user.id,
         institutional_id=user.institutional_id,
         email=user.email,
         ip_address=extract_ip_address(request),
         route_path=request.url.path,
-        renewed_exp=int(payload["exp"]),
+        renewed_exp=int(claims["exp"]),
     )
-    background_tasks.add_task(
-        trigger_role_sync_for_user, user_id=user.id or 0, force=False
-    )
+    background_tasks.add_task(trigger_role_sync_for_user, user_id=user.id, force=False)
 
 
 async def get_optional_user(
-    request: Request,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    auth_token: str | None = Cookie(None),
+    claims: dict | None = Depends(get_session_claims),
 ) -> User | None:
     """The session behind the cookie, or ``None`` when there is no cookie.
 
     A cookie that is present but does not validate is still a 401: the
     browser sent a credential and it was refused, which is not the same
-    state as "anonymous". Past half the idle window the cookie is renewed
-    on this response (#2943), so an active user never sees it expire.
+    state as "anonymous". Renewal is not done here but in ``GET /session``
+    (``renew_session_if_due``, #2983).
 
     Returns a *detached* ``User`` and hands the pooled connection back
     before the route body runs. ``get_db`` is a ``yield`` dependency that
@@ -308,16 +315,13 @@ async def get_optional_user(
     its first query autobegins again and takes a connection only then.
     ``User`` has no relationships, so a detached instance is complete.
     """
-    if not auth_token:
+    if claims is None:
         return None
-    payload = decode_jwt(auth_token)
     user = await resolve_user_by_jwt_payload(
-        payload, db, expected_token_type=TOKEN_TYPE_ACCESS
+        claims, db, expected_token_type=TOKEN_TYPE_ACCESS
     )
     db.expunge(user)
     await db.rollback()
-    if session_needs_renewal(payload, int(time.time())):
-        _renew_session(payload, user, request, background_tasks)
     return user
 
 

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from fastapi import Response, status
+from fastapi import BackgroundTasks, Response, status
 from fastapi.testclient import TestClient
 from starlette.datastructures import URL, Headers
 
@@ -33,6 +33,10 @@ def _login_request(callback_url: str) -> MagicMock:
     request.url_for = lambda name: URL(callback_url)
     request.headers = Headers({})
     return request
+
+
+# A pre-#2943 claim set: no ``auth_time``, so it is never due for renewal.
+_NOT_DUE: dict = {}
 
 
 def _session_request(host: str | None = "128.178.1.2") -> MagicMock:
@@ -231,7 +235,12 @@ async def test_get_session_anonymous_answers_200_with_null_user():
     the SPA learns it in one request instead of a 401 followed by a refresh.
     """
     session = await auth_module.get_session(
-        _session_request(), user=None, db=MagicMock()
+        _session_request(),
+        Response(),
+        BackgroundTasks(),
+        user=None,
+        claims=None,
+        db=MagicMock(),
     )
 
     assert session.user is None
@@ -243,7 +252,14 @@ async def test_get_session_anonymous_answers_200_with_null_user():
 async def test_get_session_user_missing_email(monkeypatch):
     user = User(id=1, institutional_id="123456", email=None)
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_session(_session_request(), user=user, db=MagicMock())
+        await auth_module.get_session(
+            _session_request(),
+            Response(),
+            BackgroundTasks(),
+            user=user,
+            claims=_NOT_DUE,
+            db=MagicMock(),
+        )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -269,7 +285,12 @@ async def test_get_session_echoes_the_address_the_server_saw(
     )
 
     session = await auth_module.get_session(
-        _session_request(host), user=user, db=MagicMock()
+        _session_request(host),
+        Response(),
+        BackgroundTasks(),
+        user=user,
+        claims=_NOT_DUE,
+        db=MagicMock(),
     )
 
     assert session.client_ip == expected

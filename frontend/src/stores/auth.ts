@@ -88,8 +88,18 @@ export const useAuthStore = defineStore('auth', () => {
     return name;
   });
 
-  const hasChecked = ref(false);
+  // Only GET /session renews the cookie (#2983), so the guard re-asks it
+  // this often. Must stay under half the backend idle window (24 h today).
+  const SESSION_RECHECK_MS = 60 * 60 * 1000;
+  let checkedAt: number | null = null;
+  // The session check failed and nobody is known: neither signed in nor
+  // out. App.vue shows a retry notice instead of the login page (#2983).
+  const sessionUnavailable = ref(false);
   let inflight: Promise<User | null> | null = null;
+
+  function sessionCheckDue(): boolean {
+    return checkedAt === null || Date.now() - checkedAt > SESSION_RECHECK_MS;
+  }
 
   /**
    * Enriched `GET /session` payload — user + workspace bootstrap context.
@@ -120,7 +130,17 @@ export const useAuthStore = defineStore('auth', () => {
     inflight = (async () => {
       try {
         loading.value = true;
-        const raw = await fetchSession();
+        let raw: SessionPayload | null;
+        try {
+          raw = await fetchSession();
+        } catch (e: unknown) {
+          // checkedAt stays as it was, so the next navigation asks again. A
+          // failed re-check keeps the user it already knows.
+          sessionUnavailable.value = user.value === null;
+          throw e;
+        }
+        checkedAt = Date.now();
+        sessionUnavailable.value = false;
         if (!raw?.user) {
           user.value = null;
           return null;
@@ -144,7 +164,6 @@ export const useAuthStore = defineStore('auth', () => {
         return u;
       } finally {
         loading.value = false;
-        hasChecked.value = true;
         inflight = null;
       }
     })();
@@ -178,6 +197,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout(router: Router) {
+    // A session check still in flight is the one call that can renew the
+    // cookie: let it land first, or its Set-Cookie undoes the logout (#2983).
+    await inflight?.catch(() => undefined);
     try {
       loading.value = true;
       await api.delete(API_LOGOUT_URL);
@@ -336,7 +358,8 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     loading,
-    hasChecked,
+    sessionCheckDue,
+    sessionUnavailable,
     displayName,
     bootstrap,
     login,
