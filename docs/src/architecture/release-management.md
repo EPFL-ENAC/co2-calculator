@@ -328,7 +328,7 @@ After each release, monitor:
 Set up alerts for:
 
 - HTTP 5xx error rate > 1%
-- Response time > 2 seconds
+- API P95 latency > 5 seconds, P99 at 10 seconds or more
 - Database connection pool exhaustion
 - Failed deployments
 
