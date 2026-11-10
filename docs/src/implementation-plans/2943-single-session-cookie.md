@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 2943
-last_updated: 2026-09-25
+last_updated: 2026-11-10
 summary: "One sliding httponly session cookie renewed inside the auth dependency and audited on renewal replaces the access + refresh pair and the client-driven POST /session; GET /session answers 200 with user null when anonymous. Shipped in one step, no compatibility window, after the maintainer chose to test the cut-over on dev and stage."
 ---
 
@@ -134,16 +134,10 @@ week's cap means at most one login a week.
 
 ## Renewal side effects
 
-- **Every response shape carries the cookie.** FastAPI merges a
-  dependency's headers only into plain-data returns, so the renewed
-  `Set-Cookie` is parked on `request.state` and `SessionRenewalMiddleware`
-  (`app/core/session_renewal.py`, raw ASGI, outermost) appends it at
-  response start: 304s, downloads, SSE streams and redirects included.
-- **Concurrent renewals.** A page load fans out several requests with the
-  same past-half-life cookie; each re-issues it (harmless, stateless) and
-  each writes one "Session renewed" row. Accepted: a handful of rows per
-  user per renewal window, grouped when reading by `renewed_exp` in the
-  snapshot, the `exp` of the cookie they replaced. Revisit if the audit table volume says otherwise.
+Superseded by [plan 2983](2983-session-cookie-followups.md): renewal
+moved from `get_optional_user` (every request) to `GET /session` alone,
+re-asked hourly by the SPA. That removed `SessionRenewalMiddleware` and
+the one-audit-row-per-parallel-call cost this section used to accept.
 
 ## Rollout
 

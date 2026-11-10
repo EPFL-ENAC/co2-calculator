@@ -16,13 +16,18 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from authlib.integrations.base_client.errors import MismatchingStateError
+from fastapi import BackgroundTasks, HTTPException, Response
 from fastapi.testclient import TestClient
 from joserfc import jwt as joserfc_jwt
 from joserfc.jwk import OctKey
 
 import app.api.v1.auth as auth_module
 import app.core.config as config
-from app.core.security import create_access_token, decode_jwt
+from app.core.security import (
+    create_access_token,
+    decode_jwt,
+    renew_session_if_due,
+)
 from app.main import app
 from app.models.user import User, UserProvider
 from tests.browser import SAME_ORIGIN_HEADERS
@@ -286,30 +291,162 @@ def _renewed_cookie(response) -> str | None:
     )
 
 
-def test_session_past_half_life_is_renewed_on_any_request(
-    client, override_db, session_user, stub_workspace, session_lengths, monkeypatch
+@pytest.fixture
+def renewal_side_effects(monkeypatch) -> tuple[AsyncMock, AsyncMock]:
+    """The audit row and the role sync a renewal queues, as mocks."""
+    audit, role_sync = AsyncMock(), AsyncMock()
+    monkeypatch.setattr("app.core.security.audit_session_renewal", audit)
+    monkeypatch.setattr("app.core.security.trigger_role_sync_for_user", role_sync)
+    return audit, role_sync
+
+
+def _due_token() -> str:
+    """Past half the 8 h idle window, well inside the 24 h cap."""
+    return _session_token(expires_in=timedelta(hours=1), login_age=timedelta(hours=7))
+
+
+def test_session_past_half_life_is_renewed_on_get_session(
+    client,
+    override_db,
+    session_user,
+    stub_workspace,
+    session_lengths,
+    renewal_side_effects,
 ):
     """#2943: the cookie slides server-side. Past half the idle window the
     response re-issues it with the same ``auth_time`` and a later ``exp``, and
     the renewal is audited and role-synced off-request.
     """
-    audit = AsyncMock()
-    monkeypatch.setattr("app.core.security.audit_session_renewal", audit)
-    monkeypatch.setattr("app.core.security.trigger_role_sync_for_user", AsyncMock())
-    token = _session_token(expires_in=timedelta(hours=1), login_age=timedelta(hours=7))
+    audit, role_sync = renewal_side_effects
+    token = _due_token()
 
     response = client.get(f"{API_PREFIX}/session", cookies={"auth_token": token})
 
     assert response.status_code == 200
     cookie = _renewed_cookie(response)
     assert cookie is not None
-    new_claims = decode_jwt(cookie.split(";")[0].split("=", 1)[1])
+    new_token = cookie.split(";")[0].split("=", 1)[1]
+    new_claims = decode_jwt(new_token)
     old_claims = decode_jwt(token)
     assert new_claims["auth_time"] == old_claims["auth_time"]
     assert new_claims["exp"] > old_claims["exp"]
     assert audit.await_count == 1
     assert audit.await_args.kwargs["user_id"] == 42
     assert audit.await_args.kwargs["renewed_exp"] == old_claims["exp"]
+    assert role_sync.await_count == 1
+    # The renewed cookie is a working session on its own.
+    follow_up = client.get(f"{API_PREFIX}/session", cookies={"auth_token": new_token})
+    assert follow_up.json()["user"]["id"] == 42
+
+
+def test_renewed_claims_come_from_the_user_not_the_old_cookie(
+    client,
+    override_db,
+    session_user,
+    stub_workspace,
+    session_lengths,
+    renewal_side_effects,
+):
+    """#2983 finding 8: a changed email reaches the cookie at the next
+    renewal instead of being copied forward until the next login.
+    """
+    session_user.email = "changed@example.org"
+
+    response = client.get(f"{API_PREFIX}/session", cookies={"auth_token": _due_token()})
+
+    cookie = _renewed_cookie(response)
+    assert cookie is not None
+    claims = decode_jwt(cookie.split(";")[0].split("=", 1)[1])
+    assert claims["email"] == "changed@example.org"
+
+
+def test_other_routes_never_renew(
+    client,
+    override_db,
+    session_user,
+    stub_workspace,
+    session_lengths,
+    renewal_side_effects,
+):
+    """#2983 finding 6: only ``GET /session`` renews. A page firing N
+    parallel calls past half-life used to write N audit rows and queue N
+    role syncs, one per call.
+    """
+    audit, role_sync = renewal_side_effects
+
+    response = client.get(
+        f"{API_PREFIX}/users/units", cookies={"auth_token": _due_token()}
+    )
+
+    assert response.status_code == 200
+    assert _renewed_cookie(response) is None
+    assert audit.await_count == 0
+    assert role_sync.await_count == 0
+
+
+def test_a_call_answered_after_logout_does_not_sign_back_in(
+    client,
+    override_db,
+    session_user,
+    stub_workspace,
+    session_lengths,
+    renewal_side_effects,
+):
+    """#2983 finding 3: a data call in flight at logout used to answer with
+    a fresh cookie and undo the logout. Only the clearing cookie may go out.
+    """
+    token = _due_token()
+
+    logout = client.delete(f"{API_PREFIX}/session", cookies={"auth_token": token})
+    late = client.get(f"{API_PREFIX}/users/units", cookies={"auth_token": token})
+
+    assert _renewed_cookie(late) is None
+    cleared = _renewed_cookie(logout)
+    assert cleared is not None
+    assert cleared.startswith('auth_token="";') or cleared.startswith("auth_token=;")
+
+
+def test_failed_get_session_carries_no_cookie_and_no_audit(
+    client,
+    override_db,
+    session_user,
+    session_lengths,
+    renewal_side_effects,
+    monkeypatch,
+):
+    """#2983 finding 7: a renewal must not ride out on an error response,
+    and the audit row goes with the cookie or not at all.
+    """
+    audit, _ = renewal_side_effects
+    monkeypatch.setattr(
+        auth_module.UnitService,
+        "get_user_units",
+        AsyncMock(side_effect=HTTPException(status_code=503)),
+    )
+
+    response = client.get(f"{API_PREFIX}/session", cookies={"auth_token": _due_token()})
+
+    assert response.status_code == 503
+    assert _renewed_cookie(response) is None
+    assert audit.await_count == 0
+
+
+def test_renewal_refuses_a_user_without_id(session_lengths):
+    """#2983 finding 5: no ``user_id=0`` audit row for an unsaved user."""
+    user = User(
+        email="resolved@example.org",
+        institutional_id="123456",
+        provider=UserProvider.TEST,
+    )
+
+    with pytest.raises(ValueError):
+        renew_session_if_due(
+            decode_jwt(_due_token()),
+            user,
+            MagicMock(),
+            Response(),
+            BackgroundTasks(),
+        )
 
 
 def test_session_younger_than_half_life_is_left_alone(

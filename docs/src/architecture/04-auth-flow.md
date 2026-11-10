@@ -93,17 +93,17 @@ had to change. Values live in the openshift-app-config overlays; set the
 idle window to a minute in a local `.env` to watch renewals happen after
 30 s.
 
-**Renewal.** `get_optional_user` (`backend/app/core/security.py`) checks
-every authenticated request. Past half the idle window it mints a new
-cookie with the same `auth_time` and `exp = min(now + idle, auth_time +
-cap)`, and queues two background tasks with their own DB sessions: a
-"Session renewed" audit row carrying `renewed_exp` (the `exp` it
-replaced, so the parallel requests of one page load group together) and
-the role sync of [section 6a](#6a-background-role-sync). The cookie is
-parked on `request.state` and `SessionRenewalMiddleware`
-(`backend/app/core/session_renewal.py`) appends it at response start, so
-it reaches responses a route builds itself too: 304s, downloads, SSE
-streams, redirects.
+**Renewal.** Only `GET /v1/session` renews (#2983):
+`renew_session_if_due` (`backend/app/core/security.py`) runs last in
+that route. Past half the idle window it mints a new cookie with the same
+`auth_time`, `exp = min(now + idle, auth_time + cap)` and the user's
+current email, and queues two background tasks with their own DB
+sessions: a "Session renewed" audit row carrying `renewed_exp` (the `exp`
+it replaced) and the role sync of
+[section 6a](#6a-background-role-sync). A failed session check carries
+neither. The SPA's router guard asks `GET /v1/session` again when its
+last check is over an hour old, so a tab that navigates keeps sliding;
+one that stays on a single page for the whole half-life does not.
 
 **Bootstrap.** `GET /v1/session` answers 200 with `user: null` when there
 is no cookie, so the SPA learns "anonymous" in one request. A cookie that
@@ -240,7 +240,7 @@ truth: the implementation plan
 | F2      | `backend/tests/integration/v1/test_auth_security.py` | `test_auth_cookies_secure_when_cookie_secure_true`, `test_auth_cookies_not_secure_when_cookie_secure_false`                                    |
 | F3      | `backend/tests/integration/v1/test_auth_security.py` | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build`                                                 |
 | F4      | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected`                                            |
-| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_session_past_half_life_is_renewed_on_any_request` (refresh rotation retired by #2943)                                                    |
+| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_session_past_half_life_is_renewed_on_get_session` (refresh rotation retired by #2943)                                                    |
 | F6      | _deferred_                                           | _server-side JTI denylist — see follow-up comment_                                                                                             |
 | F7      | `backend/tests/integration/v1/test_auth_security.py` | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure`                                          |
 | F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`                                                                                                    |
@@ -259,10 +259,15 @@ Additional pinning tests:
   `test_pre_2943_token_without_auth_time_is_never_renewed`,
   `test_anonymous_session_is_200_with_null_user_and_no_cookie`,
   `test_me_rejects_refresh_token_in_auth_cookie`.
-- `backend/tests/unit/core/test_session_renewal_middleware.py` — the
-  renewed cookie reaches JSON, 304 and streaming responses.
+- Session renewal (#2983), in `test_auth_security.py`:
+  `test_session_past_half_life_is_renewed_on_get_session`,
+  `test_other_routes_never_renew`,
+  `test_a_call_answered_after_logout_does_not_sign_back_in`,
+  `test_failed_get_session_carries_no_cookie_and_no_audit`.
 - `frontend/tests/unit/session-bootstrap.spec.ts` — bootstrap is one
   request: 200 without user and 401 are anonymous, a 500 is an error.
+- `frontend/tests/unit/session-guard.spec.ts` — a failed check is not a
+  logout, the guard re-checks hourly, logout waits for a check in flight.
 - `test_secure_cookie_is_dropped_over_http_breaking_followup_calls` —
   F2 regression guard; demonstrates the cookie-drop symptom.
 - `TestJwtClaimsRoleProviderClaimCombinations::*` — claim-combination
