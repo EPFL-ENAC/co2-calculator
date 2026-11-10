@@ -813,6 +813,10 @@ export default {
     en: 'Job in progress…',
     fr: 'Traitement en cours…',
   },
+  data_management_open_year_blocked_modules: {
+    en: 'These modules are incomplete, the year cannot be opened:',
+    fr: "Ces modules sont incomplets, l'année ne peut pas être ouverte :",
+  },
   data_management_year_opened_success: {
     en: 'Year {year} opened to users',
     fr: 'Année {year} ouverte aux utilisateur·rices avec succès',
