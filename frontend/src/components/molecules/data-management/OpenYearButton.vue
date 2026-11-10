@@ -25,24 +25,41 @@ const handleOpenForUsers = async () => {
 </script>
 
 <template>
-  <q-btn
-    :icon="matCalendarMonth"
-    color="accent"
-    :label="$t('open_year_for_users')"
-    class="text-weight-medium text-capitalize q-mt-md"
-    :loading="yearConfigStore.loading"
-    :disable="
-      yearConfigStore.anyModuleIncomplete ||
-      !!yearConfigStore.config?.is_started
-    "
-    data-testid="open-year-for-users-btn"
-    @click="handleOpenForUsers"
-  >
-    <q-tooltip v-if="yearConfigStore.config?.is_started">
-      {{ $t('backoffice-data-management-year-already-open') }}
-    </q-tooltip>
-    <q-tooltip v-else-if="yearConfigStore.anyModuleIncomplete">
-      {{ $t('backoffice-data-management-open-year-disabled') }}
-    </q-tooltip>
-  </q-btn>
+  <div>
+    <q-btn
+      :icon="matCalendarMonth"
+      color="accent"
+      :label="$t('open_year_for_users')"
+      class="text-weight-medium text-capitalize q-mt-md"
+      :loading="yearConfigStore.loading"
+      :disable="
+        yearConfigStore.anyModuleIncomplete ||
+        !!yearConfigStore.config?.is_started
+      "
+      data-testid="open-year-for-users-btn"
+      @click="handleOpenForUsers"
+    >
+      <q-tooltip v-if="yearConfigStore.config?.is_started">
+        {{ $t('backoffice-data-management-year-already-open') }}
+      </q-tooltip>
+      <q-tooltip v-else-if="yearConfigStore.anyModuleIncomplete">
+        {{ $t('backoffice-data-management-open-year-disabled') }}
+      </q-tooltip>
+    </q-btn>
+    <div
+      v-if="
+        !yearConfigStore.config?.is_started &&
+        yearConfigStore.incompleteModules.length > 0
+      "
+      class="text-body2 text-secondary q-mt-sm"
+      data-testid="open-year-incomplete-modules"
+    >
+      {{ $t('data_management_open_year_blocked_modules') }}
+      <ul class="q-my-xs">
+        <li v-for="module in yearConfigStore.incompleteModules" :key="module">
+          {{ $t(module) }}
+        </li>
+      </ul>
+    </div>
+  </div>
 </template>
