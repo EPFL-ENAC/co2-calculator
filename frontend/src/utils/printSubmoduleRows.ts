@@ -3,6 +3,7 @@ import type {
   Module,
   Submodule as SubmoduleResponse,
 } from '@/constant/modules';
+import { currentLanguage } from '@/utils/language';
 import { buildModulePath } from '@/utils/modulePath';
 import type { PrintRow } from '@/utils/printTable';
 
@@ -29,6 +30,8 @@ export async function fetchAllSubmoduleRows(
     const queryParams = new URLSearchParams({
       page: String(page),
       limit: String(PAGE_LIMIT),
+      // Row `labels` are resolved in this language (#2160).
+      lang: currentLanguage(),
     });
     const response = (await api
       .get(`${basePath}?${queryParams.toString()}`)
