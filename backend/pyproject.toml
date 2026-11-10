@@ -11,12 +11,12 @@ dependencies = [
     "uvicorn[standard]==0.54.0",
     "python-multipart==0.0.33",
     "sqlalchemy[asyncio]==2.1.6",
-    "psycopg[binary,pool]==3.3.6",
+    "psycopg[binary,pool]==3.3.8",
     "alembic==1.20.1",
-    "authlib==1.9.1",
+    "authlib==1.9.5",
     # to remove once, we use entra or keycloak
     # "python-dotenv==1.0.0",
-    "pydantic==2.14.2",
+    "pydantic==2.14.3",
     "pydantic-settings==2.16.2",
     "email-validator==2.3.0",
     "httpx==0.28.1",
@@ -142,19 +142,19 @@ docstring-code-format = true
 
 [dependency-groups]
 dev = [
-    "pytest>=9.1.0",
+    "pytest>=9.2.0",
     "pytest-asyncio>=1.4.1",
     "pytest-cov>=7.1",
-    "pytest-benchmark>=5.1",
+    "pytest-benchmark>=5.3.1",
     "ruff>=0.17.3",
     "httpx>=0.28",
     "locust>=2.47.0",
-    "pytest-env>=1.8.4",
-    "faker>=40.43.0",
+    "pytest-env>=1.8.5",
+    "faker>=40.44.0",
     "docker>=7.2.0",
     "asyncpg>=0.32.0",
-    "types-pyyaml>=6.0.12.20260815",
-    "ty>=0.0.95",
+    "types-pyyaml>=6.0.12.20261030",
+    "ty>=0.0.100",
 ]
 
 [tool.alembic]
