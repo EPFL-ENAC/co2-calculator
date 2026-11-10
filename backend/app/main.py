@@ -49,6 +49,12 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 
+# .env.example ships public placeholders: a copied one signs tokens with a key
+# anyone can read, and being non-empty it would pass the missing-value check.
+_PLACEHOLDER_KEY_PREFIX = "change-me"
+_MIN_HMAC_KEY_LENGTH = 32
+
+
 def assert_security_settings(settings) -> None:
     """Fail closed at boot outside local/dev when security settings are missing."""
     if settings.LOCAL_ENVIRONMENT:
@@ -70,6 +76,16 @@ def assert_security_settings(settings) -> None:
     ]
     if missing:
         raise RuntimeError(f"Missing required security settings: {missing}")
+    weak = [
+        name
+        for name in ("JWT_HMAC_KEY", "SESSION_HMAC_KEY")
+        if getattr(settings, name).startswith(_PLACEHOLDER_KEY_PREFIX)
+        or len(getattr(settings, name)) < _MIN_HMAC_KEY_LENGTH
+    ]
+    if weak:
+        raise RuntimeError(
+            f"Weak signing keys, generate them with openssl rand -hex 32: {weak}"
+        )
 
 
 def assert_proxy_trust_settings() -> None:

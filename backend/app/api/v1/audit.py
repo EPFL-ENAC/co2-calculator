@@ -4,7 +4,6 @@ Provides read-only access to the audit trail for service managers.
 Supports filtering, pagination, sorting, and export.
 """
 
-import csv
 import io
 import json
 from datetime import UTC, datetime
@@ -26,6 +25,7 @@ from app.schemas.audit import (
     AuditStats,
     PaginationMeta,
 )
+from app.utils.csv_safe import SafeCsvWriter
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -362,7 +362,7 @@ async def export_audit_logs(
     else:
         # CSV export
         output = io.StringIO()
-        writer = csv.writer(output)
+        writer = SafeCsvWriter(output)
         writer.writerow(
             [
                 "id",

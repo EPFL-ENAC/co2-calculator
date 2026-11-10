@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   mirror:
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/mirror-to-gitlab.yml@v3.10.0
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/mirror-to-gitlab.yml@c6219d1db371c150f797255ada11213adf49e575 # v3.10.0
     with:
       gitlab_repo: EPFL-ENAC/co2-calculator
     secrets:

@@ -170,10 +170,10 @@ async def _upload_and_dispatch(
     the file directly sidesteps that singleton mismatch; ``/sync/dispatch``
     is still the real API surface under test.
     """
-    folder = tmp_path / "tmp" / "green_box"
+    folder = tmp_path / "tmp" / "1" / "green_box"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / filename).write_bytes(csv_bytes)
-    file_path = f"tmp/green_box/{filename}"
+    file_path = f"tmp/1/green_box/{filename}"
 
     dispatch = await client.post(
         "/v1/sync/dispatch",
