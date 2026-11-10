@@ -1630,6 +1630,26 @@ class DataIngestionRepository:
         """
         return await self._get_jobs_by_state([IngestionState.FINISHED], negate=True)
 
+    async def get_unfinished_prefill_job_id(self, plan_id: int) -> int | None:
+        """Newest unfinished ``simulator_plan_prefill`` job of a plan (#2778).
+
+        Lets a reloaded planner find the job its PATCH queued. ``meta`` is
+        plain JSON, so the plan is matched in Python like the status route
+        does; only the few unfinished prefill jobs are loaded.
+        """
+        stmt = (
+            select(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.job_type) == "simulator_plan_prefill",
+                col(DataIngestionJob.state) != IngestionState.FINISHED,
+            )
+            .order_by(desc(DataIngestionJob.id))
+        )
+        for job in (await self.session.execute(stmt)).scalars():
+            if ((job.meta or {}).get("config") or {}).get("plan_id") == plan_id:
+                return job.id
+        return None
+
     async def get_recalculation_status_by_year(
         self, year: int
     ) -> list[RecalculationStatusRow]:

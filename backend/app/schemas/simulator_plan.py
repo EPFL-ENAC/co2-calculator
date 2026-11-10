@@ -102,9 +102,9 @@ class SimulatorPlanRead(BaseModel):
     #: no grant section. Never summed with ``total_tonnes_co2eq`` (#1977).
     grant_total_tonnes_co2eq: float | None = None
     #: Set when the PATCH deferred its prefill to a ``simulator_plan_prefill``
-    #: job (plan #2050 Track F4). ``None`` means there was nothing to wait
-    #: for; otherwise the client polls this job before trusting the year's
-    #: entries and stats.
+    #: job (plan #2050 Track F4), and by GET while that job is unfinished
+    #: (#2778). ``None`` means there is nothing to wait for; otherwise the
+    #: client polls this job before trusting the years' entries and stats.
     prefill_job_id: int | None = None
 
     class Config:
