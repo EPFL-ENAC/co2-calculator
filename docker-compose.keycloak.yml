@@ -1,0 +1,71 @@
+# Optional overlay (#500): run the full app with a local Keycloak as the
+# identity provider, without Accred or Entra. Roles come from the Keycloak
+# groups claim (ROLE_PROVIDER_TYPE=jwt, JWT_ROLES_CLAIM=groups). The realm,
+# its client and two test users are in keycloak/co2-calculator-realm.json.
+#
+# Usage: make run-keycloak / make stop-keycloak
+# (or: docker compose --env-file .database.env -f docker-compose.yml \
+#        -f docker-compose.keycloak.yml up -d --build)
+#
+# Keycloak answers at http://keycloak.localhost:8180 for the browser and for
+# the backend container alike: browsers resolve *.localhost to the loopback,
+# and extra_hosts points the backend at the published port. One URL keeps the
+# token issuer the same on both sides.
+#
+# Test users (local only): backoffice-admin / backoffice-admin (global admin),
+# principal-user / principal-user (principal of unit 12345, LAB-TEST in
+# keycloak/units.csv).
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    container_name: co2-calculator-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "admin"
+      KC_HOSTNAME: "http://keycloak.localhost:8180"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/co2-calculator-realm.json:/opt/keycloak/data/import/co2-calculator-realm.json:ro
+    ports:
+      - "127.0.0.1:8180:8080"
+    labels:
+      - "traefik.enable=false"
+    healthcheck:
+      # The image has no curl or wget: probe the management port with bash.
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    volumes:
+      - ./keycloak/units.csv:/etc/co2-calculator/units.csv:ro
+    extra_hosts:
+      - "keycloak.localhost:host-gateway"
+    environment:
+      DB_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+      FRONTEND_URL: "http://localhost"
+      COOKIE_SECURE: "False"
+      OAUTH_ISSUER_URL: "http://keycloak.localhost:8180/realms/co2-calculator"
+      OAUTH_CLIENT_ID: "co2-calculator"
+      OAUTH_CLIENT_SECRET: "compose-only-client-secret"
+      OAUTH_SCOPE: "openid profile email"
+      ROLE_PROVIDER_TYPE: "jwt"
+      JWT_ROLES_CLAIM: "groups"
+      UNIT_PROVIDER_TYPE: "database"
+      # The unit sync of a new year reads this file (app/providers/unit_csv.py).
+      UNITS_CSV_PATH: "/etc/co2-calculator/units.csv"
+      # The tree of keycloak/units.csv: the labs at level 4 own a workspace.
+      UNIT_WORKSPACE_LEVEL: "4"
+      UNIT_AFFILIATION_LEVELS: "2,3"
+      EXCHANGE_RATES_SOURCE: "ecb"
+      RUN_BACKGROUND_POLLER: "False"
+    depends_on:
+      keycloak:
+        condition: service_healthy

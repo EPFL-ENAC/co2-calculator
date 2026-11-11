@@ -1,0 +1,5 @@
+institutional_code,institutional_id,name,level,parent_institutional_code,label_en,label_fr,is_active
+10000,10000,UNIV,1,,Test University,Université test,true
+11000,11000,SCHOOL,2,10000,School of Engineering,École d'ingénierie,true
+12000,12000,INSTITUTE,3,11000,Institute of Testing,Institut de test,true
+12345,12345,LAB-TEST,4,12000,Test Laboratory,Laboratoire de test,true

@@ -7,6 +7,8 @@ __pycache__/
 .database.env
 *.csv
 !backend/tests/fixtures/csv/*.csv
+# Sample unit tree of the Keycloak overlay (#500), test data only.
+!keycloak/units.csv
 storybook-static
 .serena
 .worktrees

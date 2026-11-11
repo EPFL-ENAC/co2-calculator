@@ -35,6 +35,9 @@ help: ## Show available targets
 	@echo "🔭 Local Trace Inspection:"
 	@echo "  make run-observability   Start Tempo + Grafana, re-point otel at Tempo"
 	@echo "  make stop-observability  Stop them"
+	@echo "  make run-keycloak        Start the full app with a local Keycloak login"
+	@echo "  make test-keycloak       Browser test of that login"
+	@echo "  make stop-keycloak       Stop it"
 	@echo ""
 	@echo "🔍 CI Validation (use before pushing to dev/stage/main):"
 	@echo "  make ci               Run all CI checks (lint + type-check + test + build)"
@@ -131,6 +134,25 @@ run-observability:
 .PHONY: stop-observability
 stop-observability:
 	docker compose -f docker-compose.yml -f docker-compose.observability.yml down
+
+# =============================================================================
+# Optional overlay (#500): the full app with a local Keycloak instead of
+# Accred/Entra. See docker-compose.keycloak.yml for the test users.
+
+KEYCLOAK_COMPOSE = docker compose --env-file .database.env -f docker-compose.yml -f docker-compose.keycloak.yml
+
+.PHONY: run-keycloak
+run-keycloak: ## Start the full app with a local Keycloak login
+	$(KEYCLOAK_COMPOSE) up -d --build --wait
+	@echo "App: http://localhost  (log in as backoffice-admin / backoffice-admin)"
+
+.PHONY: stop-keycloak
+stop-keycloak: ## Stop the Keycloak overlay
+	$(KEYCLOAK_COMPOSE) down
+
+.PHONY: test-keycloak
+test-keycloak: ## Browser test of the Keycloak login (needs make run-keycloak)
+	cd frontend && npx playwright test -c playwright-compose.config.js
 
 # =============================================================================
 # CI/CD - Validation Commands

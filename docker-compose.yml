@@ -18,7 +18,16 @@ services:
     container_name: co2-calculator-traefik
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      # The ping answers on the traefik entrypoint (:8833), not on the
+      # default :8080 that the healthcheck command assumes.
+      test:
+        [
+          "CMD",
+          "traefik",
+          "healthcheck",
+          "--ping",
+          "--entryPoints.traefik.address=:8833",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

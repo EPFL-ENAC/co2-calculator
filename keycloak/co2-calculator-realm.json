@@ -1,0 +1,61 @@
+{
+  "realm": "co2-calculator",
+  "enabled": true,
+  "sslRequired": "none",
+  "clients": [
+    {
+      "clientId": "co2-calculator",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "compose-only-client-secret",
+      "redirectUris": ["http://localhost/*"],
+      "webOrigins": ["http://localhost"],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
+    }
+  ],
+  "groups": [
+    { "name": "calco2.backoffice.admin@global" },
+    { "name": "calco2.user.principal@unit:12345" }
+  ],
+  "users": [
+    {
+      "username": "backoffice-admin",
+      "enabled": true,
+      "email": "backoffice-admin@university.example",
+      "emailVerified": true,
+      "firstName": "Backoffice",
+      "lastName": "Admin",
+      "credentials": [
+        { "type": "password", "value": "backoffice-admin", "temporary": false }
+      ],
+      "groups": ["/calco2.backoffice.admin@global"]
+    },
+    {
+      "username": "principal-user",
+      "enabled": true,
+      "email": "principal-user@university.example",
+      "emailVerified": true,
+      "firstName": "Principal",
+      "lastName": "User",
+      "credentials": [
+        { "type": "password", "value": "principal-user", "temporary": false }
+      ],
+      "groups": ["/calco2.user.principal@unit:12345"]
+    }
+  ]
+}
