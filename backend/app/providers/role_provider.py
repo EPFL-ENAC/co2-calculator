@@ -162,6 +162,14 @@ class RoleProvider(ABC):
         """
         pass
 
+    async def get_login_user(self, userinfo: dict[str, Any]) -> dict[str, Any]:
+        """User fields and roles at login, from the ID-token claims.
+
+        Default: look the user up in the provider by its ID. A provider whose
+        roles live in the token itself overrides this.
+        """
+        return await self.get_user_by_user_id(self.get_user_id(userinfo))
+
     @abstractmethod
     def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get user ID for a user.
@@ -225,6 +233,14 @@ class JwtClaimsRoleProvider(RoleProvider):
         """Not implemented for JwtClaimsRoleProvider."""
         # You can return an empty dict or raise an error
         return {}
+
+    async def get_login_user(self, userinfo: dict[str, Any]) -> dict[str, Any]:
+        """The roles come from the ID-token claims (#500).
+
+        The login callback used get_user_by_user_id, which has nothing to
+        look up here, so a JWT login stored zero roles.
+        """
+        return {"roles": await self.get_roles(userinfo)}
 
     def get_user_id(self, userinfo: dict[str, Any]) -> str:
         """Get user ID for a user.

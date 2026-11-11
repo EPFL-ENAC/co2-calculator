@@ -379,7 +379,7 @@ async def oauth_callback(
         role_provider = get_role_provider()
         institutional_id = role_provider.get_user_id(user_info)
         try:
-            provider_user = await role_provider.get_user_by_user_id(institutional_id)
+            provider_user = await role_provider.get_login_user(user_info)
         except RoleProviderNetworkError as e:
             return await _redirect_provider_unavailable(db, request, e)
 

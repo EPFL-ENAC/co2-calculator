@@ -9,9 +9,13 @@ from starlette.datastructures import URL, Headers
 import app.api.v1.auth as auth_module
 import app.core.config as config
 from app.main import app
-from app.models.user import User
+from app.models.user import RoleName, User, UserProvider
 from app.providers import role_provider as role_provider_module
-from app.providers.role_provider import AccredRoleProvider, RoleProviderNetworkError
+from app.providers.role_provider import (
+    AccredRoleProvider,
+    JwtClaimsRoleProvider,
+    RoleProviderNetworkError,
+)
 
 API_PREFIX = config.get_settings().API_VERSION
 
@@ -171,9 +175,7 @@ async def test_auth_callback_provider_unavailable_redirects_with_reason(monkeypa
     )
     provider = MagicMock()
     provider.get_user_id.return_value = "123456"
-    provider.get_user_by_user_id = AsyncMock(
-        side_effect=RoleProviderNetworkError("down")
-    )
+    provider.get_login_user = AsyncMock(side_effect=RoleProviderNetworkError("down"))
     monkeypatch.setattr(auth_module, "get_role_provider", lambda: provider)
     audit = AsyncMock()
     monkeypatch.setattr(auth_module, "_log_auth_audit_event", audit)
@@ -223,6 +225,39 @@ async def test_auth_callback_accred_500_redirects_and_counts(monkeypatch):
     counter.add.assert_called_once_with(
         1, {"endpoint": "persons", "status_code": "500"}
     )
+
+
+@pytest.mark.asyncio
+async def test_auth_callback_stores_the_roles_of_a_jwt_login(monkeypatch):
+    """#500 regression: with ROLE_PROVIDER_TYPE=jwt the callback read the
+    roles from get_user_by_user_id, which is empty for that provider, so
+    every login with a generic OIDC provider stored zero roles.
+    """
+    userinfo = {
+        "sub": "oidc-subject-1",
+        "email": "member@university.example",
+        "roles": ["calco2.backoffice.admin@global"],
+    }
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": userinfo}),
+    )
+    monkeypatch.setattr(auth_module, "get_role_provider", JwtClaimsRoleProvider)
+    monkeypatch.setattr(auth_module, "_log_auth_audit_event", AsyncMock())
+    upsert = AsyncMock(
+        return_value=User(id=7, email=userinfo["email"], provider=UserProvider.DEFAULT)
+    )
+    monkeypatch.setattr(auth_module.UserService, "upsert_user", upsert)
+    db = MagicMock()
+    db.commit = AsyncMock()
+
+    response = await auth_module.oauth_callback(MagicMock(), db)
+
+    assert response.status_code == status.HTTP_302_FOUND
+    roles = upsert.await_args.kwargs["roles"]
+    assert [role.role for role in roles] == [RoleName.CO2_SUPERADMIN]
+    assert upsert.await_args.kwargs["institutional_id"] == "oidc-subject-1"
 
 
 @pytest.mark.asyncio
