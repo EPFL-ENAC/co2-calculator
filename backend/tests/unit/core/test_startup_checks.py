@@ -17,6 +17,7 @@ from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 from app.core.config import UnitProviderType
 from app.main import (
     assert_elasticsearch_settings,
+    assert_exchange_rates_settings,
     assert_observability_settings,
     assert_poller_isolation,
     assert_proxy_trust_settings,
@@ -305,3 +306,14 @@ def test_accred_units_need_no_csv():
     assert_unit_source_settings(
         SimpleNamespace(UNIT_PROVIDER_TYPE=UnitProviderType.ACCRED, UNITS_CSV_PATH="")
     )
+
+
+def test_an_unset_exchange_rate_source_stops_the_startup():
+    """#500: the source changes the computed numbers, so it has no default."""
+    with pytest.raises(RuntimeError, match="EXCHANGE_RATES_SOURCE"):
+        assert_exchange_rates_settings(SimpleNamespace(EXCHANGE_RATES_SOURCE=None))
+
+
+@pytest.mark.parametrize("source", ["ecb", "none"])
+def test_a_set_exchange_rate_source_starts(source):
+    assert_exchange_rates_settings(SimpleNamespace(EXCHANGE_RATES_SOURCE=source))

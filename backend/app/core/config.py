@@ -2,6 +2,7 @@
 
 from enum import Enum
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -276,6 +277,13 @@ class Settings(BaseSettings):
             "Where app roles come from: 'jwt' (parse from JWT claims), "
             "'accred' (EPFL Accred API), or 'test' (for testing/development)."
         ),
+    )
+    # Where the exchange rates of non-EUR amounts come from (#500): "ecb"
+    # (the European Central Bank API) or "none" (only EUR amounts are
+    # accepted). Required: the lifespan stops without it, because it changes
+    # the computed numbers.
+    EXCHANGE_RATES_SOURCE: Literal["ecb", "none"] | None = Field(
+        default=None, description="Exchange rate source: 'ecb' or 'none'"
     )
     # Unit tree levels with a meaning in the app (#500), see
     # app/core/unit_levels.py. Required: the lifespan stops without them.

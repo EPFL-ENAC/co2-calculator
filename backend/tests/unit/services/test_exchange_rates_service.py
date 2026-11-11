@@ -373,3 +373,17 @@ class TestCacheExpiration:
             service.get_exchange_rates(2024)
 
         assert mock_fetch.call_count == 2
+
+
+def test_rates_off_refuse_a_conversion_without_calling_the_ecb(monkeypatch):
+    """#500: EXCHANGE_RATES_SOURCE=none accepts only EUR amounts."""
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "EXCHANGE_RATES_SOURCE", "none")
+    ExchangeRatesService.clear_cache()
+
+    with patch("app.services.exchange_rates_service.httpx.get") as ecb_get:
+        with pytest.raises(ValueError, match="only EUR amounts"):
+            ExchangeRatesService().get_exchange_rate_to_eur(2024, "CHF")
+
+    ecb_get.assert_not_called()

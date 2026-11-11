@@ -49,6 +49,9 @@ backend:
     # them. EPFL: workspace level "4", affiliation levels "2,3".
     UNIT_WORKSPACE_LEVEL: ""
     UNIT_AFFILIATION_LEVELS: ""
+    # Exchange rates of non-EUR amounts (#500): "ecb" or "none" (EUR only).
+    # Required, the backend does not start without it.
+    EXCHANGE_RATES_SOURCE: ""
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "" # Required: public URL of the frontend, the backend does not start without it

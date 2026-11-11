@@ -112,6 +112,12 @@ def assert_unit_source_settings(settings) -> None:
         raise RuntimeError("UNIT_PROVIDER_TYPE=database needs UNITS_CSV_PATH")
 
 
+def assert_exchange_rates_settings(settings) -> None:
+    """The exchange rate source changes the computed numbers: no default (#500)."""
+    if settings.EXCHANGE_RATES_SOURCE is None:
+        raise RuntimeError("EXCHANGE_RATES_SOURCE must be 'ecb' or 'none'")
+
+
 def assert_observability_settings(settings) -> None:
     """Stop the startup when Loki is on without its URL (#500).
 
@@ -254,6 +260,7 @@ async def lifespan(app: FastAPI):
     assert_required_settings(settings)
     assert_observability_settings(settings)
     assert_unit_source_settings(settings)
+    assert_exchange_rates_settings(settings)
     # Both raise when unset or malformed (#500).
     workspace_level()
     affiliation_levels()

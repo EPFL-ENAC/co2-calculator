@@ -3,6 +3,7 @@ from typing import TypedDict
 
 import httpx
 
+from app.core.config import get_settings
 from app.utils.csv_dialect import csv_dict_reader
 
 ECB_TIMEOUT_SECONDS = 10
@@ -92,8 +93,14 @@ class ExchangeRatesService:
 
         Raises:
             ValueError: If no exchange rate data is found for the specified year
-              and currency or if there is an error fetching the data.
+              and currency or if there is an error fetching the data, or if
+              EXCHANGE_RATES_SOURCE is "none".
         """
+        if get_settings().EXCHANGE_RATES_SOURCE != "ecb":
+            raise ValueError(
+                "Exchange rates are off (EXCHANGE_RATES_SOURCE=none): only "
+                "EUR amounts are accepted"
+            )
         if (
             ExchangeRatesService._cache_date is None
             or (date.today() - ExchangeRatesService._cache_date).total_seconds()

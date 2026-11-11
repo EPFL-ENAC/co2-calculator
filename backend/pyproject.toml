@@ -90,6 +90,7 @@ env = [
     "UNIT_PROVIDER_TYPE=test",
     # The test units follow the EPFL tree (#500).
     "UNIT_WORKSPACE_LEVEL=4",
+    "EXCHANGE_RATES_SOURCE=ecb",
     "UNIT_AFFILIATION_LEVELS=2,3",
     # Boot-time security check (app/main.py:assert_security_settings) is gated
     # on LOCAL_ENVIRONMENT; keep it true in CI (no backend/.env there) so the
