@@ -140,16 +140,14 @@ services:
       - /tmp
       - /var/cache/nginx
       - /var/run
+    # The frontend has no institution defaults (#500): it does not start
+    # without the APP_* block. frontend/.env.local holds it, the same vars the
+    # k8s pod receives via helm/values.yaml frontend.env. `make install`
+    # creates the file from frontend/.env.example.
+    env_file:
+      - ./frontend/.env.local
     environment:
-      # Empty by default. Set in your shell (or repo-root .env) to enable
-      # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s
-      # pod receives via helm/values.yaml frontend.env.
-      APP_SENTRY_DSN: "${APP_SENTRY_DSN:-}"
-      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-compose}"
-      # Matomo analytics. Empty site id keeps tracking off, so a compose run
-      # never sends hits to a real Matomo site by accident.
-      APP_INSTITUTION_MATOMO_URL: "${APP_INSTITUTION_MATOMO_URL:-}"
-      APP_INSTITUTION_MATOMO_SITE_ID: "${APP_INSTITUTION_MATOMO_SITE_ID:-}"
+      APP_ENVIRONMENT: "compose"
     labels:
       - "traefik.enable=true"
       # match everything else

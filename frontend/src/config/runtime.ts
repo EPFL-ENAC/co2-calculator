@@ -88,14 +88,13 @@ export const runtimeConfig = {
     injected.APP_INSTITUTION_EQUIPMENT_FEEDBACK_EMAIL ||
     (hasViteEnv && import.meta.env.APP_INSTITUTION_EQUIPMENT_FEEDBACK_EMAIL) ||
     '',
-  // Matomo (ENAC web analytics). The endpoint has a code default; the site id
-  // is the on/off switch — empty means src/boot/matomo.ts loads no tracker and
-  // sends nothing, so dev, CI and unconfigured pods stay silent. One Matomo
-  // site per instance (dev/stage/prod), set per-pod via /injectEnv.js.
+  // Matomo web analytics. The site id is the on/off switch: empty means
+  // src/boot/matomo.ts loads no tracker. A site id without a URL stops the
+  // startup (src/config/requiredConfig.ts). One Matomo site per instance.
   matomoUrl:
     injected.APP_INSTITUTION_MATOMO_URL ||
     (hasViteEnv && import.meta.env.APP_INSTITUTION_MATOMO_URL) ||
-    'https://enac-webanalytics.epfl.ch/piwik/',
+    '',
   matomoSiteId:
     injected.APP_INSTITUTION_MATOMO_SITE_ID ||
     (hasViteEnv && import.meta.env.APP_INSTITUTION_MATOMO_SITE_ID) ||
@@ -116,40 +115,40 @@ export const runtimeConfig = {
   ),
   // Demo instance: APP_DEMO_MODE=true makes App.vue render only a notice
   // pointing to the production app, so the demo can't be used by mistake.
-  // Only the literal "true" enables it (see utils/demoMode.ts). The target
-  // defaults to the EPFL instance; override per-pod for another institution.
+  // Only the literal "true" enables it (see utils/demoMode.ts). Demo mode
+  // without a production URL stops the startup (src/config/requiredConfig.ts).
   demoMode: isDemoMode(
     injected.APP_DEMO_MODE || (hasViteEnv && import.meta.env.APP_DEMO_MODE),
   ),
   productionUrl:
     injected.APP_INSTITUTION_PRODUCTION_URL ||
     (hasViteEnv && import.meta.env.APP_INSTITUTION_PRODUCTION_URL) ||
-    'https://go.epfl.ch/co2',
+    '',
   // Institution identity (#500): everything that names or brands the
-  // institution that runs this instance. Each value defaults in code to the
-  // EPFL value, so an EPFL pod needs no configuration. Another institution
-  // sets the APP_INSTITUTION_* block per-pod (see .env.example).
+  // institution that runs this instance. No value has a code default: the
+  // startup stops when a required one is missing (src/config/requiredConfig.ts).
+  // Each pod sets the APP_INSTITUTION_* block (see .env.example).
   institution: {
     // Short name, used as-is in English and in French ("EPFL").
     name:
       injected.APP_INSTITUTION_NAME ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_NAME) ||
-      'EPFL',
+      '',
     // French forms with the preposition and the article. The article depends
     // on the name ("de l'EPFL", "du CERN"), so French needs its own values.
     nameFrDe:
       injected.APP_INSTITUTION_NAME_FR_DE ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_NAME_FR_DE) ||
-      "de l'EPFL",
+      '',
     nameFrA:
       injected.APP_INSTITUTION_NAME_FR_A ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_NAME_FR_A) ||
-      "à l'EPFL",
+      '',
     // Label of the personal identifier the institution gives its members.
     idLabel:
       injected.APP_INSTITUTION_ID_LABEL ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_ID_LABEL) ||
-      'SCIPER',
+      '',
     // Logo and favicon URLs. Empty means the bundled EPFL files.
     logoUrl:
       injected.APP_INSTITUTION_LOGO_URL ||
@@ -169,25 +168,25 @@ export const runtimeConfig = {
     contactEmail:
       injected.APP_INSTITUTION_CONTACT_EMAIL ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_CONTACT_EMAIL) ||
-      'co2calculator@epfl.ch',
+      '',
     // Page that presents the sustainability strategy, one URL per language.
     strategyUrl:
       injected.APP_INSTITUTION_STRATEGY_URL ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_STRATEGY_URL) ||
-      'https://www.epfl.ch/about/sustainability/strategy/',
+      '',
     strategyUrlFr:
       injected.APP_INSTITUTION_STRATEGY_URL_FR ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_STRATEGY_URL_FR) ||
-      'https://www.epfl.ch/about/sustainability/fr/strategie/',
+      '',
     // Documentation site roots, without a trailing slash. The translations
     // append the page path ("/fr/building/").
     userDocUrl:
       injected.APP_INSTITUTION_USER_DOC_URL ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_USER_DOC_URL) ||
-      'https://epfl-enac.github.io/co2-calculator-user-doc',
+      '',
     backofficeDocUrl:
       injected.APP_INSTITUTION_BACKOFFICE_DOC_URL ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_BACKOFFICE_DOC_URL) ||
-      'https://epfl-enac.github.io/co2-calculator-back-office-doc',
+      '',
   },
 } as const;

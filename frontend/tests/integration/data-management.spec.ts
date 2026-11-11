@@ -13,7 +13,8 @@
  * describe block at the bottom of this file covers the is_started chip
  * + button flow.  Reuses the same `playwright/test` import.
  */
-import { test, expect, type Page, type Route } from 'playwright/test';
+import { test, expect } from './setup/test';
+import type { Page, Route } from 'playwright/test';
 import {
   DATA_MANAGEMENT_URL,
   TEST_PIPELINE_ID,

@@ -1,4 +1,4 @@
-import { test, expect } from 'playwright/test';
+import { test, expect } from './setup/test';
 
 const FONT_SERVER = 'https://enac-it-fonts.epfl.ch/';
 

@@ -3,6 +3,8 @@
 // non-ok responses, so tests see real HTTPErrors instead of harness noise.
 // Import styles, initialize component theme here.
 // import '../src/common.css';
+// First import: the runtime variables must exist before runtime.ts loads.
+import './testEnv';
 import '../src/App.vue'; // Example import of a component to be used in the component tests.
 
 import { beforeMount } from '@playwright/experimental-ct-vue/hooks';

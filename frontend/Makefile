@@ -4,6 +4,11 @@ help: ## Show available targets
 
 .PHONY: install
 install: ## Install dependencies
+	@if [ ! -f .env.local ]; then \
+		echo "Creating .env.local from .env.example..."; \
+		cp .env.example .env.local; \
+		echo "⚠️  Update .env.local with your institution values"; \
+	fi
 	npm install --ignore-scripts
 
 .PHONY: clean

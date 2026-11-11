@@ -206,13 +206,11 @@ def test_postgres_url_gains_psycopg_and_valid_libpq_options(scheme):
     make_conninfo("", **url.query)
 
 
-def test_shipped_default_db_url_is_sqlite():
-    """Ties the detection to the actual default rather than a literal in
-    this test -- CI runs with no .env, so this is the URL it uses.
+def test_db_url_has_no_default():
+    """#500: no implicit database. An unset DB_URL stops the import of app.db
+    instead of creating a SQLite file that the migrations cannot run on.
     """
-    default = Settings.model_fields["DB_URL"].default
-
-    assert _normalize_url(default)[1] is True
+    assert Settings.model_fields["DB_URL"].default is None
 
 
 class _RecordingCounter:

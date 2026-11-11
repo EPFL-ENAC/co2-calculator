@@ -88,6 +88,13 @@ def assert_security_settings(settings) -> None:
         )
 
 
+def assert_required_settings(settings) -> None:
+    """Stop the startup when a setting without a default is empty (#500)."""
+    missing = [name for name in ("FRONTEND_URL",) if not getattr(settings, name)]
+    if missing:
+        raise RuntimeError(f"Missing required settings: {missing}")
+
+
 def assert_proxy_trust_settings() -> None:
     """Fail closed at boot when uvicorn is told to trust every proxy (#2530).
 
@@ -198,6 +205,7 @@ def assert_trace_sampler() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run on application startup."""
+    assert_required_settings(settings)
     assert_security_settings(settings)
     assert_proxy_trust_settings()
     assert_accred_settings(settings)

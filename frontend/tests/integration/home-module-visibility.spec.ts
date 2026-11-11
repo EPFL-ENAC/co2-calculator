@@ -6,7 +6,8 @@
  *    presence never grey an icon.
  * Scenario data lives in ``setup/home-module-visibility-mocks.ts``.
  */
-import { test, expect, type Page } from 'playwright/test';
+import { test, expect } from './setup/test';
+import type { Page } from 'playwright/test';
 import {
   HOME_URL,
   mockHomeBackend,

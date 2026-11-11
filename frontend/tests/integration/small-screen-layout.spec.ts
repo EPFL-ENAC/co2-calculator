@@ -11,7 +11,8 @@
  * wide data table's minimum width push the cards out the same way once a
  * section was expanded; those tables must scroll inside their own container.
  */
-import { test, expect, type Page } from 'playwright/test';
+import { test, expect } from './setup/test';
+import type { Page } from 'playwright/test';
 import {
   RF_URL,
   mockResearchFacilitiesBackend,

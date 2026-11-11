@@ -17,6 +17,7 @@ from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 from app.main import (
     assert_poller_isolation,
     assert_proxy_trust_settings,
+    assert_required_settings,
     assert_security_settings,
     assert_trace_sampler,
 )
@@ -221,3 +222,13 @@ def test_sql_ratio_without_the_sdk_refuses_to_boot(monkeypatch):
 def test_other_samplers_skip_the_trace_sampler_check(monkeypatch):
     monkeypatch.setenv("OTEL_TRACES_SAMPLER", "always_on")
     assert_trace_sampler()  # must not raise
+
+
+def test_empty_frontend_url_stops_the_startup():
+    """#500: FRONTEND_URL has no default, so an unset value must not boot."""
+    with pytest.raises(RuntimeError, match="FRONTEND_URL"):
+        assert_required_settings(SimpleNamespace(FRONTEND_URL=""))
+
+
+def test_set_frontend_url_starts():
+    assert_required_settings(SimpleNamespace(FRONTEND_URL="https://co2.example"))

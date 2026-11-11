@@ -1,4 +1,5 @@
-import { test, expect } from 'playwright/test';
+import { test, expect } from './setup/test';
+import { injectEnvScript } from '../runtimeEnv';
 
 /**
  * #500: another institution rebrands the same bundle with the
@@ -15,7 +16,7 @@ async function serveInstitution(
   await page.route('**/injectEnv.js', (route) =>
     route.fulfill({
       contentType: 'application/javascript',
-      body: `window.injectedEnvVariable = ${JSON.stringify(env)};`,
+      body: injectEnvScript(env),
     }),
   );
   // No backend behind the preview server: answer the session check as
@@ -62,19 +63,4 @@ test('the configured institution replaces the EPFL name, logo and color', async 
   const accent = await resolvedAccent(page);
   expect(accent).toBe('rgb(0, 51, 102)');
   await expect(page.getByText('EPFL')).toHaveCount(0);
-});
-
-test('no institution variable keeps the EPFL defaults', async ({ page }) => {
-  await serveInstitution(page, {});
-
-  await page.goto('/');
-
-  await expect(page).toHaveTitle('EPFL CO2 Calculator');
-  await expect(page.locator('.login__logo img').first()).toHaveAttribute(
-    'src',
-    // The bundled EPFL logo is inlined in the bundle as a data URI.
-    /^data:image\/svg/,
-  );
-  const accent = await resolvedAccent(page);
-  expect(accent).toBe('rgb(255, 0, 0)');
 });

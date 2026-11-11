@@ -58,11 +58,13 @@ class Settings(BaseSettings):
 
     # Database Configuration
     # Provide full DB_URL directly (takes precedence)
+    # No default (#500): a missing value stops the import of app.db, instead
+    # of a silent SQLite file that the migrations cannot create.
     DB_URL: str | None = Field(
-        default="sqlite+aiosqlite:///./co2_calculator.db",
+        default=None,
         description="""
-            Full database URL. If not set, defaults to SQLite.
-            Example: sqlite+aiosqlite:///./co2_calculator.db
+            Full database URL. Required.
+            Example: postgresql://user:pass@host:5432/dbname?sslmode=disable
             """,
     )
     # #1723 — explicit pool sizing (skipped for sqlite, see app/db.py).
@@ -365,9 +367,10 @@ class Settings(BaseSettings):
     # (2x this) in RoleSyncService._handle_suspicious_empty.
     ROLE_SYNC_TTL_MINUTES: int = 60
     # Frontend URL for redirects
+    # No default (#500): the lifespan stops the startup when it is empty.
     FRONTEND_URL: str = Field(
-        default="http://localhost:9000",
-        description="Frontend application URL for OAuth redirects",
+        default="",
+        description="Frontend application URL for OAuth redirects. Required.",
     )
     CSRF_ADDITIONAL_ORIGINS: str = Field(
         default="",

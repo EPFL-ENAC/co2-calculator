@@ -21,7 +21,8 @@
  *   - Pipeline Operations console — ``pipeline-operations.spec.ts``
  *     (separate #1403 slice).
  */
-import { test, expect, type Page } from 'playwright/test';
+import { test, expect } from './setup/test';
+import type { Page } from 'playwright/test';
 import {
   DATA_MANAGEMENT_URL,
   TEST_PIPELINE_ID,

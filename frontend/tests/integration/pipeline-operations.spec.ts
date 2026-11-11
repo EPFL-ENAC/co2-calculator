@@ -16,7 +16,8 @@
  * phase-label bugs tracked by #1523/#1591 (different components).
  */
 
-import { test, expect, type Page } from 'playwright/test';
+import { test, expect } from './setup/test';
+import type { Page } from 'playwright/test';
 import {
   PIPELINE_OPERATIONS_URL,
   buildPipelineItem,
