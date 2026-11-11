@@ -11,11 +11,23 @@ $tokens-spacing-32: 2rem !default;
 $tokens-spacing-48: 3rem !default;
 $tokens-spacing-64: 4rem !default;
 
-// Border Radius
-$tokens-border-radius-generic-border-radius: 0.1875rem !default;
-$tokens-border-radius-generic-border-radius-px: 3px !default;
-$tokens-border-radius-full-border-radius: 62.4375rem !default;
-$tokens-border-radius-lg-border-radius: 0.75rem !default;
+// Border Radius (theme tokens, see Colors below)
+$tokens-border-radius-generic-border-radius: var(
+  --theme-border-radius-generic-border-radius,
+  0.1875rem
+) !default;
+$tokens-border-radius-generic-border-radius-px: var(
+  --theme-border-radius-generic-border-radius-px,
+  3px
+) !default;
+$tokens-border-radius-full-border-radius: var(
+  --theme-border-radius-full-border-radius,
+  62.4375rem
+) !default;
+$tokens-border-radius-lg-border-radius: var(
+  --theme-border-radius-lg-border-radius,
+  0.75rem
+) !default;
 
 // Font Family: set by /institution/fonts.css, which also declares the
 // webfonts (#500).
@@ -92,37 +104,65 @@ $tokens-typography-line-height-none: 1 !default;
 $tokens-typography-line-height-snug: 1.2 !default;
 $tokens-typography-line-height-relaxed: 1.3 !default;
 
+// Colors and border radii are the theme (#500): each token reads a
+// --theme-* CSS custom property, which the institution sets in the theme.env
+// file of its assets folder (src/utils/institutionTheme.ts). The value after
+// the comma is the base design, used when the file leaves a token out. The
+// accent has none: theme.env must set it, and the hover and highlight shades
+// derive from it. A theme token is not a Sass value: use color-mix() on it,
+// never rgba() or another Sass color function, and no Sass math.
 // Colors
-$tokens-colors-status-green: #28a745 !default;
-$tokens-colors-status-red: #dc3545 !default;
-$tokens-colors-status-yellow: #ffc107 !default;
-$tokens-colors-grey-scale-grey-100: #f5f5f5 !default;
-$tokens-colors-grey-scale-grey-200: #e6e6e6 !default;
-$tokens-colors-grey-scale-grey-300: #d5d5d5 !default;
-$tokens-colors-grey-scale-grey-400: #c1c1c1 !default;
-$tokens-colors-grey-scale-grey-500: #8e8e8e !default;
-$tokens-colors-grey-scale-grey-600: #707070 !default;
-$tokens-colors-leman: #00a79f !default;
-$tokens-colors-canard: #007480 !default;
-
-// Institution accent colors (#500). Each token is a CSS custom property with
-// the EPFL color as fallback: src/boot/institution.ts sets the property at
-// startup when APP_INSTITUTION_ACCENT_* is configured. A token is therefore
-// not a Sass color: use color-mix() on it, never rgba() or another Sass
-// color function.
-$tokens-colors-accent: var(--institution-accent, #ff0000) !default;
-$tokens-colors-accent-hover: var(--institution-accent-hover, #b51f1f) !default;
-$tokens-colors-base-black: #212121 !default;
-$tokens-colors-base-white: #ffffff !default;
+$tokens-colors-status-green: var(--theme-colors-status-green, #28a745) !default;
+$tokens-colors-status-red: var(--theme-colors-status-red, #dc3545) !default;
+$tokens-colors-status-yellow: var(
+  --theme-colors-status-yellow,
+  #ffc107
+) !default;
+$tokens-colors-grey-scale-grey-100: var(
+  --theme-colors-grey-scale-grey-100,
+  #f5f5f5
+) !default;
+$tokens-colors-grey-scale-grey-200: var(
+  --theme-colors-grey-scale-grey-200,
+  #e6e6e6
+) !default;
+$tokens-colors-grey-scale-grey-300: var(
+  --theme-colors-grey-scale-grey-300,
+  #d5d5d5
+) !default;
+$tokens-colors-grey-scale-grey-400: var(
+  --theme-colors-grey-scale-grey-400,
+  #c1c1c1
+) !default;
+$tokens-colors-grey-scale-grey-500: var(
+  --theme-colors-grey-scale-grey-500,
+  #8e8e8e
+) !default;
+$tokens-colors-grey-scale-grey-600: var(
+  --theme-colors-grey-scale-grey-600,
+  #707070
+) !default;
+$tokens-colors-leman: var(--theme-colors-leman, #00a79f) !default;
+$tokens-colors-canard: var(--theme-colors-canard, #007480) !default;
+$tokens-colors-accent: var(--theme-colors-accent) !default;
+$tokens-colors-accent-hover: var(
+  --theme-colors-accent-hover,
+  color-mix(in srgb, var(--theme-colors-accent) 75%, black)
+) !default;
+$tokens-colors-base-black: var(--theme-colors-base-black, #212121) !default;
+$tokens-colors-base-white: var(--theme-colors-base-white, #ffffff) !default;
 $tokens-colors-accent-highlight: var(
-  --institution-accent-highlight,
-  #fbeceb
+  --theme-colors-accent-highlight,
+  color-mix(in srgb, var(--theme-colors-accent) 8%, white)
 ) !default;
 $tokens-colors-accent-highlight-strong: var(
-  --institution-accent-highlight-strong,
-  #f4c6c2
+  --theme-colors-accent-highlight-strong,
+  color-mix(in srgb, var(--theme-colors-accent) 25%, white)
 ) !default;
-$tokens-colors-validated-highlight: #def1f1 !default;
+$tokens-colors-validated-highlight: var(
+  --theme-colors-validated-highlight,
+  #def1f1
+) !default;
 
 // Layout
 $tokens-layout-page-width: 1320px !default;

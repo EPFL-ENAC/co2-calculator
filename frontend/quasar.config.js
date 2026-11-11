@@ -178,8 +178,6 @@ export default defineConfig(function () {
           process.env.APP_INSTITUTION_NAME_FR_DE || '',
         APP_INSTITUTION_NAME_FR_A: process.env.APP_INSTITUTION_NAME_FR_A || '',
         APP_INSTITUTION_ID_LABEL: process.env.APP_INSTITUTION_ID_LABEL || '',
-        APP_INSTITUTION_ACCENT_COLOR:
-          process.env.APP_INSTITUTION_ACCENT_COLOR || '',
         APP_INSTITUTION_CONTACT_EMAIL:
           process.env.APP_INSTITUTION_CONTACT_EMAIL || '',
         APP_INSTITUTION_STRATEGY_URL:

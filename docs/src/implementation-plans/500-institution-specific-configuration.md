@@ -24,7 +24,6 @@ startup from `/injectEnv.js`, the same chain as `APP_SENTRY_DSN`. In
 | `APP_INSTITUTION_NAME_FR_DE`                | Required                         | `%institution_fr_de%` in French texts                |
 | `APP_INSTITUTION_NAME_FR_A`                 | Required                         | `%institution_fr_a%` in French texts                 |
 | `APP_INSTITUTION_ID_LABEL`                  | Required                         | Headcount labels, `%institution_id_label%`           |
-| `APP_INSTITUTION_ACCENT_COLOR`              | The EPFL red of the SCSS tokens  | Buttons, tabs, links, chart highlights               |
 | `APP_INSTITUTION_CONTACT_EMAIL`             | Required                         | `%contact_email%` in help texts                      |
 | `APP_INSTITUTION_STRATEGY_URL`              | Required                         | Home page link, English                              |
 | `APP_INSTITUTION_STRATEGY_URL_FR`           | Required                         | Home page link, French                               |
@@ -56,6 +55,7 @@ variables. The image ships none of them. Each deployment mounts its folder at
 | `apple-touch-icon.png`   | Home screen icon                                     |
 | `login-illustration.svg` | Background of the login page                         |
 | `fonts.css`              | Webfont declarations and `--institution-font-family` |
+| `theme.env`              | Theme tokens, see the decision "The theme is a file" |
 
 - `docker/check-institution-assets.sh` runs at container startup. A missing
   file stops the container and the log names it.
@@ -143,11 +143,16 @@ sync with the row number.
 - **One prefix for all institution variables.** Eight variables existed
   before this issue under other names. They now use the `APP_INSTITUTION_`
   prefix, and the old names no longer work. See "Renamed variables" below.
-- **One accent color.** The red SCSS tokens are now accent tokens
-  (`$tokens-colors-accent*`). Each one is a CSS custom property with the EPFL
-  color as fallback. `src/boot/institution.ts` sets `--institution-accent` and
-  derives the hover and highlight shades with `color-mix()`. An accent token
-  is not a Sass color: use `color-mix()` on it, not `rgba()`.
+- **The theme is a file.** The colors and border radii of
+  `src/css/02-tokens/_options.scss` read `--theme-*` CSS custom properties.
+  The `theme.env` file of the assets folder sets them, one `token=value` line
+  per token (`src/utils/institutionTheme.ts`). The boot file loads it before
+  the first render. A token left out keeps the base design. `colors-accent`
+  is required, and the hover and highlight shades derive from it with
+  `color-mix()` unless the file sets them. An unknown token or a missing
+  accent stops the startup with the line number. A theme token is not a Sass
+  value: use `color-mix()` on it, not `rgba()`. This replaces
+  `APP_INSTITUTION_ACCENT_COLOR`.
 - **The page title is set at startup.** `index.html` holds "CO2 Calculator".
   The boot file sets "<name> CO2 Calculator".
 

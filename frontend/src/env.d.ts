@@ -19,7 +19,6 @@ interface ImportMetaEnv {
   readonly APP_INSTITUTION_NAME_FR_DE: string;
   readonly APP_INSTITUTION_NAME_FR_A: string;
   readonly APP_INSTITUTION_ID_LABEL: string;
-  readonly APP_INSTITUTION_ACCENT_COLOR: string;
   readonly APP_INSTITUTION_CONTACT_EMAIL: string;
   readonly APP_INSTITUTION_STRATEGY_URL: string;
   readonly APP_INSTITUTION_STRATEGY_URL_FR: string;

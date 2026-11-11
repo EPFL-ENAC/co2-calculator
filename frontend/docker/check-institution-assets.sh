@@ -16,7 +16,7 @@ set -eu
 ASSETS_DIR=/usr/share/nginx/html/institution
 
 missing=""
-for file in logo.svg favicon.ico apple-touch-icon.png login-illustration.svg fonts.css; do
+for file in logo.svg favicon.ico apple-touch-icon.png login-illustration.svg fonts.css theme.env; do
   if [ ! -f "${ASSETS_DIR}/${file}" ]; then
     missing="${missing} ${file}"
   fi

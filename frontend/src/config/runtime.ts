@@ -149,13 +149,6 @@ export const runtimeConfig = {
       injected.APP_INSTITUTION_ID_LABEL ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_ID_LABEL) ||
       '',
-    // Accent color as #rrggbb. Empty means the EPFL colors of the SCSS
-    // tokens (src/css/02-tokens/_options.scss). The hover and highlight
-    // shades derive from it (src/utils/institutionBranding.ts).
-    accentColor:
-      injected.APP_INSTITUTION_ACCENT_COLOR ||
-      (hasViteEnv && import.meta.env.APP_INSTITUTION_ACCENT_COLOR) ||
-      '',
     contactEmail:
       injected.APP_INSTITUTION_CONTACT_EMAIL ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_CONTACT_EMAIL) ||

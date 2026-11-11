@@ -1,10 +1,9 @@
 /**
- * Institution tokens and branding (#500).
+ * Institution tokens (#500).
  *
- * Translation files name the institution with %token% placeholders, and the
- * accent colors come from the runtime configuration. These tests cover the
- * two pure helpers and scan `src/i18n` so a hardcoded institution name does
- * not come back.
+ * Translation files name the institution with %token% placeholders. These
+ * tests cover the replacement helpers and scan `src/i18n` so a hardcoded
+ * institution name does not come back.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -13,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 
 import { test, expect } from 'playwright/test';
 
-import { accentCssProperties } from '../../src/utils/institutionBranding';
 import {
   escapeForMessage,
   replaceInstitutionTokens,
@@ -51,27 +49,6 @@ test('a value is escaped for the vue-i18n message syntax', () => {
 test('a percent sign in a normal sentence is not a token', () => {
   expect(replaceInstitutionTokens('from 50% to 60% of the total', {})).toBe(
     'from 50% to 60% of the total',
-  );
-});
-
-test('no accent color keeps the stylesheet defaults', () => {
-  expect(accentCssProperties('')).toEqual({});
-});
-
-test('one accent color sets the accent and derives its shades', () => {
-  const properties = accentCssProperties('#003366');
-  expect(properties['--institution-accent']).toBe('#003366');
-  expect(Object.keys(properties)).toEqual([
-    '--institution-accent',
-    '--institution-accent-hover',
-    '--institution-accent-highlight',
-    '--institution-accent-highlight-strong',
-  ]);
-});
-
-test('an accent color that is not #rrggbb is refused', () => {
-  expect(() => accentCssProperties('blue')).toThrow(
-    'APP_INSTITUTION_ACCENT_COLOR',
   );
 });
 

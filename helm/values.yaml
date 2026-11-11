@@ -409,7 +409,6 @@ frontend:
     APP_INSTITUTION_NAME_FR_DE: "" # required, e.g. "de l'EPFL"
     APP_INSTITUTION_NAME_FR_A: "" # required, e.g. "à l'EPFL"
     APP_INSTITUTION_ID_LABEL: "" # required, e.g. "SCIPER"
-    APP_INSTITUTION_ACCENT_COLOR: "" # "#rrggbb"
     APP_INSTITUTION_CONTACT_EMAIL: "" # required
     APP_INSTITUTION_STRATEGY_URL: "" # required
     APP_INSTITUTION_STRATEGY_URL_FR: "" # required

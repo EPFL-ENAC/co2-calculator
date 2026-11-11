@@ -34,9 +34,12 @@ import LoginCard from '@/components/organisms/login/LoginCard.vue';
     position: absolute;
     width: tokens.$login-page-width;
     height: tokens.$login-page-height;
-    background-color: rgba(
-      tokens.$login-page-bg-color,
-      tokens.$login-page-bg-opacity
+    // A theme token is a CSS variable, so Sass rgba() cannot fade it (#500).
+    background-color: color-mix(
+      in srgb,
+      #{tokens.$login-page-bg-color}
+        #{percentage(tokens.$login-page-bg-opacity)},
+      transparent
     );
     z-index: tokens.$login-page-bg-blur-z-index;
   }
