@@ -43,6 +43,7 @@ backend:
     # ...and hard cap from login. Names kept from the refresh-token era.
     REFRESH_TOKEN_EXPIRE_HOURS: "168"
     ROLE_PROVIDER_TYPE: "jwt" # Could be 'jwt', 'accred', or 'test'
+    JWT_ROLES_CLAIM: "roles" # ID-token claim with the roles for 'jwt', e.g. "groups" for Keycloak
     UNIT_PROVIDER_TYPE: "database" # Could be 'database', 'accred', or 'test'
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"

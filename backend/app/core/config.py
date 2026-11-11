@@ -277,6 +277,14 @@ class Settings(BaseSettings):
             "'accred' (EPFL Accred API), or 'test' (for testing/development)."
         ),
     )
+    # ID-token claim that carries the roles for ROLE_PROVIDER_TYPE=jwt (#500).
+    # Each value reads "<role>@global", "<role>@unit:<id>" or
+    # "<role>@affiliation:<id>". With Keycloak, name the groups that way and
+    # set this to "groups" (group membership mapper, full path off).
+    JWT_ROLES_CLAIM: str = Field(
+        default="roles",
+        description="ID-token claim with the roles, for ROLE_PROVIDER_TYPE=jwt",
+    )
     UNIT_PROVIDER_TYPE: UnitProviderType = Field(
         description=(
             "Where institutional units come from: 'database' (local DB), "

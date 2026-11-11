@@ -263,13 +263,16 @@ class JwtClaimsRoleProvider(RoleProvider):
         """Extract and parse roles from JWT claims.
 
         Args:
-            userinfo: OAuth userinfo dict containing 'roles' claim
+            userinfo: OAuth userinfo dict containing the JWT_ROLES_CLAIM claim
 
         Returns:
             List of parsed Role objects
         """
         user_id = self.get_user_id(userinfo)
-        jwt_roles = userinfo.get("roles", [])
+        jwt_roles = userinfo.get(settings.JWT_ROLES_CLAIM, [])
+        # Some providers send a single-valued claim as a string.
+        if isinstance(jwt_roles, str):
+            jwt_roles = [jwt_roles]
 
         if not jwt_roles:
             logger.warning(

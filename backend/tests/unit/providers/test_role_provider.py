@@ -130,6 +130,32 @@ class TestJwtClaimsRoleProvider:
         assert roles[0] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
     @pytest.mark.asyncio
+    async def test_roles_come_from_the_configured_claim(self, monkeypatch):
+        """#500: a Keycloak deployment reads the roles from its groups claim."""
+        monkeypatch.setattr(role_provider_module.settings, "JWT_ROLES_CLAIM", "groups")
+        userinfo = {
+            "sub": "subject",
+            "roles": [f"{RoleName.CO2_USER_STD.value}@unit:1"],
+            "groups": [f"{RoleName.CO2_SUPERADMIN.value}@global"],
+        }
+
+        roles = await JwtClaimsRoleProvider().get_roles(userinfo)
+
+        assert roles == [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
+
+    @pytest.mark.asyncio
+    async def test_a_single_valued_claim_is_one_role(self):
+        """Some providers send a claim with one value as a plain string."""
+        userinfo = {
+            "sub": "subject",
+            "roles": f"{RoleName.CO2_SUPERADMIN.value}@global",
+        }
+
+        roles = await JwtClaimsRoleProvider().get_roles(userinfo)
+
+        assert roles == [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
+
+    @pytest.mark.asyncio
     async def test_parse_roles_no_roles_in_jwt(self):
         """Test handling of missing roles in JWT."""
         userinfo = {"email": "user@epfl.ch"}

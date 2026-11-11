@@ -19,6 +19,7 @@ class TestRoleProviderIntegration:
         """Test complete workflow with JwtClaimsRoleProvider."""
         with patch("app.providers.role_provider.settings") as mock_settings:
             mock_settings.ROLE_PROVIDER_TYPE = RoleProviderType.JWT
+            mock_settings.JWT_ROLES_CLAIM = "roles"
 
             provider = get_role_provider()
             userinfo = {
