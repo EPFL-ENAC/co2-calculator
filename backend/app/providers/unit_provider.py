@@ -9,6 +9,7 @@ from app.core.logging import get_logger
 from app.models.unit import Unit
 from app.models.user import RoleName, UserProvider
 from app.providers.test_fixtures import TEST_UNITS, TEST_USERS
+from app.providers.unit_csv import read_units_csv
 
 """
 Unit provider interface and implementations.
@@ -67,10 +68,24 @@ class UnitProvider(ABC):
 
 class DatabaseUnitProvider(UnitProvider):
     type: UserProvider = UserProvider.DEFAULT
-    """Unit provider that reads from the database."""
+    """Unit provider that reads from the database.
+
+    The unit sync fills the database from the UNITS_CSV_PATH file (#500), so
+    an institution without Accred has units and workspaces.
+    """
 
     def __init__(self, db_session: Session | AsyncSession):
         self.db_session = db_session
+
+    async def fetch_all_units(self) -> tuple[list[dict], list[dict]]:
+        """Units of the CSV file. The roles come from the login token, so the
+        file names no principal user.
+        """
+        return read_units_csv(settings.UNITS_CSV_PATH), []
+
+    def map_api_unit(self, unit_raw: dict) -> Unit:
+        fields = {key: value for key, value in unit_raw.items() if key != "_line"}
+        return Unit(id=None, provider=UserProvider.DEFAULT, **fields)
 
     async def get_units(self, unit_ids: list[str] | None = None) -> list[Unit]:
         from sqlmodel.ext.asyncio.session import AsyncSession

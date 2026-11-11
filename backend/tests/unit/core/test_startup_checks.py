@@ -14,6 +14,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
+from app.core.config import UnitProviderType
 from app.main import (
     assert_elasticsearch_settings,
     assert_observability_settings,
@@ -22,6 +23,7 @@ from app.main import (
     assert_required_settings,
     assert_security_settings,
     assert_trace_sampler,
+    assert_unit_source_settings,
 )
 from otel_sampler import SqlRatioSampler
 
@@ -288,3 +290,18 @@ def test_without_tableau_the_connector_keys_are_not_required():
         CONNECTOR_ALLOWED_HOST_SUFFIXES="",
     )
     assert_security_settings(settings)  # must not raise
+
+
+def test_database_units_without_their_csv_stop_the_startup():
+    """#500: the database unit provider reads UNITS_CSV_PATH at each sync."""
+    settings = SimpleNamespace(
+        UNIT_PROVIDER_TYPE=UnitProviderType.DATABASE, UNITS_CSV_PATH=""
+    )
+    with pytest.raises(RuntimeError, match="UNITS_CSV_PATH"):
+        assert_unit_source_settings(settings)
+
+
+def test_accred_units_need_no_csv():
+    assert_unit_source_settings(
+        SimpleNamespace(UNIT_PROVIDER_TYPE=UnitProviderType.ACCRED, UNITS_CSV_PATH="")
+    )

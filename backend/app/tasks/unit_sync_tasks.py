@@ -18,7 +18,6 @@ from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionResult,
 )
-from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
 from app.providers.role_provider import get_role_provider
 from app.providers.unit_provider import get_unit_provider
@@ -88,12 +87,6 @@ async def unit_sync_handler(
     if target_year is None:
         raise ValueError(
             f"unit_sync job {job.id} missing config.target_year (and job.year)"
-        )
-
-    if job.provider == UserProvider.DEFAULT:
-        raise ValueError(
-            f"unit_sync job {job.id}: UserProvider.DEFAULT has no unit "
-            f"source; check UNIT_PROVIDER_TYPE and current_user.provider"
         )
 
     # #1236 — TWO advisory locks for unit_sync, both transaction-scoped
@@ -171,7 +164,8 @@ async def unit_sync_handler(
     )
     await job_session.commit()
 
-    unit_provider = get_unit_provider(job.provider)
+    # DEFAULT reads the UNITS_CSV_PATH file into the database (#500).
+    unit_provider = get_unit_provider(job.provider, db_session=data_session)
     role_provider = get_role_provider(job.provider)
     units_raw, principal_users_raw = await unit_provider.fetch_all_units()
 

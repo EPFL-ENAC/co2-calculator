@@ -107,6 +107,25 @@ Each observability service is off until a deployment turns it on.
   must also remove any `OTEL_EXPORTER_OTLP_ENDPOINT` from `backend.env` and
   `worker.env`, or the pod gets the variable twice.
 
+### Units without Accred
+
+With `UNIT_PROVIDER_TYPE=database`, the unit sync of each new year reads the
+CSV file at `UNITS_CSV_PATH` into the database
+(`backend/app/providers/unit_csv.py`). One row per unit: `institutional_code`,
+`institutional_id` (the id that the role claims name), `name`, `level`,
+`parent_institutional_code`, and the optional `label_en`, `label_fr` and
+`is_active`. The reader computes the root-to-unit paths from the parent
+chain. A duplicate code, a missing parent, a loop or a wrong level fails the
+sync with the row number.
+
+- The backend stops at startup when the database provider has no
+  `UNITS_CSV_PATH`. The Helm chart mounts `backend.units.csvConfigMap` (key
+  `units.csv`) into the backend and the worker.
+- The file names no principal user: with a generic OIDC provider the roles
+  come from the login token.
+- The unit sync no longer refuses the `DEFAULT` provider, so a year created
+  by a JWT user provisions its units.
+
 ### Decisions
 
 - **No implicit state.** No institution value has a code default. A required

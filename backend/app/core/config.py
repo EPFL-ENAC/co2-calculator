@@ -277,6 +277,12 @@ class Settings(BaseSettings):
             "'accred' (EPFL Accred API), or 'test' (for testing/development)."
         ),
     )
+    # Units CSV for UNIT_PROVIDER_TYPE=database (#500): the unit sync reads
+    # it into the database. Format in app/providers/unit_csv.py. Required
+    # with the database provider; the lifespan stops without it.
+    UNITS_CSV_PATH: str = Field(
+        default="", description="Units CSV file for UNIT_PROVIDER_TYPE=database"
+    )
     # ID-token claim that carries the roles for ROLE_PROVIDER_TYPE=jwt (#500).
     # Each value reads "<role>@global", "<role>@unit:<id>" or
     # "<role>@affiliation:<id>". With Keycloak, name the groups that way and

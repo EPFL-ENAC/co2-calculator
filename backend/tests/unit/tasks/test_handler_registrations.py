@@ -541,19 +541,6 @@ async def test_unit_sync_handler_raises_when_no_target_year_anywhere():
 
 
 @pytest.mark.asyncio
-async def test_unit_sync_handler_rejects_default_provider():
-    """UserProvider.DEFAULT has no unit source (no API, no fixture).
-    The handler must fail loudly rather than silently fall through.
-    """
-    from app.models.user import UserProvider
-
-    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2025}})
-    job.provider = UserProvider.DEFAULT
-    with pytest.raises(ValueError, match="UserProvider.DEFAULT has no unit source"):
-        await unit_sync_mod.unit_sync_handler(job, MagicMock(), MagicMock())
-
-
-@pytest.mark.asyncio
 async def test_unit_sync_handler_passes_job_provider_to_factories():
     """The handler must resolve unit/role providers from ``job.provider``,
     not a hardcoded constant — otherwise TEST users see ACCRED units.
@@ -605,7 +592,9 @@ async def test_unit_sync_handler_passes_job_provider_to_factories():
     ):
         await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
 
-    get_unit_provider_mock.assert_called_once_with(UserProvider.TEST)
+    get_unit_provider_mock.assert_called_once_with(
+        UserProvider.TEST, db_session=data_session
+    )
     get_role_provider_mock.assert_called_once_with(UserProvider.TEST)
 
 

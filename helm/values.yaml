@@ -236,6 +236,14 @@ backend:
       elasticsearchIdKey: ELASTICSEARCH_ID # Key in the existing secret for Elasticsearch document ID
       elasticsearchApiKeyKey: ELASTICSEARCH_API_KEY # Key in the existing secret for Elasticsearch API key
       elasticsearchCaCertFileKey: ELASTICSEARCH_CA_CERT_FILE # Key in the existing secret for Elasticsearch CA certificate
+  # Units of UNIT_PROVIDER_TYPE=database (#500): name of a ConfigMap whose
+  # key units.csv holds the unit tree (format in
+  # backend/app/providers/unit_csv.py). The backend and the worker mount it
+  # and the unit sync of each new year reads it. Required with the database
+  # provider: the backend stops at startup without it.
+  units:
+    csvConfigMap: ""
+
   # Elasticsearch audit export (OPDo, ISO 27001/27701). Off by default: the
   # audit trail stays in the database, and no Elasticsearch secret key or CA
   # file is needed. On, the backend sends each audit record to the index set

@@ -233,6 +233,11 @@ POLLER / DISPATCH_JOBS_INLINE) layered on top by the caller.
 # DB (ConnectorConnection, #1552) — entered via the API-connect
 # form, not injected from the backend secret. Only operational
 # knobs remain here.
+{{- with .Values.backend.units.csvConfigMap }}
+# Units CSV of UNIT_PROVIDER_TYPE=database (#500), mounted from a ConfigMap.
+- name: UNITS_CSV_PATH
+  value: /etc/co2-calculator/units/units.csv
+{{- end }}
 - name: TABLEAU_MODULES
   value: {{ .Values.backend.tableau.modules | default "" | quote }}
 - name: TABLEAU_VERIFY_SSL
@@ -306,6 +311,11 @@ Shared volume + volumeMount for the Elasticsearch CA cert every backend-
 image pod needs (audit sync runs from the worker too). Plan #2050 Track B.
 */}}
 {{- define "co2-calculator.backendSecretVolumeMount" -}}
+{{- if .Values.backend.units.csvConfigMap }}
+- name: units-csv
+  mountPath: /etc/co2-calculator/units
+  readOnly: true
+{{- end }}
 {{- if .Values.backend.elasticsearch.enabled }}
 - name: backend-secret
   mountPath: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
@@ -315,6 +325,14 @@ image pod needs (audit sync runs from the worker too). Plan #2050 Track B.
 {{- end -}}
 
 {{- define "co2-calculator.backendSecretVolume" -}}
+{{- with .Values.backend.units.csvConfigMap }}
+- name: units-csv
+  configMap:
+    name: {{ . }}
+    items:
+      - key: units.csv
+        path: units.csv
+{{- end }}
 {{- if .Values.backend.elasticsearch.enabled }}
 - name: backend-secret
   secret:

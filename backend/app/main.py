@@ -102,6 +102,15 @@ def assert_required_settings(settings) -> None:
         raise RuntimeError(f"Missing required settings: {missing}")
 
 
+def assert_unit_source_settings(settings) -> None:
+    """The database unit provider has no source without its CSV file (#500)."""
+    if (
+        settings.UNIT_PROVIDER_TYPE == UnitProviderType.DATABASE
+        and not settings.UNITS_CSV_PATH
+    ):
+        raise RuntimeError("UNIT_PROVIDER_TYPE=database needs UNITS_CSV_PATH")
+
+
 def assert_observability_settings(settings) -> None:
     """Stop the startup when Loki is on without its URL (#500).
 
@@ -243,6 +252,7 @@ async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_required_settings(settings)
     assert_observability_settings(settings)
+    assert_unit_source_settings(settings)
     assert_elasticsearch_settings(settings)
     # Raises on an unknown module name in TABLEAU_MODULES (#500).
     ProviderFactory.tableau_modules()
