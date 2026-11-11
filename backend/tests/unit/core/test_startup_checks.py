@@ -15,6 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
 from app.main import (
+    assert_observability_settings,
     assert_poller_isolation,
     assert_proxy_trust_settings,
     assert_required_settings,
@@ -232,3 +233,16 @@ def test_empty_frontend_url_stops_the_startup():
 
 def test_set_frontend_url_starts():
     assert_required_settings(SimpleNamespace(FRONTEND_URL="https://co2.example"))
+
+
+def test_loki_enabled_without_url_stops_the_startup():
+    """#500: an enabled Loki without its URL must not drop logs silently."""
+    with pytest.raises(RuntimeError, match="LOKI_URL"):
+        assert_observability_settings(SimpleNamespace(LOKI_ENABLED=True, LOKI_URL=None))
+
+
+@pytest.mark.parametrize(
+    ("enabled", "url"), [(False, None), (True, "http://loki:3100")]
+)
+def test_loki_off_or_configured_starts(enabled, url):
+    assert_observability_settings(SimpleNamespace(LOKI_ENABLED=enabled, LOKI_URL=url))

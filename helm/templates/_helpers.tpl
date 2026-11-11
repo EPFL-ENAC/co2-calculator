@@ -258,6 +258,37 @@ POLLER / DISPATCH_JOBS_INLINE) layered on top by the caller.
       fieldPath: status.podIP
 - name: OTEL_RESOURCE_ATTRIBUTES
   value: k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE)
+{{ include "co2-calculator.backendObservabilityEnv" . }}
+{{- end -}}
+
+{{/*
+Observability switches of the backend and the worker (#500), from
+backend.observability. An enabled service without its endpoint fails the
+render instead of exporting to a default address.
+*/}}
+{{- define "co2-calculator.backendObservabilityEnv" -}}
+{{- $otel := .Values.backend.observability.otel -}}
+{{- $loki := .Values.backend.observability.loki -}}
+- name: OTEL_SDK_DISABLED
+  value: {{ not $otel.enabled | quote }}
+{{- if $otel.enabled }}
+- name: OTEL_EXPORTER_OTLP_ENDPOINT
+  value: {{ required "backend.observability.otel.endpoint is required when otel is enabled" $otel.endpoint | quote }}
+- name: OTEL_EXPORTER_OTLP_PROTOCOL
+  value: {{ $otel.protocol | quote }}
+- name: OTEL_SERVICE_NAME
+  value: {{ $otel.serviceName | quote }}
+{{- end }}
+- name: LOKI_ENABLED
+  value: {{ $loki.enabled | quote }}
+{{- if $loki.enabled }}
+- name: LOKI_URL
+  value: {{ required "backend.observability.loki.url is required when loki is enabled" $loki.url | quote }}
+{{- with $loki.tenantId }}
+- name: LOKI_TENANT_ID
+  value: {{ . | quote }}
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{/*

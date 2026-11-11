@@ -95,6 +95,16 @@ def assert_required_settings(settings) -> None:
         raise RuntimeError(f"Missing required settings: {missing}")
 
 
+def assert_observability_settings(settings) -> None:
+    """Stop the startup when Loki is on without its URL (#500).
+
+    The Loki handler only attaches when both are set, so an enabled Loki with
+    no URL would drop every log push without a word.
+    """
+    if settings.LOKI_ENABLED and not settings.LOKI_URL:
+        raise RuntimeError("LOKI_ENABLED=true needs LOKI_URL")
+
+
 def assert_proxy_trust_settings() -> None:
     """Fail closed at boot when uvicorn is told to trust every proxy (#2530).
 
@@ -206,6 +216,7 @@ def assert_trace_sampler() -> None:
 async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_required_settings(settings)
+    assert_observability_settings(settings)
     assert_security_settings(settings)
     assert_proxy_trust_settings()
     assert_accred_settings(settings)

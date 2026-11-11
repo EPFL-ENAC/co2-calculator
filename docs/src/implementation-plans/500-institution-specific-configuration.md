@@ -67,6 +67,29 @@ variables. The image ships none of them. Each deployment mounts its folder at
 - The CO2 badge of the build does not count these files, because they are
   not part of the build.
 
+### Observability switches
+
+Each observability service is off until a deployment turns it on.
+
+| Service       | Component          | Switch                                         |
+| ------------- | ------------------ | ---------------------------------------------- |
+| GlitchTip     | Frontend           | `APP_SENTRY_DSN`, empty is off                 |
+| Matomo        | Frontend           | `APP_INSTITUTION_MATOMO_SITE_ID`, empty is off |
+| OpenTelemetry | Backend and worker | Helm `backend.observability.otel.enabled`      |
+| Loki          | Backend and worker | Helm `backend.observability.loki.enabled`      |
+
+- The Helm chart writes `OTEL_SDK_DISABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
+  `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, `LOKI_ENABLED`,
+  `LOKI_URL` and `LOKI_TENANT_ID` for both pods
+  (`co2-calculator.backendObservabilityEnv`).
+- An enabled service without its endpoint fails the Helm render.
+- The backend also stops at startup when `LOKI_ENABLED` is true without
+  `LOKI_URL` (`assert_observability_settings`).
+- OpenTelemetry was always on before. A deployment that exports traces must
+  now set `backend.observability.otel.enabled: true` and the endpoint. It
+  must also remove any `OTEL_EXPORTER_OTLP_ENDPOINT` from `backend.env` and
+  `worker.env`, or the pod gets the variable twice.
+
 ### Decisions
 
 - **No implicit state.** No institution value has a code default. A required

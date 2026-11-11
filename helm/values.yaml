@@ -98,6 +98,25 @@ backend:
     # transform actually reads it.
     #   OTEL_SEMCONV_STABILITY_OPT_IN: "http/dup"
 
+  # Observability of the backend and the worker (#500). Each service is off
+  # until enabled here; the chart refuses an enabled service without its
+  # endpoint. Both pods read the same block.
+  observability:
+    # OpenTelemetry traces, metrics and logs. Off sets OTEL_SDK_DISABLED, so
+    # the opentelemetry-instrument wrapper of the image exports nothing.
+    otel:
+      enabled: false
+      # OTLP collector, e.g. "http://otel-collector:4317". Required when enabled.
+      endpoint: ""
+      protocol: "grpc" # "grpc" or "http/protobuf"
+      serviceName: "co2-calculator-backend"
+    # Loki log push, next to the JSON logs on stdout.
+    loki:
+      enabled: false
+      # Loki base URL, e.g. "http://loki:3100". Required when enabled.
+      url: ""
+      tenantId: "" # X-Scope-OrgID, only for a multi-tenant Loki
+
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
     # Generate a secure, distinct value for EACH key using: openssl rand -hex 32
