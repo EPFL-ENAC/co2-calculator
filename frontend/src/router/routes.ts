@@ -31,6 +31,7 @@ export {
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
+  OFF_NETWORK_ROUTE_NAME,
   DEFAULT_ROUTE_NAME,
   ROUTES_WITHOUT_LANGUAGE,
 } from './routeNames';
@@ -41,6 +42,7 @@ import {
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
+  OFF_NETWORK_ROUTE_NAME,
   DEFAULT_ROUTE_NAME,
 } from './routeNames';
 
@@ -428,6 +430,12 @@ const routes: RouteRecordRaw[] = [
     path: '/unauthorized',
     name: UNAUTHORIZED_ROUTE_NAME,
     component: () => import('@/pages/ErrorUnauthorized.vue'),
+  },
+  // Mock of the page shown off the institution network (#3196).
+  {
+    path: '/off-network',
+    name: OFF_NETWORK_ROUTE_NAME,
+    component: () => import('@/pages/ErrorOffNetwork.vue'),
   },
   // Catch-all: show 404
   {
