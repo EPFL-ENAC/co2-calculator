@@ -10,7 +10,7 @@ dependencies = [
     "starlette==1.10.0",
     "uvicorn[standard]==0.54.0",
     "python-multipart==0.0.33",
-    "sqlalchemy[asyncio]==2.1.6",
+    "sqlalchemy[asyncio]==2.1.8",
     "psycopg[binary,pool]==3.3.8",
     "alembic==1.20.1",
     "authlib==1.9.5",
