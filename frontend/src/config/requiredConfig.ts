@@ -20,10 +20,18 @@ const REQUIRED_INSTITUTION_VARIABLES: [
   ['backofficeDocUrl', 'APP_INSTITUTION_BACKOFFICE_DOC_URL'],
 ];
 
+// Texts name the access management portal (%access_provider%).
+const REQUIRED_TOP_LEVEL_VARIABLES: [keyof RuntimeConfig, string][] = [
+  ['accessManagementProviderName', 'APP_INSTITUTION_ACCESS_PROVIDER_NAME'],
+];
+
 export function missingConfigVariables(config: RuntimeConfig): string[] {
   const missing = REQUIRED_INSTITUTION_VARIABLES.filter(
     ([key]) => config.institution[key] === '',
   ).map(([, variable]) => variable);
+  for (const [key, variable] of REQUIRED_TOP_LEVEL_VARIABLES) {
+    if (config[key] === '') missing.push(variable);
+  }
   if (config.matomoSiteId !== '' && config.matomoUrl === '') {
     missing.push('APP_INSTITUTION_MATOMO_URL');
   }

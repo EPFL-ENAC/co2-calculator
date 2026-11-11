@@ -28,12 +28,12 @@ export default {
     fr: 'Enregistrer',
   },
   user_management_page_description_system: {
-    en: 'User management at %institution% is handled via Accred.',
-    fr: 'La gestion des utilisateur·rices %institution_fr_a% est gérée via Accred.',
+    en: 'User management at %institution% is handled in %access_provider%.',
+    fr: 'La gestion des utilisateur·rices %institution_fr_a% se fait dans %access_provider%.',
   },
   user_management_page_button_label_system: {
-    en: 'Go to User management system (Accred)',
-    fr: 'Accéder au système de gestion des utilisateur·rices (Accred)',
+    en: 'Go to %access_provider%',
+    fr: 'Accéder à %access_provider%',
   },
   user_management_page_button_documentation_label_system: {
     en: 'Go to User management system documentation',

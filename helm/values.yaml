@@ -424,9 +424,9 @@ frontend:
     # Public label + portal URL shown in the calculator's access popover (role
     # delegation). Free text — NOT the backend ROLE_PROVIDER_TYPE/
     # UNIT_PROVIDER_TYPE provider selection.
-    # Real per-env values are set in the ops repo.
-    # Empty hides the popover CTA/label.
-    APP_INSTITUTION_ACCESS_PROVIDER_NAME: ""
+    # Real per-env values are set in the ops repo. The name is required (the
+    # texts name it); an empty URL hides the portal links.
+    APP_INSTITUTION_ACCESS_PROVIDER_NAME: "" # required, e.g. "Accred"
     APP_INSTITUTION_ACCESS_PROVIDER_URL: ""
     APP_INSTITUTION_ACCESS_PROVIDER_ABOUT_URL: ""
     APP_INSTITUTION_ROLES_DOC_URL: ""

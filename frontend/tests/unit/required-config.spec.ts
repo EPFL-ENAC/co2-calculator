@@ -17,6 +17,7 @@ const COMPLETE = {
   matomoSiteId: '',
   demoMode: false,
   productionUrl: '',
+  accessManagementProviderName: 'Access portal',
   institution: {
     ...runtimeConfig.institution,
     name: 'Test University',

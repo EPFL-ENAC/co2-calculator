@@ -158,9 +158,9 @@ async def test_auth_callback_exception(monkeypatch):
 _ACCRED_USERINFO = {"email": "user@example.com", "uniqueid": "123456"}
 
 
-def _accred_unavailable_location() -> str:
+def _provider_unavailable_location() -> str:
     # No /en/: the backend cannot know the UI language, the frontend picks it.
-    return f"{auth_module.settings.FRONTEND_URL}/login?reason=accred-unavailable"
+    return f"{auth_module.settings.FRONTEND_URL}/login?reason=provider-unavailable"
 
 
 @pytest.mark.asyncio
@@ -183,7 +183,7 @@ async def test_auth_callback_provider_unavailable_redirects_with_reason(monkeypa
     response = await auth_module.oauth_callback(MagicMock(), MagicMock())
 
     assert response.status_code == status.HTTP_302_FOUND
-    assert response.headers["location"] == _accred_unavailable_location()
+    assert response.headers["location"] == _provider_unavailable_location()
     audit.assert_awaited_once()
     assert audit.await_args.kwargs["data_snapshot"] == {
         "event": "login_failed",
@@ -221,7 +221,7 @@ async def test_auth_callback_accred_500_redirects_and_counts(monkeypatch):
         response = await auth_module.oauth_callback(MagicMock(), MagicMock())
 
     assert response.status_code == status.HTTP_302_FOUND
-    assert response.headers["location"] == _accred_unavailable_location()
+    assert response.headers["location"] == _provider_unavailable_location()
     counter.add.assert_called_once_with(
         1, {"endpoint": "persons", "status_code": "500"}
     )

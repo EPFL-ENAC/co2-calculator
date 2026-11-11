@@ -187,7 +187,8 @@ async def _log_auth_audit_event(
 
 
 # Read by the frontend login page (src/utils/loginReason.ts) to show a banner.
-ACCRED_UNAVAILABLE_REASON = "accred-unavailable"
+# The role provider is Accred at EPFL, another service elsewhere (#500).
+PROVIDER_UNAVAILABLE_REASON = "provider-unavailable"
 
 
 async def _redirect_provider_unavailable(
@@ -212,7 +213,7 @@ async def _redirect_provider_unavailable(
     )
     return RedirectResponse(
         # No language: the frontend resolves it (cookie, then browser).
-        url=f"{settings.FRONTEND_URL}/login?reason={ACCRED_UNAVAILABLE_REASON}",
+        url=f"{settings.FRONTEND_URL}/login?reason={PROVIDER_UNAVAILABLE_REASON}",
         status_code=status.HTTP_302_FOUND,
     )
 

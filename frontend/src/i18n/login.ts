@@ -19,9 +19,9 @@ export default {
     en: 'Test Role',
     fr: 'Rôle de test',
   },
-  login_accred_unavailable_message: {
-    en: '%institution% Accred is unavailable. Please try again later.',
-    fr: '%institution% Accred est indisponible. Veuillez réessayer plus tard.',
+  login_provider_unavailable_message: {
+    en: '%access_provider% is unavailable. Please try again later.',
+    fr: '%access_provider% est indisponible. Veuillez réessayer plus tard.',
   },
   session_expired_notice: {
     en: 'Your session has expired. Please log in again.',

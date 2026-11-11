@@ -47,10 +47,10 @@ test('language-less /login keeps the reason and resolves the UI language', async
     route.fulfill({ status: 401, body: '' }),
   );
 
-  await page.goto('/login?reason=accred-unavailable');
+  await page.goto('/login?reason=provider-unavailable');
 
-  await expect(page).toHaveURL(/\/fr\/login\?reason=accred-unavailable$/);
+  await expect(page).toHaveURL(/\/fr\/login\?reason=provider-unavailable$/);
   await expect(page.getByRole('alert')).toContainText(
-    'EPFL Accred est indisponible',
+    'Accred est indisponible',
   );
 });

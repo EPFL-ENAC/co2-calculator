@@ -8,6 +8,7 @@ export const TEST_RUNTIME_ENV: Record<string, string> = {
   APP_INSTITUTION_NAME_FR_DE: "de l'EPFL",
   APP_INSTITUTION_NAME_FR_A: "à l'EPFL",
   APP_INSTITUTION_ID_LABEL: 'SCIPER',
+  APP_INSTITUTION_ACCESS_PROVIDER_NAME: 'Accred',
   APP_INSTITUTION_CONTACT_EMAIL: 'co2calculator@epfl.ch',
   APP_INSTITUTION_STRATEGY_URL:
     'https://www.epfl.ch/about/sustainability/strategy/',

@@ -26,6 +26,7 @@ const institutionTokens = {
   strategy_url_fr: institution.strategyUrlFr,
   user_doc_url: institution.userDocUrl,
   backoffice_doc_url: institution.backofficeDocUrl,
+  access_provider: runtimeConfig.accessManagementProviderName,
 };
 
 const extract = (lang: Lang) => {

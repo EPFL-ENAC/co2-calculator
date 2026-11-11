@@ -1,6 +1,6 @@
 /**
  * Accred outage 2026-10-27: the backend now redirects a callback it cannot
- * finish to /login?reason=accred-unavailable instead of a raw JSON 401.
+ * finish to /login?reason=provider-unavailable instead of a raw JSON 401.
  * The login card must say so, and say nothing for an absent or unknown reason.
  */
 
@@ -8,23 +8,23 @@ import { test, expect } from '@playwright/experimental-ct-vue';
 import LoginCard from '@/components/organisms/login/LoginCard.vue';
 import { loginReasonMessageKey } from '@/utils/loginReason';
 
-test('accred-unavailable shows the banner', async ({ mount }) => {
+test('provider-unavailable shows the banner', async ({ mount }) => {
   const component = await mount(LoginCard, {
-    props: { reason: 'accred-unavailable' },
+    props: { reason: 'provider-unavailable' },
   });
 
   await expect(component.getByTestId('login-reason')).toContainText(
-    'EPFL Accred is unavailable',
+    'Accred is unavailable',
   );
 });
 
 test('the banner is announced to screen readers', async ({ mount }) => {
   const component = await mount(LoginCard, {
-    props: { reason: 'accred-unavailable' },
+    props: { reason: 'provider-unavailable' },
   });
 
   await expect(component.getByRole('alert')).toContainText(
-    'EPFL Accred is unavailable',
+    'Accred is unavailable',
   );
 });
 
@@ -37,8 +37,8 @@ test('no reason or an unknown one shows no banner', async ({ mount }) => {
 });
 
 test('reason maps to its message key', () => {
-  expect(loginReasonMessageKey('accred-unavailable')).toBe(
-    'login_accred_unavailable_message',
+  expect(loginReasonMessageKey('provider-unavailable')).toBe(
+    'login_provider_unavailable_message',
   );
   expect(loginReasonMessageKey(null)).toBeNull();
   expect(loginReasonMessageKey('bogus')).toBeNull();

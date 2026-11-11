@@ -4,6 +4,11 @@ import { BACKOFFICE_NAV } from '@/constant/navigation';
 import { ROLES } from '@/constant/roles';
 import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
 import { useI18n } from 'vue-i18n';
+import { runtimeConfig } from '@/config/runtime';
+
+// The access management portal of the institution (#500); empty hides the
+// button.
+const accessProviderUrl = runtimeConfig.accessManagementProviderUrl;
 
 const { t } = useI18n();
 
@@ -60,13 +65,14 @@ const roles = computed(() => [
           </q-card-section>
         </q-card>
         <q-btn
+          v-if="accessProviderUrl"
           no-caps
           :label="$t('user_management_page_button_label')"
           color="accent"
           size="md"
           class="q-mr-sm text-weight-medium"
           external
-          :href="'https://accred.epfl.ch?opentab=authorizations'"
+          :href="accessProviderUrl"
           rel="noopener noreferrer"
         />
         <q-btn
