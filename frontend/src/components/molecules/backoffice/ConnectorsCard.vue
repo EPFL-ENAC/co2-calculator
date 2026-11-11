@@ -1,5 +1,6 @@
 <template>
-  <q-card flat bordered class="q-pa-md q-mb-xl">
+  <!-- No connector when Tableau is off for this instance (#500). -->
+  <q-card v-if="connectors.length > 0" flat bordered class="q-pa-md q-mb-xl">
     <div class="text-subtitle1">
       {{ $t('data_management_connectors_title') }}
     </div>

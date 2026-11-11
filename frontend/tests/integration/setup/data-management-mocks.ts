@@ -56,6 +56,12 @@ export interface YearConfigBuilderOptions {
    * hardcoded copy) override this.
    */
   minConfigurableYear?: number;
+  /**
+   * #500 — module types with the Tableau import turned on (backend
+   * TABLEAU_MODULES). Default none, the state of an instance without
+   * Tableau.
+   */
+  tableauModuleTypeIds?: number[];
 }
 
 const SUCCESS_FACTOR_JOB = {
@@ -147,6 +153,7 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
     recalculation_status: options.recalculationStatus ?? [],
     updated_at: '2025-01-01T00:00:00Z',
     min_configurable_year: options.minConfigurableYear ?? 2025,
+    tableau_module_type_ids: options.tableauModuleTypeIds ?? [],
   };
 }
 

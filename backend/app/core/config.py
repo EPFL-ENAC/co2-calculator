@@ -231,6 +231,13 @@ class Settings(BaseSettings):
     # Connection credentials (server_url, site, username, connected-app) are
     # stored per-connector in the DB (ConnectorConnection, #1552); only the
     # operational knobs below stay in settings.
+    # Tableau import (#500): comma-separated module types that pull data from
+    # Tableau, e.g. "professional_travel,headcount,research_facilities".
+    # Empty turns Tableau off for the whole app: no connector routes, no API
+    # import, and no connector keys needed at boot. The CSV upload stays.
+    TABLEAU_MODULES: str = Field(
+        default="", description="Module types that import from Tableau"
+    )
     TABLEAU_VERIFY_SSL: str = "true"
     TABLEAU_REQUEST_TIMEOUT_SECONDS: str = "300"
     TABLEAU_REST_MIN_API_VERSION: str = "2.4"

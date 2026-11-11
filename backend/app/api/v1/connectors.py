@@ -32,6 +32,16 @@ from app.services.data_ingestion.api_providers.professional_travel_api_provider 
     ProfessionalTravelApiProvider,
 )
 from app.services.data_ingestion.connectors import list_connectors
+from app.services.data_ingestion.provider_factory import ProviderFactory
+
+
+def require_tableau_enabled() -> None:
+    """404 a connector route when TABLEAU_MODULES is empty (#500)."""
+    if not ProviderFactory.tableau_modules():
+        raise HTTPException(status_code=404, detail="Tableau is not enabled")
+
+
+_tableau_only = [Depends(require_tableau_enabled)]
 
 router = APIRouter()
 
@@ -54,6 +64,10 @@ _last_test_at: dict[int | None, float] = {}
 async def get_connectors(
     current_user: User = Depends(_require_edit),
 ) -> list[ConnectorSpecRead]:
+    # Without Tableau (#500) there is no connector to configure: the empty
+    # list hides the connectors card of the data-management page.
+    if not ProviderFactory.tableau_modules():
+        return []
     return [
         ConnectorSpecRead(
             connector=s.connector, label=s.label, form_fields=list(s.form_fields)
@@ -62,7 +76,11 @@ async def get_connectors(
     ]
 
 
-@router.get("/{connector}/connection", response_model=ConnectorConnectionRead | None)
+@router.get(
+    "/{connector}/connection",
+    response_model=ConnectorConnectionRead | None,
+    dependencies=_tableau_only,
+)
 async def get_connection(
     connector: ConnectorType,
     db: AsyncSession = Depends(get_db),
@@ -73,7 +91,11 @@ async def get_connection(
     return service.to_read(conn) if conn else None
 
 
-@router.put("/{connector}/connection", response_model=ConnectorConnectionRead)
+@router.put(
+    "/{connector}/connection",
+    response_model=ConnectorConnectionRead,
+    dependencies=_tableau_only,
+)
 async def upsert_connection(
     connector: ConnectorType,
     payload: ConnectorConnectionCreate,
@@ -107,7 +129,11 @@ async def upsert_connection(
     return read
 
 
-@router.post("/{connector}/datasources", response_model=ConnectorDatasourceRead)
+@router.post(
+    "/{connector}/datasources",
+    response_model=ConnectorDatasourceRead,
+    dependencies=_tableau_only,
+)
 async def upsert_datasource(
     connector: ConnectorType,
     payload: ConnectorDatasourceCreate,
@@ -141,7 +167,7 @@ async def upsert_datasource(
     return read
 
 
-@router.post("/{connector}/test")
+@router.post("/{connector}/test", dependencies=_tableau_only)
 async def test_connection(
     connector: ConnectorType,
     request: Request,

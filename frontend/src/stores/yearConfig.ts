@@ -155,6 +155,12 @@ export interface YearConfigurationResponse {
    */
   min_reduction_year: number;
   max_reduction_year: number;
+  /**
+   * #500 — module types whose data the back office can import from Tableau
+   * (backend TABLEAU_MODULES). The data-management page offers the API
+   * import only for these.
+   */
+  tableau_module_type_ids: number[];
 }
 
 /** Lightweight row from `GET /year-configuration/` (workspace year selector). */

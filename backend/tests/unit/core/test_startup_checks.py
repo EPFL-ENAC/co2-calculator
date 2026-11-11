@@ -36,6 +36,7 @@ def _settings(**overrides) -> SimpleNamespace:
         "CONNECTOR_ALLOWED_HOST_SUFFIXES": "epfl.ch",
         "FILES_ENCRYPTION_KEY": "files-key",
         "FILES_ENCRYPTION_SALT": "files-salt",
+        "TABLEAU_MODULES": "headcount",
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -276,3 +277,14 @@ def test_elasticsearch_on_without_hosts_stops_the_startup():
 
 def test_elasticsearch_on_and_complete_starts():
     assert_elasticsearch_settings(_es_settings())
+
+
+def test_without_tableau_the_connector_keys_are_not_required():
+    """#500: an institution without Tableau needs no connector keys."""
+    settings = _settings(
+        TABLEAU_MODULES="",
+        CREDENTIALS_ENCRYPTION_KEY="",
+        CREDENTIALS_ENCRYPTION_SALT="",
+        CONNECTOR_ALLOWED_HOST_SUFFIXES="",
+    )
+    assert_security_settings(settings)  # must not raise

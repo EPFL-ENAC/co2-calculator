@@ -16,6 +16,7 @@ from pydantic import (
 )
 
 from app.core.config import get_settings
+from app.core.tableau import configured_tableau_modules
 from app.models.data_ingestion import IngestionResult
 from app.models.module_type import ModuleTypeEnum
 from app.utils.csv_dialect import csv_dict_reader
@@ -558,6 +559,15 @@ class YearConfigurationResponse(BaseModel):
     # its lower bound from the backend instead of hardcoding its own copy.
     min_configurable_year: int = Field(
         description="Earliest year backoffice can create a configuration for."
+    )
+    # #500 — the module types whose data the back office can import from
+    # Tableau (TABLEAU_MODULES). The data-management page offers the API
+    # import only for these, instead of a hardcoded frontend list.
+    tableau_module_type_ids: list[int] = Field(
+        default_factory=lambda: sorted(
+            int(module) for module in configured_tableau_modules()
+        ),
+        description="Module types with the Tableau import turned on.",
     )
     min_reduction_year: int = Field(
         default=MIN_REDUCTION_YEAR,

@@ -245,6 +245,12 @@ backend:
       filename: http_ca_test.crt
       path: /tmp/
   tableau:
+    # Modules that import their data from Tableau, comma-separated, e.g.
+    # "professional_travel,headcount,research_facilities". Empty turns Tableau
+    # off: no connector routes, no API import, and the connector keys
+    # (CREDENTIALS_ENCRYPTION_*, connector.allowedHostSuffixes) are not
+    # required at boot. The CSV upload stays.
+    modules: ""
     verifySsl: "true"
     requestTimeoutSeconds: "300"
     restMinApiVersion: "2.4"

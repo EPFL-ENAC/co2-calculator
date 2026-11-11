@@ -370,6 +370,30 @@ test.describe('back-office data-management — happy paths', () => {
     expect(dispatch?.body).toContain('"file_path":"/tmp/data.csv"');
   });
 
+  test('4b — the API import shows only for a module with Tableau on (#500)', async ({
+    page,
+  }) => {
+    let tableauModuleTypeIds: number[] = [];
+    await mockBackend(page, {
+      onGetYearConfig: (route, year) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildYearConfig({ year, tableauModuleTypeIds })),
+        }),
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await openHeadcountDataDialog(page);
+    await expect(page.getByTestId('data-entry-file-input')).toBeVisible();
+    await expect(page.getByText('Connect API')).toHaveCount(0);
+
+    tableauModuleTypeIds = [1];
+    await page.goto(DATA_MANAGEMENT_URL);
+    await openHeadcountDataDialog(page);
+    await expect(page.getByText('Connect API')).toBeVisible();
+  });
+
   test('5 — factors upload: same shape but target_type=FACTORS', async ({
     page,
   }) => {

@@ -32,6 +32,7 @@ from app.core.logging import get_logger, setup_logging
 from app.core.request_origin import RequestOriginMiddleware
 from app.core.session_renewal import SessionRenewalMiddleware
 from app.db import engine
+from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._background import cancel_background_tasks
 from app.tasks._db_health import (
     DBHealthState,
@@ -55,25 +56,31 @@ _PLACEHOLDER_KEY_PREFIX = "change-me"
 _MIN_HMAC_KEY_LENGTH = 32
 
 
+# Only the Tableau connectors use these: their secrets are encrypted at rest
+# and their URLs pass the SSRF allowlist. Without Tableau (#500) they are not
+# needed.
+_CONNECTOR_SECURITY_SETTINGS = (
+    "CREDENTIALS_ENCRYPTION_KEY",
+    "CREDENTIALS_ENCRYPTION_SALT",
+    "CONNECTOR_ALLOWED_HOST_SUFFIXES",
+)
+
+
 def assert_security_settings(settings) -> None:
     """Fail closed at boot outside local/dev when security settings are missing."""
     if settings.LOCAL_ENVIRONMENT:
         return
-    missing = [
-        name
-        for name in (
-            "JWT_HMAC_KEY",
-            "SESSION_HMAC_KEY",
-            "CREDENTIALS_ENCRYPTION_KEY",
-            "CREDENTIALS_ENCRYPTION_SALT",
-            "CONNECTOR_ALLOWED_HOST_SUFFIXES",
-            # Empty values would leave make_files_store() unencrypted, writing
-            # plaintext uploads to object storage with no error (#454).
-            "FILES_ENCRYPTION_KEY",
-            "FILES_ENCRYPTION_SALT",
-        )
-        if not getattr(settings, name)
+    required = [
+        "JWT_HMAC_KEY",
+        "SESSION_HMAC_KEY",
+        # Empty values would leave make_files_store() unencrypted, writing
+        # plaintext uploads to object storage with no error (#454).
+        "FILES_ENCRYPTION_KEY",
+        "FILES_ENCRYPTION_SALT",
     ]
+    if settings.TABLEAU_MODULES:
+        required.extend(_CONNECTOR_SECURITY_SETTINGS)
+    missing = [name for name in required if not getattr(settings, name)]
     if missing:
         raise RuntimeError(f"Missing required security settings: {missing}")
     weak = [
@@ -237,6 +244,8 @@ async def lifespan(app: FastAPI):
     assert_required_settings(settings)
     assert_observability_settings(settings)
     assert_elasticsearch_settings(settings)
+    # Raises on an unknown module name in TABLEAU_MODULES (#500).
+    ProviderFactory.tableau_modules()
     assert_security_settings(settings)
     assert_proxy_trust_settings()
     assert_accred_settings(settings)

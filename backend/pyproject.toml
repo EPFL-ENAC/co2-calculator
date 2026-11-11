@@ -99,6 +99,9 @@ env = [
     "CREDENTIALS_ENCRYPTION_KEY=test-key-material-please-change",
     "CREDENTIALS_ENCRYPTION_SALT=test-salt-please-change",
     "CONNECTOR_ALLOWED_HOST_SUFFIXES=epfl.ch",
+    # The suites exercise every Tableau provider; tests of the off switch
+    # (#500) monkeypatch it back to "".
+    "TABLEAU_MODULES=professional_travel,headcount,research_facilities",
     "JWT_HMAC_KEY=test-jwt-hmac-key-long-enough-for-the-boot-check",
     "SESSION_HMAC_KEY=test-session-hmac-key-please-change",
 

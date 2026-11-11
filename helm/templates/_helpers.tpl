@@ -233,6 +233,8 @@ POLLER / DISPATCH_JOBS_INLINE) layered on top by the caller.
 # DB (ConnectorConnection, #1552) — entered via the API-connect
 # form, not injected from the backend secret. Only operational
 # knobs remain here.
+- name: TABLEAU_MODULES
+  value: {{ .Values.backend.tableau.modules | default "" | quote }}
 - name: TABLEAU_VERIFY_SSL
   value: {{ .Values.backend.tableau.verifySsl | default "true" | quote }}
 - name: TABLEAU_REQUEST_TIMEOUT_SECONDS

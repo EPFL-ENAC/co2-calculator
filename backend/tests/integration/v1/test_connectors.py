@@ -19,6 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.api.deps as deps_module
 from app.core import crypto, url_safety
+from app.core.config import get_settings
 from app.main import app
 from app.models.audit import AuditDocument
 from app.models.user import GlobalScope, Role, RoleName, calculate_user_permissions
@@ -111,6 +112,17 @@ def test_list_connectors_returns_registry(client, db_factory):
     r = client.get(CONNECTORS_URL)
     assert r.status_code == 200, r.text
     assert r.json()[0]["connector"] == "EPFL_TABLEAU"
+
+
+def test_connectors_are_off_without_tableau(client, db_factory, monkeypatch):
+    """#500: TABLEAU_MODULES empty lists no connector and refuses the rest."""
+    monkeypatch.setattr(get_settings(), "TABLEAU_MODULES", "")
+    _wire(_user(), db_factory)
+
+    listing = client.get(CONNECTORS_URL)
+    assert listing.status_code == 200
+    assert listing.json() == []
+    assert client.put(CONNECTION_URL, json=VALID_BODY).status_code == 404
 
 
 def test_no_permission_denied(client, db_factory):

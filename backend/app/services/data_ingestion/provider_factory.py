@@ -1,5 +1,6 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tableau import configured_tableau_modules
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
@@ -146,6 +147,32 @@ class ProviderFactory:
     }
 
     @staticmethod
+    def tableau_capable_modules() -> frozenset[ModuleTypeEnum]:
+        """Modules that have a Tableau API provider."""
+        return frozenset(
+            module
+            for (module, method, _, _) in ProviderFactory.PROVIDERS
+            if method == IngestionMethod.api and module is not None
+        )
+
+    @staticmethod
+    def tableau_modules() -> frozenset[ModuleTypeEnum]:
+        """Modules that TABLEAU_MODULES turns on (#500).
+
+        A module without a Tableau provider raises: the lifespan calls this
+        at boot, so a wrong list stops the startup.
+        """
+        modules = configured_tableau_modules()
+        capable = ProviderFactory.tableau_capable_modules()
+        unsupported = sorted(module.name for module in modules - capable)
+        if unsupported:
+            raise ValueError(
+                f"TABLEAU_MODULES: {unsupported} have no Tableau import; "
+                f"use {sorted(module.name for module in capable)}"
+            )
+        return modules
+
+    @staticmethod
     def get_provider_class(
         provider_class_name: str,
     ) -> type[DataIngestionProvider] | None:
@@ -164,8 +191,15 @@ class ProviderFactory:
 
         For computed providers, a 5-tuple lookup using data_entry_type is
         attempted first; falls back to the 4-tuple PROVIDERS dict for CSV/API
-        providers that don't carry a data_entry_type in their key.
+        providers that don't carry a data_entry_type in their key. An API
+        provider of a module that TABLEAU_MODULES does not list is not
+        offered (#500).
         """
+        if (
+            ingestion_method == IngestionMethod.api
+            and module_type_id not in ProviderFactory.tableau_modules()
+        ):
+            return None
         if data_entry_type_id is not None:
             try:
                 det = DataEntryTypeEnum(data_entry_type_id)

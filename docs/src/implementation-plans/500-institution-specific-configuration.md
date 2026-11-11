@@ -78,6 +78,7 @@ Each observability service is off until a deployment turns it on.
 | OpenTelemetry | Backend and worker | Helm `backend.observability.otel.enabled`      |
 | Loki          | Backend and worker | Helm `backend.observability.loki.enabled`      |
 | Elasticsearch | Backend and worker | Helm `backend.elasticsearch.enabled`           |
+| Tableau       | Backend and worker | Helm `backend.tableau.modules`                 |
 
 - The Helm chart writes `OTEL_SDK_DISABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
   `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, `LOKI_ENABLED`,
@@ -91,6 +92,16 @@ Each observability service is off until a deployment turns it on.
   stay pending in the database. On, the backend stops at startup without
   the hosts, index, ID, API key and CA file (`assert_elasticsearch_settings`).
   The EPFL deployments must set `backend.elasticsearch.enabled: true`.
+- The Tableau import is on per module. `TABLEAU_MODULES` lists the module
+  types, for example `professional_travel,headcount,research_facilities`.
+  Empty turns Tableau off: the connector list is empty, the other connector
+  routes answer 404, the dispatch refuses an API import, and the boot no
+  longer requires `CREDENTIALS_ENCRYPTION_*` and
+  `CONNECTOR_ALLOWED_HOST_SUFFIXES`. The CSV upload stays. The year
+  configuration response carries `tableau_module_type_ids`, and the
+  data-management page offers the API import only for those modules. An
+  unknown module name stops the startup. The EPFL deployments must set
+  `backend.tableau.modules` to the three modules.
 - OpenTelemetry was always on before. A deployment that exports traces must
   now set `backend.observability.otel.enabled: true` and the endpoint. It
   must also remove any `OTEL_EXPORTER_OTLP_ENDPOINT` from `backend.env` and

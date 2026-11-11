@@ -76,7 +76,12 @@ export function useSubmoduleConfig() {
       dataEntryTypeId: sub.dataEntryTypeId,
       hasData: !sub.noData,
       hasFactors: !sub.noFactors,
-      hasApi: sub.hasApi ?? false,
+      // The backend lists the modules with Tableau turned on (#500).
+      hasApi:
+        (sub.hasApi ?? false) &&
+        (yearConfigStore.config?.tableau_module_type_ids ?? []).includes(
+          sub.moduleTypeId,
+        ),
       other: sub.other,
       hasOtherUpload: !!sub.other,
       isDisabled: sub.isDisabled ?? false,
