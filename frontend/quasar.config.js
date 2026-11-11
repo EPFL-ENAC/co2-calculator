@@ -12,6 +12,7 @@ import { defineConfig } from '#q-app';
 import path from 'path';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
+import { institutionAssetsPlugin } from './scripts/institution-assets-plugin.js';
 
 // Load .env.local into process.env for `quasar dev` / local `quasar build`.
 // Quasar doesn't auto-load .env files into the Node-side config (Vite only
@@ -92,10 +93,6 @@ export default defineConfig(function () {
     extras: [],
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
-    // Exposed to index.html as <%= appVersion %> so unhashed public/ files
-    // (favicon.ico) get a cache-busting query without anyone remembering.
-    htmlVariables: { appVersion: APP_VERSION },
-
     build: {
       target: {
         browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],
@@ -181,9 +178,6 @@ export default defineConfig(function () {
           process.env.APP_INSTITUTION_NAME_FR_DE || '',
         APP_INSTITUTION_NAME_FR_A: process.env.APP_INSTITUTION_NAME_FR_A || '',
         APP_INSTITUTION_ID_LABEL: process.env.APP_INSTITUTION_ID_LABEL || '',
-        APP_INSTITUTION_LOGO_URL: process.env.APP_INSTITUTION_LOGO_URL || '',
-        APP_INSTITUTION_FAVICON_URL:
-          process.env.APP_INSTITUTION_FAVICON_URL || '',
         APP_INSTITUTION_ACCENT_COLOR:
           process.env.APP_INSTITUTION_ACCENT_COLOR || '',
         APP_INSTITUTION_CONTACT_EMAIL:
@@ -212,6 +206,10 @@ export default defineConfig(function () {
       // viteVuePluginOptions: {},
 
       vitePlugins: [
+        institutionAssetsPlugin(
+          process.env.INSTITUTION_ASSETS_DIR &&
+            path.resolve(__dirname, process.env.INSTITUTION_ASSETS_DIR),
+        ),
         [
           '@intlify/unplugin-vue-i18n/vite',
           {

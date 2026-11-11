@@ -3,10 +3,11 @@ import { test, expect } from './setup/test';
 const FONT_SERVER = 'https://enac-it-fonts.epfl.ch/';
 
 /**
- * Every webfont the app asks for comes from the ENAC font server, not from
- * the build output.
+ * Every webfont the app asks for comes from the institution fonts.css (#500),
+ * never from the build output. The test fixture serves the EPFL folder, whose
+ * fonts.css points at the ENAC font server.
  */
-test('webfonts load from the EPFL font server, never from the bundle', async ({
+test('webfonts load from the institution fonts.css, never from the bundle', async ({
   page,
 }) => {
   // Keep CI hermetic: off the EPFL network the server answers 403 anyway.

@@ -3,11 +3,13 @@ import { injectEnvScript } from '../runtimeEnv';
 
 /**
  * #500: another institution rebrands the same bundle with the
- * APP_INSTITUTION_* variables of /injectEnv.js. This serves a custom
- * injectEnv.js and checks the name, the logo and the accent color in the
- * rendered login page.
+ * APP_INSTITUTION_* variables of /injectEnv.js and its own assets folder at
+ * /institution/. This serves both and checks the name, the logo, the font and
+ * the accent color in the rendered login page.
  */
-const LOGO_URL = 'https://branding.example.org/logo.svg';
+const TEST_LOGO =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>';
+const TEST_FONTS = ":root { --institution-font-family: 'Test Sans', serif; }";
 
 async function serveInstitution(
   page: import('playwright/test').Page,
@@ -24,11 +26,11 @@ async function serveInstitution(
   await page.route('**/api/v1/session', (route) =>
     route.fulfill({ status: 401, body: '' }),
   );
-  await page.route(LOGO_URL, (route) =>
-    route.fulfill({
-      contentType: 'image/svg+xml',
-      body: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>',
-    }),
+  await page.route('**/institution/logo.svg', (route) =>
+    route.fulfill({ contentType: 'image/svg+xml', body: TEST_LOGO }),
+  );
+  await page.route('**/institution/fonts.css', (route) =>
+    route.fulfill({ contentType: 'text/css', body: TEST_FONTS }),
   );
 }
 
@@ -44,22 +46,26 @@ function resolvedAccent(page: import('playwright/test').Page): Promise<string> {
   });
 }
 
-test('the configured institution replaces the EPFL name, logo and color', async ({
+test('the configured institution replaces the EPFL name, logo, font and color', async ({
   page,
 }) => {
   await serveInstitution(page, {
     APP_INSTITUTION_NAME: 'Test University',
-    APP_INSTITUTION_LOGO_URL: LOGO_URL,
     APP_INSTITUTION_ACCENT_COLOR: '#003366',
   });
 
   await page.goto('/');
 
   await expect(page).toHaveTitle('Test University CO2 Calculator');
-  await expect(page.locator('.login__logo img').first()).toHaveAttribute(
-    'src',
-    LOGO_URL,
+  const logo = page.locator('.login__logo img').first();
+  await expect(logo).toHaveAttribute('src', '/institution/logo.svg');
+  await expect
+    .poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(10);
+  const fontFamily = await page.evaluate(
+    () => getComputedStyle(document.body).fontFamily,
   );
+  expect(fontFamily).toBe('"Test Sans", serif');
   const accent = await resolvedAccent(page);
   expect(accent).toBe('rgb(0, 51, 102)');
   await expect(page.getByText('EPFL')).toHaveCount(0);

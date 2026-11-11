@@ -140,6 +140,10 @@ services:
       - /tmp
       - /var/cache/nginx
       - /var/run
+    # Institution assets (#500): logo, icons, login illustration, fonts. The
+    # image ships none, and the container does not start without them.
+    volumes:
+      - ./frontend/institution/epfl:/usr/share/nginx/html/institution:ro
     # The frontend has no institution defaults (#500): it does not start
     # without the APP_* block. frontend/.env.local holds it, the same vars the
     # k8s pod receives via helm/values.yaml frontend.env. `make install`

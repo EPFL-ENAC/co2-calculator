@@ -28,7 +28,7 @@ const reason = computed(() =>
     position: absolute;
     width: tokens.$login-page-width;
     height: tokens.$login-page-height;
-    background-image: url('../../assets/login-img.svg');
+    background-image: url('/institution/login-illustration.svg');
     background-size: auto;
     background-position: center;
     background-repeat: repeat;

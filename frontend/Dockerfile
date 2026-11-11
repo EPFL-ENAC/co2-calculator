@@ -64,6 +64,10 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # it writes and why.
 COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-inject-env.sh
 
+# Stops the container when the institution assets folder is not mounted (#500).
+# See docker/check-institution-assets.sh.
+COPY --chmod=755 docker/check-institution-assets.sh /docker-entrypoint.d/35-check-institution-assets.sh
+
 # Copy built static files. (Source maps are not generated — see
 # `sourcemap: false` in quasar.config.js for the reason.)
 # --chown=nginx:nginx so the entrypoint script (run as the nginx user) can

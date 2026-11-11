@@ -84,6 +84,11 @@ spec:
               mountPath: /var/cache/nginx
             - name: run
               mountPath: /var/run
+            {{- with .Values.frontend.institutionAssets.volume }}
+            - name: institution-assets
+              mountPath: /usr/share/nginx/html/institution
+              readOnly: true
+            {{- end }}
       volumes:
         - name: cache
           emptyDir: {}
@@ -91,6 +96,10 @@ spec:
           emptyDir: {}
         - name: tmp
           emptyDir: {}
+        {{- with .Values.frontend.institutionAssets.volume }}
+        - name: institution-assets
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- with .Values.frontend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

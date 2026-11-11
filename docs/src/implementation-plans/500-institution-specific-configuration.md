@@ -24,8 +24,6 @@ startup from `/injectEnv.js`, the same chain as `APP_SENTRY_DSN`. In
 | `APP_INSTITUTION_NAME_FR_DE`                | Required                         | `%institution_fr_de%` in French texts                |
 | `APP_INSTITUTION_NAME_FR_A`                 | Required                         | `%institution_fr_a%` in French texts                 |
 | `APP_INSTITUTION_ID_LABEL`                  | Required                         | Headcount labels, `%institution_id_label%`           |
-| `APP_INSTITUTION_LOGO_URL`                  | The bundled EPFL logo            | Header, login card, printed report                   |
-| `APP_INSTITUTION_FAVICON_URL`               | The bundled EPFL favicon         | Browser tab icon                                     |
 | `APP_INSTITUTION_ACCENT_COLOR`              | The EPFL red of the SCSS tokens  | Buttons, tabs, links, chart highlights               |
 | `APP_INSTITUTION_CONTACT_EMAIL`             | Required                         | `%contact_email%` in help texts                      |
 | `APP_INSTITUTION_STRATEGY_URL`              | Required                         | Home page link, English                              |
@@ -43,6 +41,31 @@ startup from `/injectEnv.js`, the same chain as `APP_SENTRY_DSN`. In
 
 The variables are documented in `frontend/.env.example` and listed in
 `helm/values.yaml` under `frontend.env`.
+
+### Institution assets folder
+
+The logo, the icons, the login illustration and the fonts are files, not
+variables. The image ships none of them. Each deployment mounts its folder at
+`/usr/share/nginx/html/institution`, and the app loads the files from
+`/institution/`. The EPFL folder is `frontend/institution/epfl`.
+
+| File                     | Used for                                             |
+| ------------------------ | ---------------------------------------------------- |
+| `logo.svg`               | Header, login card, printed report                   |
+| `favicon.ico`            | Browser tab icon, also served at `/favicon.ico`      |
+| `apple-touch-icon.png`   | Home screen icon                                     |
+| `login-illustration.svg` | Background of the login page                         |
+| `fonts.css`              | Webfont declarations and `--institution-font-family` |
+
+- `docker/check-institution-assets.sh` runs at container startup. A missing
+  file stops the container and the log names it.
+- Docker Compose mounts `frontend/institution/epfl`. The Helm chart mounts
+  `frontend.institutionAssets.volume`, for example a ConfigMap.
+- `quasar dev` serves the folder named by `INSTITUTION_ASSETS_DIR`
+  (`scripts/institution-assets-plugin.js`). The browser tests serve the EPFL
+  folder (`tests/integration/setup/test.ts`).
+- The CO2 badge of the build does not count these files, because they are
+  not part of the build.
 
 ### Decisions
 

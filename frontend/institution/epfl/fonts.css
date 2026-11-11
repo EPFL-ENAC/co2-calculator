@@ -1,5 +1,16 @@
-// The brand font comes from the ENAC font server, which serves *.epfl.ch pages
-// (and localhost on the EPFL network/VPN). Elsewhere the stack falls back.
+/*
+ * EPFL fonts (#500). The app loads /institution/fonts.css before its own
+ * styles. The file declares the webfonts and sets --institution-font-family,
+ * which every text of the app uses.
+ *
+ * The EPFL brand font comes from the ENAC font server, which serves *.epfl.ch
+ * pages (and localhost on the EPFL network or VPN). Elsewhere the stack falls
+ * back to the system font.
+ */
+:root {
+  --institution-font-family: 'SuisseIntl', -apple-system, sans-serif;
+}
+
 @font-face {
   font-family: SuisseIntl;
   src: url('https://enac-it-fonts.epfl.ch/SuisseIntl-Regular-WebS.woff2')

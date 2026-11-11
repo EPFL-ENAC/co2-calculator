@@ -370,8 +370,6 @@ frontend:
     APP_INSTITUTION_NAME_FR_DE: "" # required, e.g. "de l'EPFL"
     APP_INSTITUTION_NAME_FR_A: "" # required, e.g. "à l'EPFL"
     APP_INSTITUTION_ID_LABEL: "" # required, e.g. "SCIPER"
-    APP_INSTITUTION_LOGO_URL: ""
-    APP_INSTITUTION_FAVICON_URL: ""
     APP_INSTITUTION_ACCENT_COLOR: "" # "#rrggbb"
     APP_INSTITUTION_CONTACT_EMAIL: "" # required
     APP_INSTITUTION_STRATEGY_URL: "" # required
@@ -402,6 +400,18 @@ frontend:
     # APP_INSTITUTION_PRODUCTION_URL. Enabled per-cluster in the ops repo only for the demo.
     APP_DEMO_MODE: "false"
     APP_INSTITUTION_PRODUCTION_URL: "" # required when APP_DEMO_MODE is "true"
+
+  # Institution assets (#500): logo.svg, favicon.ico, apple-touch-icon.png,
+  # login-illustration.svg and fonts.css. The image ships none of them, and
+  # the container stops at startup without them. `volume` is a Kubernetes
+  # volume source, mounted read-only at /usr/share/nginx/html/institution.
+  # Example with a ConfigMap made from frontend/institution/epfl (binary files
+  # go in its binaryData):
+  #   volume:
+  #     configMap:
+  #       name: co2-calculator-institution-assets
+  institutionAssets:
+    volume: {}
 
   podAnnotations: {}
 

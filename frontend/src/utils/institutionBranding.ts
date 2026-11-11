@@ -1,13 +1,12 @@
 /**
  * Applies the institution branding that the stylesheet and index.html cannot
- * know at build time (#500): accent colors, page title and favicon. The same
+ * know at build time (#500): accent colors and page title. The same
  * bundle ships to every institution, so these come from the runtime
  * configuration and `src/boot/institution.ts` applies them at startup.
  */
 
 export interface InstitutionBranding {
   name: string;
-  faviconUrl: string;
   accentColor: string;
 }
 
@@ -47,15 +46,4 @@ export function applyInstitutionBranding(branding: InstitutionBranding): void {
   }
 
   document.title = `${branding.name} CO2 Calculator`;
-
-  if (!branding.faviconUrl) return;
-  document
-    .querySelectorAll<HTMLLinkElement>(
-      'link[rel~="icon"], link[rel="apple-touch-icon"]',
-    )
-    .forEach((link) => {
-      link.removeAttribute('sizes');
-      link.removeAttribute('type');
-      link.href = branding.faviconUrl;
-    });
 }

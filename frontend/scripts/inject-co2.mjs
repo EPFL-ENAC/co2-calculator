@@ -1,7 +1,9 @@
 // Computes the first-load weight of the built SPA (index.html, the
 // entry/preload assets it references, and the woff2 fonts those load) and
 // bakes it into index.html as a <meta name="co2-first-load"> tag the app reads
-// at runtime.
+// at runtime. The institution assets (/institution/: logo, icons, fonts) are
+// mounted per deployment, so they are not part of the build and not counted
+// (#500).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,7 +28,7 @@ const textAssets = new Set();
 const fontAssets = new Set();
 for (const [rawTag] of html.matchAll(/<(?:script|link)\b[^>]*>/gi)) {
   const url = attrUrl(rawTag);
-  if (!url) continue;
+  if (!url || url.startsWith('/institution/')) continue;
   const tag = rawTag.toLowerCase();
   const isEntryScript =
     tag.startsWith('<script') && /\btype=["']?module\b/.test(tag);
@@ -40,25 +42,8 @@ if (textAssets.size === 0) {
   throw new Error(`no first-load assets found in ${indexPath}`);
 }
 
-// Fonts fetched from another origin (css/00-fonts/_fonts.scss) are not in
-// dist/spa, so their served size is declared here; an unlisted one throws.
-const EXTERNAL_FONT_BYTES = {
-  'https://enac-it-fonts.epfl.ch/SuisseIntl-Regular-WebS.woff2': 17228,
-  'https://enac-it-fonts.epfl.ch/SuisseIntl-Medium-WebS.woff2': 17788,
-  'https://enac-it-fonts.epfl.ch/SuisseIntl-Bold-WebS.woff2': 17852,
-};
-
 const readAsset = (url) => readFileSync(join(distDir, url.replace(/^\//, '')));
 const gzippedBytes = (buffer) => gzipSync(buffer, { level: 9 }).length;
-const fontBytes = (url) => {
-  if (!/^https?:\/\//.test(url)) return readAsset(url).length;
-  const bytes = EXTERNAL_FONT_BYTES[url];
-  if (bytes === undefined) {
-    throw new Error(`no declared size for external font ${url}`);
-  }
-  return bytes;
-};
-
 let totalBytes = gzippedBytes(Buffer.from(html));
 for (const url of textAssets) {
   const buffer = readAsset(url);
@@ -73,7 +58,7 @@ for (const url of textAssets) {
 }
 // woff2 is already Brotli-compressed, so fonts count at their raw size.
 for (const url of fontAssets) {
-  totalBytes += fontBytes(url);
+  totalBytes += readAsset(url).length;
 }
 
 const mg = totalBytes * G_PER_BYTE * 1000;

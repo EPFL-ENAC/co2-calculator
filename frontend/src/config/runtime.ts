@@ -149,15 +149,6 @@ export const runtimeConfig = {
       injected.APP_INSTITUTION_ID_LABEL ||
       (hasViteEnv && import.meta.env.APP_INSTITUTION_ID_LABEL) ||
       '',
-    // Logo and favicon URLs. Empty means the bundled EPFL files.
-    logoUrl:
-      injected.APP_INSTITUTION_LOGO_URL ||
-      (hasViteEnv && import.meta.env.APP_INSTITUTION_LOGO_URL) ||
-      '',
-    faviconUrl:
-      injected.APP_INSTITUTION_FAVICON_URL ||
-      (hasViteEnv && import.meta.env.APP_INSTITUTION_FAVICON_URL) ||
-      '',
     // Accent color as #rrggbb. Empty means the EPFL colors of the SCSS
     // tokens (src/css/02-tokens/_options.scss). The hover and highlight
     // shades derive from it (src/utils/institutionBranding.ts).

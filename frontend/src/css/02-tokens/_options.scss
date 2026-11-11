@@ -17,10 +17,9 @@ $tokens-border-radius-generic-border-radius-px: 3px !default;
 $tokens-border-radius-full-border-radius: 62.4375rem !default;
 $tokens-border-radius-lg-border-radius: 0.75rem !default;
 
-// Font Family
-// deactivate prettier for the next line to avoid formatting issues
-// prettier-ignore
-$tokens-typography-font-family-base: 'SuisseIntl', '-apple-system', sans-serif !default;
+// Font Family: set by /institution/fonts.css, which also declares the
+// webfonts (#500).
+$tokens-typography-font-family-base: var(--institution-font-family) !default;
 
 // Font Size
 $tokens-typography-font-size-3xl: 1.75rem !default;
