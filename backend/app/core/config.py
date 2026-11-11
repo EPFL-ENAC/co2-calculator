@@ -277,6 +277,15 @@ class Settings(BaseSettings):
             "'accred' (EPFL Accred API), or 'test' (for testing/development)."
         ),
     )
+    # Unit tree levels with a meaning in the app (#500), see
+    # app/core/unit_levels.py. Required: the lifespan stops without them.
+    UNIT_WORKSPACE_LEVEL: int | None = Field(
+        default=None, description="Level of the units that have a workspace"
+    )
+    UNIT_AFFILIATION_LEVELS: str = Field(
+        default="",
+        description="Comma-separated levels the back office offers as affiliations",
+    )
     # Units CSV for UNIT_PROVIDER_TYPE=database (#500): the unit sync reads
     # it into the database. Format in app/providers/unit_csv.py. Required
     # with the database provider; the lifespan stops without it.

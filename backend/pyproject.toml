@@ -88,6 +88,9 @@ env = [
     "ELASTICSEARCH_INDEX=opdo-test",
     "ROLE_PROVIDER_TYPE=test",
     "UNIT_PROVIDER_TYPE=test",
+    # The test units follow the EPFL tree (#500).
+    "UNIT_WORKSPACE_LEVEL=4",
+    "UNIT_AFFILIATION_LEVELS=2,3",
     # Boot-time security check (app/main.py:assert_security_settings) is gated
     # on LOCAL_ENVIRONMENT; keep it true in CI (no backend/.env there) so the
     # suite never trips on unset CREDENTIALS_ENCRYPTION_*/CONNECTOR_ALLOWED_HOST_SUFFIXES.

@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.core.policy import require_unit_access
 from app.core.role_priority import role_priority_case
+from app.core.unit_levels import workspace_level
 from app.models.unit import Unit
 from app.models.unit_user import UnitUser
 from app.models.user import User
@@ -56,9 +57,9 @@ class UnitService:
                 col(User.institutional_id) == col(Unit.principal_user_institutional_id),
             )
             .where(col(UnitUser.user_id) == user.id)
-            # Workspace surfaces only level-4 (leaf labs) per #930;
-            # ancestor levels (EPFL/faculty/institute) have no own data.
-            .where(col(Unit.level) == 4)
+            # Workspace surfaces only the workspace level (#930; level 4, the
+            # labs, at EPFL); ancestor levels have no own data (#500).
+            .where(col(Unit.level) == workspace_level())
         )
 
         # #2379: no offset/limit. The join bounds the result by the user's

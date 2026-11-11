@@ -31,6 +31,7 @@ from app.core.exceptions import (
 from app.core.logging import get_logger, setup_logging
 from app.core.request_origin import RequestOriginMiddleware
 from app.core.session_renewal import SessionRenewalMiddleware
+from app.core.unit_levels import affiliation_levels, workspace_level
 from app.db import engine
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._background import cancel_background_tasks
@@ -253,6 +254,9 @@ async def lifespan(app: FastAPI):
     assert_required_settings(settings)
     assert_observability_settings(settings)
     assert_unit_source_settings(settings)
+    # Both raise when unset or malformed (#500).
+    workspace_level()
+    affiliation_levels()
     assert_elasticsearch_settings(settings)
     # Raises on an unknown module name in TABLEAU_MODULES (#500).
     ProviderFactory.tableau_modules()

@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_db
 from app.core.logging import get_logger
 from app.core.security import get_current_active_user
+from app.core.unit_levels import affiliation_levels
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.unit import UnitRead
@@ -47,8 +48,8 @@ async def list_affiliations(
     # 1. Initialize query with SQLModel's select
     query = select(Unit).where(col(Unit.is_active))
 
-    # 2. Filter by level (2 or 3 only)
-    query = query.where(col(Unit.level).in_([2, 3]))
+    # 2. Filter by the affiliation levels (2 and 3 at EPFL, #500)
+    query = query.where(col(Unit.level).in_(affiliation_levels()))
 
     # 3. Dynamic Filtering
     if unit_type_labels:

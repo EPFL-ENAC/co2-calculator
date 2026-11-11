@@ -45,6 +45,10 @@ backend:
     ROLE_PROVIDER_TYPE: "jwt" # Could be 'jwt', 'accred', or 'test'
     JWT_ROLES_CLAIM: "roles" # ID-token claim with the roles for 'jwt', e.g. "groups" for Keycloak
     UNIT_PROVIDER_TYPE: "database" # Could be 'database', 'accred', or 'test'
+    # Unit tree levels (#500). Required, the backend does not start without
+    # them. EPFL: workspace level "4", affiliation levels "2,3".
+    UNIT_WORKSPACE_LEVEL: ""
+    UNIT_AFFILIATION_LEVELS: ""
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "" # Required: public URL of the frontend, the backend does not start without it
