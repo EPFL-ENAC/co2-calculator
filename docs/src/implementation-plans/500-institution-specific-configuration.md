@@ -2,7 +2,7 @@
 status: in-progress
 issue: "500"
 last_updated: 2026-11-11
-summary: Moves the institution identity out of the frontend code into one APP_INSTITUTION_* block of the runtime configuration. The block holds the name, logo, accent color, contact email and documentation links. The work breakdown splits the open work into high, medium and low priority, with estimates.
+summary: Makes the app deployable by another institution without code changes. The institution sets an APP_INSTITUTION_* block and mounts an assets folder with its logo, fonts and theme. Each third-party service has a switch, and nothing falls back to an EPFL value. The status section lists the open items.
 ---
 
 # 500 — Institution-specific configuration
@@ -18,25 +18,25 @@ One block of `APP_INSTITUTION_*` variables. The frontend reads them at
 startup from `/injectEnv.js`, the same chain as `APP_SENTRY_DSN`. In
 `quasar dev` they come from `frontend/.env.local`.
 
-| Variable                                    | If empty                         | Used for                                             |
-| ------------------------------------------- | -------------------------------- | ---------------------------------------------------- |
-| `APP_INSTITUTION_NAME`                      | Required                         | `%institution%` in texts, page title                 |
-| `APP_INSTITUTION_NAME_FR_DE`                | Required                         | `%institution_fr_de%` in French texts                |
-| `APP_INSTITUTION_NAME_FR_A`                 | Required                         | `%institution_fr_a%` in French texts                 |
-| `APP_INSTITUTION_ID_LABEL`                  | Required                         | Headcount labels, `%institution_id_label%`           |
-| `APP_INSTITUTION_CONTACT_EMAIL`             | Required                         | `%contact_email%` in help texts                      |
-| `APP_INSTITUTION_STRATEGY_URL`              | Required                         | Home page link, English                              |
-| `APP_INSTITUTION_STRATEGY_URL_FR`           | Required                         | Home page link, French                               |
-| `APP_INSTITUTION_USER_DOC_URL`              | Required                         | `%user_doc_url%`, root of the user documentation     |
-| `APP_INSTITUTION_BACKOFFICE_DOC_URL`        | Required                         | `%backoffice_doc_url%`, root of the back-office docs |
-| `APP_INSTITUTION_ACCESS_PROVIDER_NAME`      | The link is hidden               | Access popover, name of the access portal            |
-| `APP_INSTITUTION_ACCESS_PROVIDER_URL`       | The link is hidden               | Access popover, portal link                          |
-| `APP_INSTITUTION_ACCESS_PROVIDER_ABOUT_URL` | The link is hidden               | Access popover, "About" link                         |
-| `APP_INSTITUTION_ROLES_DOC_URL`             | The link is hidden               | Access popover, page that explains the roles         |
-| `APP_INSTITUTION_EQUIPMENT_FEEDBACK_EMAIL`  | No feedback email                | Equipment "power feedback" email                     |
-| `APP_INSTITUTION_MATOMO_URL`                | Required when the site id is set | Matomo analytics server                              |
-| `APP_INSTITUTION_MATOMO_SITE_ID`            | Tracking is off                  | Matomo site of this instance                         |
-| `APP_INSTITUTION_PRODUCTION_URL`            | Required in demo mode            | Production link of the demo notice                   |
+| Variable                                    | If empty                | Used for                                             |
+| ------------------------------------------- | ----------------------- | ---------------------------------------------------- |
+| `APP_INSTITUTION_NAME`                      | Required                | `%institution%` in texts, page title                 |
+| `APP_INSTITUTION_NAME_FR_DE`                | Required                | `%institution_fr_de%` in French texts                |
+| `APP_INSTITUTION_NAME_FR_A`                 | Required                | `%institution_fr_a%` in French texts                 |
+| `APP_INSTITUTION_ID_LABEL`                  | Required                | Headcount labels, `%institution_id_label%`           |
+| `APP_INSTITUTION_CONTACT_EMAIL`             | Required                | `%contact_email%` in help texts                      |
+| `APP_INSTITUTION_STRATEGY_URL`              | Required                | Home page link, English                              |
+| `APP_INSTITUTION_STRATEGY_URL_FR`           | Required                | Home page link, French                               |
+| `APP_INSTITUTION_USER_DOC_URL`              | Required                | `%user_doc_url%`, root of the user documentation     |
+| `APP_INSTITUTION_BACKOFFICE_DOC_URL`        | Required                | `%backoffice_doc_url%`, root of the back-office docs |
+| `APP_INSTITUTION_ACCESS_PROVIDER_NAME`      | The link is hidden      | Access popover, name of the access portal            |
+| `APP_INSTITUTION_ACCESS_PROVIDER_URL`       | The link is hidden      | Access popover, portal link                          |
+| `APP_INSTITUTION_ACCESS_PROVIDER_ABOUT_URL` | The link is hidden      | Access popover, "About" link                         |
+| `APP_INSTITUTION_ROLES_DOC_URL`             | The link is hidden      | Access popover, page that explains the roles         |
+| `APP_INSTITUTION_EQUIPMENT_FEEDBACK_EMAIL`  | No feedback email       | Equipment "power feedback" email                     |
+| `APP_INSTITUTION_MATOMO_URL`                | Required with a site id | Matomo analytics server                              |
+| `APP_INSTITUTION_MATOMO_SITE_ID`            | Tracking is off         | Matomo site of this instance                         |
+| `APP_INSTITUTION_PRODUCTION_URL`            | Required in demo mode   | Production link of the demo notice                   |
 
 The variables are documented in `frontend/.env.example` and listed in
 `helm/values.yaml` under `frontend.env`.
@@ -85,8 +85,8 @@ Each observability service is off until a deployment turns it on.
   `LOKI_URL` and `LOKI_TENANT_ID` for both pods
   (`co2-calculator.backendObservabilityEnv`).
 - An enabled service without its endpoint fails the Helm render.
-- The backend also stops at startup when `LOKI_ENABLED` is true without
-  `LOKI_URL` (`assert_observability_settings`).
+- With `LOKI_ENABLED` true and no `LOKI_URL`, the backend also stops at
+  startup (`assert_observability_settings`).
 - The Elasticsearch audit export (OPDo) is off by default. Off, the chart
   renders no Elasticsearch secret key and no CA volume, and audit records
   stay pending in the database. On, the backend stops at startup without
@@ -94,9 +94,9 @@ Each observability service is off until a deployment turns it on.
   The EPFL deployments must set `backend.elasticsearch.enabled: true`.
 - The Tableau import is on per module. `TABLEAU_MODULES` lists the module
   types, for example `professional_travel,headcount,research_facilities`.
-  Empty turns Tableau off: the connector list is empty, the other connector
-  routes answer 404, the dispatch refuses an API import, and the boot no
-  longer requires `CREDENTIALS_ENCRYPTION_*` and
+  Empty turns Tableau off. The connector list is then empty, and the other
+  connector routes answer 404. The dispatch refuses an API import. The boot
+  no longer requires `CREDENTIALS_ENCRYPTION_*` and
   `CONNECTOR_ALLOWED_HOST_SUFFIXES`. The CSV upload stays. The year
   configuration response carries `tableau_module_type_ids`, and the
   data-management page offers the API import only for those modules. An
@@ -118,8 +118,8 @@ CSV file at `UNITS_CSV_PATH` into the database
 chain. A duplicate code, a missing parent, a loop or a wrong level fails the
 sync with the row number.
 
-- The backend stops at startup when the database provider has no
-  `UNITS_CSV_PATH`. The Helm chart mounts `backend.units.csvConfigMap` (key
+- With the database provider and no `UNITS_CSV_PATH`, the backend stops at
+  startup. The Helm chart mounts `backend.units.csvConfigMap` (key
   `units.csv`) into the backend and the worker.
 - The file names no principal user: with a generic OIDC provider the roles
   come from the login token.
@@ -269,6 +269,55 @@ The audit of 2026-11-11 found these facts. They drive the estimates.
   expose `OTEL_SDK_DISABLED`.
 - **Docker Compose passes four frontend variables.** The `APP_INSTITUTION_*`
   block cannot reach the container without an edit of the compose file.
+
+## Status
+
+Status on 2026-11-11. Each item of the breakdown is one commit on the
+branch, except where this list says otherwise.
+
+| Item                                     | Status                                                       |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| Remove the EPFL defaults                 | Done                                                         |
+| Assets folder                            | Done                                                         |
+| Observability switches                   | Done                                                         |
+| Elasticsearch switch                     | Done                                                         |
+| Tableau switch, whole app and per module | Done, one commit for both items                              |
+| JWT login roles                          | Done                                                         |
+| Roles from a configurable claim          | Done                                                         |
+| Units from a CSV file                    | Done                                                         |
+| Theme file                               | Done                                                         |
+| Unit levels                              | Done                                                         |
+| ECB switch                               | Done                                                         |
+| Neutral access portal texts              | Done                                                         |
+| System and source links                  | Done                                                         |
+| Fixed unit results route                 | Done, the route is deleted                                   |
+| Keycloak in Docker Compose               | Written, the full-stack run is not verified yet              |
+| Deployment guide                         | Not done, on request                                         |
+| SIUS codes from the backend              | Open: the module form and table take their options from code |
+| `EPFL_TABLEAU` rename                    | Open: needs a generated migration, which a human runs        |
+| Exchange rates from a table              | Open: needs a new table, so a generated migration            |
+| GlitchTip in the backend                 | Open: needs a new dependency, which waits for the lead       |
+| Prometheus metrics and alerts            | Open: needs a new dependency, which waits for the lead       |
+
+The `@epfl.ch` email fallback stays: only the Accred provider uses it, and
+Accred exists only at EPFL.
+
+## Changes for the ops repository
+
+The EPFL deployments must set these values before they run this branch.
+Without them, the backend or the frontend stops at startup, or a feature
+that was on before is off.
+
+| Where                               | Value                                                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `frontend.env`                      | The required `APP_INSTITUTION_*` values (see `frontend/.env.example`)                                         |
+| `frontend.env`                      | `APP_SYSTEM_LINKS`, `APP_SOURCE_REPOSITORY_URL`                                                               |
+| `frontend.institutionAssets.volume` | A volume with the files of `frontend/institution/epfl`                                                        |
+| `backend.env`                       | `FRONTEND_URL`, `UNIT_WORKSPACE_LEVEL: "4"`, `UNIT_AFFILIATION_LEVELS: "2,3"`, `EXCHANGE_RATES_SOURCE: "ecb"` |
+| `backend.tableau.modules`           | `"professional_travel,headcount,research_facilities"`                                                         |
+| `backend.elasticsearch.enabled`     | `true`                                                                                                        |
+| `backend.observability.otel`        | `enabled: true` and the collector endpoint                                                                    |
+| `backend.env`, `worker.env`         | Remove `OTEL_EXPORTER_OTLP_ENDPOINT`, the chart writes it now                                                 |
 
 ## Renamed variables
 
