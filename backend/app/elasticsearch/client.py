@@ -237,9 +237,9 @@ class ElasticsearchClient:
                 hosts=hosts_list,
                 api_key=(ELASTICSEARCH_ID, ELASTICSEARCH_API_KEY),
                 ssl_context=ctx,
-                request_timeout=30,
-                max_retries=3,
-                retry_on_timeout=True,
+                request_timeout=settings.ELASTICSEARCH_TIMEOUT,
+                max_retries=settings.ELASTICSEARCH_MAX_RETRIES,
+                retry_on_timeout=settings.ELASTICSEARCH_RETRY_ON_TIMEOUT,
             )
 
             # Test the connection

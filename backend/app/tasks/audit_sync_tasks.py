@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import BackgroundTasks
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.services.audit_sync_service import AuditSyncService
@@ -61,7 +62,12 @@ async def sync_audit_records_with_elasticsearch(
     """Main entry point for syncing audit records with Elasticsearch.
 
     This function can be called from API endpoints or scheduled tasks.
+    Off (ELASTICSEARCH_ENABLED=false, #500), the records stay in the database
+    as pending, and enabling the export later sends them.
     """
+    if not get_settings().ELASTICSEARCH_ENABLED:
+        return {"status": "elasticsearch disabled"}
+
     # Schedule the sync task - each task manages its own database session
     background_tasks.add_task(sync_pending_audit_records_task)
 

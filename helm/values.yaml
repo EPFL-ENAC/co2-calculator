@@ -66,9 +66,9 @@ backend:
     # Deployment renders `worker.env`, not `backend.env`. The code default
     # (10, app/core/config.py) stands everywhere else.
     INGEST_COPY_BATCH_SIZE: "50000" # Rows per COPY batch for bulk CSV data_entries ingest
-    ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
-    ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries
-    ELASTICSEARCH_RETRY_ON_TIMEOUT: "true" # Key in the existing secret for Elasticsearch retry on timeout
+    ELASTICSEARCH_TIMEOUT: "30" # Seconds per Elasticsearch request (when backend.elasticsearch.enabled)
+    ELASTICSEARCH_MAX_RETRIES: "3" # Elasticsearch retries per request
+    ELASTICSEARCH_RETRY_ON_TIMEOUT: "true" # Retry an Elasticsearch request that timed out
     # SQLAlchemy/psycopg auto-instrumentation creates one span per SQL
     # statement, which measured as ~2/3 of the total OTel tax on this app
     # (plan #2050 C1 follow-up: -33% throughput with it on, -16% with it
@@ -235,7 +235,12 @@ backend:
       elasticsearchIdKey: ELASTICSEARCH_ID # Key in the existing secret for Elasticsearch document ID
       elasticsearchApiKeyKey: ELASTICSEARCH_API_KEY # Key in the existing secret for Elasticsearch API key
       elasticsearchCaCertFileKey: ELASTICSEARCH_CA_CERT_FILE # Key in the existing secret for Elasticsearch CA certificate
+  # Elasticsearch audit export (OPDo, ISO 27001/27701). Off by default: the
+  # audit trail stays in the database, and no Elasticsearch secret key or CA
+  # file is needed. On, the backend sends each audit record to the index set
+  # in the existing secret (keys above), and stops at startup without them.
   elasticsearch:
+    enabled: false
     caCert:
       filename: http_ca_test.crt
       path: /tmp/

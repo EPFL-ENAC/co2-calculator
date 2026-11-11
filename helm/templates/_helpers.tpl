@@ -202,6 +202,11 @@ POLLER / DISPATCH_JOBS_INLINE) layered on top by the caller.
     secretKeyRef:
       name: {{ include "co2-calculator.backendSecretName" . }}
       key: {{ .Values.backend.existingSecret.keys.s3PathPrefixKey | default "S3_PATH_PREFIX" }}
+# Elasticsearch audit export (OPDo), only when enabled (#500): a deployment
+# without Elasticsearch needs none of its secret keys or CA file.
+- name: ELASTICSEARCH_ENABLED
+  value: {{ .Values.backend.elasticsearch.enabled | quote }}
+{{- if .Values.backend.elasticsearch.enabled }}
 - name: ELASTICSEARCH_HOSTS
   valueFrom:
     secretKeyRef:
@@ -223,6 +228,7 @@ POLLER / DISPATCH_JOBS_INLINE) layered on top by the caller.
       name: {{ include "co2-calculator.backendSecretName" . }}
       key: {{ .Values.backend.existingSecret.keys.elasticsearchApiKeyKey | default "ELASTICSEARCH_API_KEY" }}
 
+{{- end }}
 # Tableau connection credentials are stored per-connector in the
 # DB (ConnectorConnection, #1552) — entered via the API-connect
 # form, not injected from the backend secret. Only operational
@@ -239,8 +245,10 @@ POLLER / DISPATCH_JOBS_INLINE) layered on top by the caller.
 - name: CONNECTOR_ALLOWED_HOST_SUFFIXES
   value: {{ .Values.backend.connector.allowedHostSuffixes | default "" | quote }}
 
+{{- if .Values.backend.elasticsearch.enabled }}
 - name: ELASTICSEARCH_CA_CERT
   value: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
+{{- end }}
 - name: POD_NAME
   valueFrom:
     fieldRef:
@@ -296,17 +304,21 @@ Shared volume + volumeMount for the Elasticsearch CA cert every backend-
 image pod needs (audit sync runs from the worker too). Plan #2050 Track B.
 */}}
 {{- define "co2-calculator.backendSecretVolumeMount" -}}
+{{- if .Values.backend.elasticsearch.enabled }}
 - name: backend-secret
   mountPath: {{ .Values.backend.elasticsearch.caCert.path | default "/tmp/" }}{{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
   subPath: {{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
   readOnly: true
+{{- end }}
 {{- end -}}
 
 {{- define "co2-calculator.backendSecretVolume" -}}
+{{- if .Values.backend.elasticsearch.enabled }}
 - name: backend-secret
   secret:
     secretName: {{ include "co2-calculator.backendSecretName" . }}
     items:
       - key: {{ .Values.backend.existingSecret.keys.elasticsearchCaCertFileKey | default "ELASTICSEARCH_CA_CERT_FILE" }}
         path: {{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
+{{- end }}
 {{- end -}}

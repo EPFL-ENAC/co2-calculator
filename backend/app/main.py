@@ -105,6 +105,25 @@ def assert_observability_settings(settings) -> None:
         raise RuntimeError("LOKI_ENABLED=true needs LOKI_URL")
 
 
+def assert_elasticsearch_settings(settings) -> None:
+    """Stop the startup when the Elasticsearch export is on but incomplete (#500)."""
+    if not settings.ELASTICSEARCH_ENABLED:
+        return
+    missing = [
+        name
+        for name in (
+            "ELASTICSEARCH_HOSTS",
+            "ELASTICSEARCH_INDEX",
+            "ELASTICSEARCH_ID",
+            "ELASTICSEARCH_API_KEY",
+            "ELASTICSEARCH_CA_CERT",
+        )
+        if not getattr(settings, name)
+    ]
+    if missing:
+        raise RuntimeError(f"ELASTICSEARCH_ENABLED=true needs {missing}")
+
+
 def assert_proxy_trust_settings() -> None:
     """Fail closed at boot when uvicorn is told to trust every proxy (#2530).
 
@@ -217,6 +236,7 @@ async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_required_settings(settings)
     assert_observability_settings(settings)
+    assert_elasticsearch_settings(settings)
     assert_security_settings(settings)
     assert_proxy_trust_settings()
     assert_accred_settings(settings)

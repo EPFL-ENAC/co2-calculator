@@ -15,6 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
 from app.main import (
+    assert_elasticsearch_settings,
     assert_observability_settings,
     assert_poller_isolation,
     assert_proxy_trust_settings,
@@ -246,3 +247,32 @@ def test_loki_enabled_without_url_stops_the_startup():
 )
 def test_loki_off_or_configured_starts(enabled, url):
     assert_observability_settings(SimpleNamespace(LOKI_ENABLED=enabled, LOKI_URL=url))
+
+
+def _es_settings(**overrides) -> SimpleNamespace:
+    values = {
+        "ELASTICSEARCH_ENABLED": True,
+        "ELASTICSEARCH_HOSTS": "https://es.example:9200",
+        "ELASTICSEARCH_INDEX": "audit",
+        "ELASTICSEARCH_ID": "id",
+        "ELASTICSEARCH_API_KEY": "key",
+        "ELASTICSEARCH_CA_CERT": "/tmp/ca.crt",
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
+def test_elasticsearch_off_needs_nothing():
+    assert_elasticsearch_settings(
+        _es_settings(ELASTICSEARCH_ENABLED=False, ELASTICSEARCH_HOSTS="")
+    )
+
+
+def test_elasticsearch_on_without_hosts_stops_the_startup():
+    """#500: an enabled export must name what it lacks at boot."""
+    with pytest.raises(RuntimeError, match="ELASTICSEARCH_HOSTS"):
+        assert_elasticsearch_settings(_es_settings(ELASTICSEARCH_HOSTS=""))
+
+
+def test_elasticsearch_on_and_complete_starts():
+    assert_elasticsearch_settings(_es_settings())

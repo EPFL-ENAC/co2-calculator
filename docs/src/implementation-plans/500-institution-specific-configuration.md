@@ -77,6 +77,7 @@ Each observability service is off until a deployment turns it on.
 | Matomo        | Frontend           | `APP_INSTITUTION_MATOMO_SITE_ID`, empty is off |
 | OpenTelemetry | Backend and worker | Helm `backend.observability.otel.enabled`      |
 | Loki          | Backend and worker | Helm `backend.observability.loki.enabled`      |
+| Elasticsearch | Backend and worker | Helm `backend.elasticsearch.enabled`           |
 
 - The Helm chart writes `OTEL_SDK_DISABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
   `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, `LOKI_ENABLED`,
@@ -85,6 +86,11 @@ Each observability service is off until a deployment turns it on.
 - An enabled service without its endpoint fails the Helm render.
 - The backend also stops at startup when `LOKI_ENABLED` is true without
   `LOKI_URL` (`assert_observability_settings`).
+- The Elasticsearch audit export (OPDo) is off by default. Off, the chart
+  renders no Elasticsearch secret key and no CA volume, and audit records
+  stay pending in the database. On, the backend stops at startup without
+  the hosts, index, ID, API key and CA file (`assert_elasticsearch_settings`).
+  The EPFL deployments must set `backend.elasticsearch.enabled: true`.
 - OpenTelemetry was always on before. A deployment that exports traces must
   now set `backend.observability.otel.enabled: true` and the endpoint. It
   must also remove any `OTEL_EXPORTER_OTLP_ENDPOINT` from `backend.env` and

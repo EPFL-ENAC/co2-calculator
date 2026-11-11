@@ -439,25 +439,26 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
     )
 
-    # NOTE: Elastic SEARCH OPDO/27001/27701 compatiblity
-
+    # Elasticsearch audit export (OPDo, ISO 27001/27701 compatibility). Off by
+    # default (#500): the audit trail stays in the database. On, the lifespan
+    # requires the hosts, index, credentials and CA file below.
+    ELASTICSEARCH_ENABLED: bool = Field(
+        default=False, description="Send audit records to Elasticsearch"
+    )
     ELASTICSEARCH_HOSTS: str = Field(
-        default="https://localhost:9200",
+        default="",
         description="Comma-separated list of Elasticsearch hosts",
     )
-    ELASTICSEARCH_INDEX: str = Field(
-        default="UNDEFINED_INDEX", description="Elasticsearch index name"
-    )
+    ELASTICSEARCH_INDEX: str = Field(default="", description="Elasticsearch index name")
     ELASTICSEARCH_ID: str = Field(
         default="", description="Elasticsearch ID for authentication"
     )
     ELASTICSEARCH_API_KEY: str = Field(
         default="", description="Elasticsearch API key for authentication"
     )
-    # // use a secret in kube to mount the path
+    # Kubernetes mounts it from the backend secret (helm/values.yaml).
     ELASTICSEARCH_CA_CERT: str = Field(
-        default="/etc/ssl/certs/http_ca_test.crt",
-        description="Path to Elasticsearch CA certificate",
+        default="", description="Path to Elasticsearch CA certificate"
     )
     ELASTICSEARCH_TIMEOUT: int = Field(
         default=30, description="Elasticsearch timeout in seconds"

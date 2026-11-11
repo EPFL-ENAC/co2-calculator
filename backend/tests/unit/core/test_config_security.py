@@ -22,8 +22,10 @@ def test_debug_defaults_to_false():
     assert Settings.model_fields["DEBUG"].default is False
 
 
-def test_elasticsearch_default_host_is_localhost():
-    """A typo here made a missing setting look like a DNS failure (#3185)."""
-    assert (
-        Settings.model_fields["ELASTICSEARCH_HOSTS"].default == "https://localhost:9200"
-    )
+def test_elasticsearch_is_off_without_a_default_host():
+    """#500: the export is off by default and has no implicit host. An
+    enabled export with no host stops the startup instead of looking like a
+    DNS failure (#3185).
+    """
+    assert Settings.model_fields["ELASTICSEARCH_ENABLED"].default is False
+    assert Settings.model_fields["ELASTICSEARCH_HOSTS"].default == ""
