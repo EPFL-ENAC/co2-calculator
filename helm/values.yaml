@@ -443,6 +443,11 @@ frontend:
     APP_PLANNER_MAX_YEAR: "2050"
     # Demo instance: "true" replaces the whole app with a notice linking to
     # APP_INSTITUTION_PRODUCTION_URL. Enabled per-cluster in the ops repo only for the demo.
+    # Operations links of the system logs page, a JSON array on one line;
+    # empty shows no links (frontend/.env.example documents the format).
+    APP_SYSTEM_LINKS: ""
+    # Source repository linked from the texts editing page; empty hides it.
+    APP_SOURCE_REPOSITORY_URL: ""
     APP_DEMO_MODE: "false"
     APP_INSTITUTION_PRODUCTION_URL: "" # required when APP_DEMO_MODE is "true"
 

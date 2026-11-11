@@ -2,6 +2,7 @@
 // a code default, so a missing variable must stop the app with its name
 // instead of rendering empty texts or tracking to nowhere.
 import type { runtimeConfig as RuntimeConfigValue } from '@/config/runtime';
+import { parseSystemLinks } from '@/config/systemLinks';
 
 type RuntimeConfig = typeof RuntimeConfigValue;
 
@@ -43,6 +44,11 @@ export function missingConfigVariables(config: RuntimeConfig): string[] {
 
 // The startup error, or null when the configuration is complete.
 export function requiredConfigError(config: RuntimeConfig): string | null {
+  try {
+    parseSystemLinks(config.systemLinks);
+  } catch (error: unknown) {
+    return `APP_SYSTEM_LINKS: ${error instanceof Error ? error.message : String(error)}`;
+  }
   const missing = missingConfigVariables(config);
   if (missing.length === 0) return null;
   return (

@@ -11,6 +11,7 @@ import AuditTable from '@/components/audit/AuditTable.vue';
 import AuditPagination from '@/components/audit/AuditPagination.vue';
 import AuditDetailDrawer from '@/components/audit/AuditDetailDrawer.vue';
 import { useAuditLogs } from '@/composables/useAuditLogs';
+import { systemLinks } from '@/config/systemLinks';
 
 const { t } = useI18n();
 
@@ -54,122 +55,8 @@ onMounted(() => {
   onSearch();
 });
 
-interface EnvironmentLink {
-  label: string;
-  url: string;
-}
-
-interface EnvironmentConfig {
-  name: string;
-  gitops: EnvironmentLink[];
-  monitoring: EnvironmentLink[];
-  appLogs: EnvironmentLink[];
-  platform: EnvironmentLink[];
-}
-
-const environments: EnvironmentConfig[] = [
-  {
-    name: 'dev',
-    gitops: [
-      {
-        label: 'GitOps',
-        url: 'https://openshift-gitops-server-openshift-gitops.apps.ocpitsd0001.xaas.epfl.ch/applications/openshift-gitops/co2-calculator-dev?view=tree&resource=',
-      },
-    ],
-    monitoring: [
-      {
-        label: 'Dashboard',
-        url: 'https://grafana-dev-route-grafana-dev.apps.ocpitsd0001.xaas.epfl.ch/d/test-sa-dashboard/standard-namespace-monitoring-recording-rule?orgId=1&from=now-6h&to=now&timezone=browser&var-datasource=73a57e8b-7679-4a18-915c-292f143448c7&var-namespace=svc1751d-co2-calculator-dev&refresh=5m',
-      },
-      {
-        label: 'Graphs',
-        url: 'https://grafana-dev-route-grafana-dev.apps.ocpitsd0001.xaas.epfl.ch/d/ndr79mm/specific-graphs?orgId=1&from=now-12h&to=now&timezone=browser',
-      },
-    ],
-    appLogs: [
-      {
-        label: 'Logs',
-        url: 'https://console-openshift-console.apps.ocpitsd0001.xaas.epfl.ch/monitoring/logs?q=%7B+log_type%3D%22application%22+%7D+%7C+json',
-      },
-    ],
-    platform: [
-      {
-        label: 'OpenShift',
-        url: 'https://console-openshift-console.apps.ocpitsd0001.xaas.epfl.ch',
-      },
-    ],
-  },
-  {
-    name: 'stage',
-    gitops: [
-      {
-        label: 'GitOps (Tree)',
-        url: 'https://openshift-gitops-server-openshift-gitops.apps.ocpitst0001.xaas.epfl.ch/applications/openshift-gitops/co2-calculator-stage?view=tree&resource=',
-      },
-      {
-        label: 'GitOps (Home)',
-        url: 'https://openshift-gitops-server-openshift-gitops.apps.ocpitst0001.xaas.epfl.ch/',
-      },
-    ],
-    monitoring: [
-      {
-        label: 'Dashboard',
-        url: 'https://grafana-test-route-grafana-test.apps.ocpitst0001.xaas.epfl.ch/d/k8s_views_ns/kubernetes-views-namespaces?orgId=1&from=now-1h&to=now&timezone=browser&var-datasource=73a57e8b-7679-4a18-915c-292f143448c7&var-cluster=&var-namespace=svc1751t-co2-calculator-stage&var-resolution=30s&var-created_by=$__all&refresh=30s',
-      },
-      {
-        label: 'Graphs',
-        url: 'https://grafana-test-route-grafana-test.apps.ocpitst0001.xaas.epfl.ch/d/ndr79mm/specific-graphs?orgId=1&from=now-12h&to=now&timezone=browser',
-      },
-    ],
-    appLogs: [
-      {
-        label: 'Logs',
-        url: 'https://console-openshift-console.apps.ocpitst0001.xaas.epfl.ch/monitoring/logs?q=%7B+log_type%3D%22application%22+%7D+%7C+json',
-      },
-    ],
-    platform: [
-      {
-        label: 'OpenShift',
-        url: 'https://console-openshift-console.apps.ocpitst0001.xaas.epfl.ch/',
-      },
-    ],
-  },
-  {
-    name: 'prod',
-    gitops: [
-      {
-        label: 'GitOps (Tree)',
-        url: 'https://openshift-gitops-server-openshift-gitops.apps.ocpitsp0001.xaas.epfl.ch/applications/openshift-gitops/co2-calculator-prod?view=tree&resource=',
-      },
-      {
-        label: 'GitOps (Home)',
-        url: 'https://openshift-gitops-server-openshift-gitops.apps.ocpitsp0001.xaas.epfl.ch/',
-      },
-    ],
-    monitoring: [
-      {
-        label: 'Dashboard',
-        url: 'https://grafana-prod-route-grafana-prod.apps.ocpitsp0001.xaas.epfl.ch/d/k8s_views_ns/kubernetes-views-namespaces?orgId=1&from=now-1h&to=now&timezone=browser&var-datasource=73a57e8b-7679-4a18-915c-292f143448c7&var-cluster=&var-namespace=svc1751p-co2-calculator-prod&var-resolution=30s&var-created_by=$__all&refresh=30s',
-      },
-      {
-        label: 'Graphs',
-        url: 'https://grafana-prod-route-grafana-prod.apps.ocpitsp0001.xaas.epfl.ch/d/ndr79mm/specific-graphs?orgId=1&from=now-12h&to=now&timezone=browser',
-      },
-    ],
-    appLogs: [
-      {
-        label: 'Logs',
-        url: 'https://console-openshift-console.apps.ocpitsp0001.xaas.epfl.ch/monitoring/logs?q=%7B+log_type%3D%22application%22+%7D+%7C+json',
-      },
-    ],
-    platform: [
-      {
-        label: 'OpenShift',
-        url: 'https://console-openshift-console.apps.ocpitsp0001.xaas.epfl.ch/',
-      },
-    ],
-  },
-];
+// Operations links of the institution (#500), from APP_SYSTEM_LINKS.
+const environments = systemLinks();
 </script>
 
 <template>
@@ -178,6 +65,9 @@ const environments: EnvironmentConfig[] = [
     <div class="q-my-xl q-px-xl">
       <div class="container full-width">
         <div class="q-gutter-md">
+          <p v-if="environments.length === 0" class="text-body2 text-secondary">
+            {{ $t('logs_page_no_system_links') }}
+          </p>
           <q-card v-for="env in environments" :key="env.name" class="q-pa-lg">
             <div class="text-subtitle1 text-weight-bold q-mb-md text-uppercase">
               {{ env.name }} Environment

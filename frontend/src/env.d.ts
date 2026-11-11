@@ -16,6 +16,8 @@ interface ImportMetaEnv {
   readonly APP_DEMO_MODE: string;
   readonly APP_INSTITUTION_PRODUCTION_URL: string;
   readonly APP_INSTITUTION_NAME: string;
+  readonly APP_SYSTEM_LINKS: string;
+  readonly APP_SOURCE_REPOSITORY_URL: string;
   readonly APP_INSTITUTION_NAME_FR_DE: string;
   readonly APP_INSTITUTION_NAME_FR_A: string;
   readonly APP_INSTITUTION_ID_LABEL: string;

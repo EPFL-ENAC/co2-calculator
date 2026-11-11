@@ -1,4 +1,8 @@
 export default {
+  logs_page_no_system_links: {
+    en: 'No operations link is configured for this instance (APP_SYSTEM_LINKS).',
+    fr: "Aucun lien d'exploitation n'est configuré pour cette instance (APP_SYSTEM_LINKS).",
+  },
   module_management_active: {
     en: 'Active',
     fr: 'Actif',

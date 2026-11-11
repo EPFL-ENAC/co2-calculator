@@ -99,6 +99,18 @@ export const runtimeConfig = {
     injected.APP_INSTITUTION_MATOMO_SITE_ID ||
     (hasViteEnv && import.meta.env.APP_INSTITUTION_MATOMO_SITE_ID) ||
     '',
+  // Source repository of this code (#500), linked from the texts editing
+  // page. Empty hides the links.
+  sourceRepositoryUrl:
+    injected.APP_SOURCE_REPOSITORY_URL ||
+    (hasViteEnv && import.meta.env.APP_SOURCE_REPOSITORY_URL) ||
+    '',
+  // Operations links of the system logs page (#500), a JSON array; see
+  // src/config/systemLinks.ts. Empty means no links.
+  systemLinks:
+    injected.APP_SYSTEM_LINKS ||
+    (hasViteEnv && import.meta.env.APP_SYSTEM_LINKS) ||
+    '',
   // Project-planner horizon: bounds for the start/end year selects. No code
   // default: values come from APP_PLANNER_MIN_YEAR / APP_PLANNER_MAX_YEAR
   // (/injectEnv.js per-pod, .env.local in dev). Unset resolves to NaN and
