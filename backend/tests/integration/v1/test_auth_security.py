@@ -469,7 +469,7 @@ def _patch_callback_chain(monkeypatch, *, user_id: int = 1):
     fake_provider = MagicMock()
     fake_provider.type = UserProvider.TEST
     fake_provider.get_user_id = MagicMock(return_value="INST-REAL")
-    fake_provider.get_user_by_user_id = AsyncMock(
+    fake_provider.get_login_user = AsyncMock(
         return_value={
             "email": "real@example.org",
             "display_name": "Real User",
@@ -672,7 +672,7 @@ def test_callback_binds_session_to_idp_institutional_id(
     fake_provider = MagicMock()
     fake_provider.type = UserProvider.TEST
     fake_provider.get_user_id = MagicMock(return_value="IDP-PROVIDED-ID")
-    fake_provider.get_user_by_user_id = AsyncMock(
+    fake_provider.get_login_user = AsyncMock(
         return_value={
             "email": "real@example.org",
             "display_name": "Real User",
@@ -761,7 +761,7 @@ def test_e2e_callback_session_logout_happy_path(client, monkeypatch):
     fake_provider = MagicMock()
     fake_provider.type = UserProvider.TEST
     fake_provider.get_user_id = MagicMock(return_value="E2E-INST")
-    fake_provider.get_user_by_user_id = AsyncMock(
+    fake_provider.get_login_user = AsyncMock(
         return_value={
             "email": "e2e@example.org",
             "display_name": "E2E User",
