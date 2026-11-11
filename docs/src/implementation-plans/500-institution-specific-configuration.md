@@ -275,29 +275,29 @@ The audit of 2026-11-11 found these facts. They drive the estimates.
 Status on 2026-11-11. Each item of the breakdown is one commit on the
 branch, except where this list says otherwise.
 
-| Item                                     | Status                                                       |
-| ---------------------------------------- | ------------------------------------------------------------ |
-| Remove the EPFL defaults                 | Done                                                         |
-| Assets folder                            | Done                                                         |
-| Observability switches                   | Done                                                         |
-| Elasticsearch switch                     | Done                                                         |
-| Tableau switch, whole app and per module | Done, one commit for both items                              |
-| JWT login roles                          | Done                                                         |
-| Roles from a configurable claim          | Done                                                         |
-| Units from a CSV file                    | Done                                                         |
-| Theme file                               | Done                                                         |
-| Unit levels                              | Done                                                         |
-| ECB switch                               | Done                                                         |
-| Neutral access portal texts              | Done                                                         |
-| System and source links                  | Done                                                         |
-| Fixed unit results route                 | Done, the route is deleted                                   |
-| Keycloak in Docker Compose               | Done, the browser login passes on the full stack             |
-| Deployment guide                         | Not done, on request                                         |
-| SIUS codes from the backend              | Open: the module form and table take their options from code |
-| `EPFL_TABLEAU` rename                    | Open: needs a generated migration, which a human runs        |
-| Exchange rates from a table              | Open: needs a new table, so a generated migration            |
-| GlitchTip in the backend                 | Open: needs a new dependency, which waits for the lead       |
-| Prometheus metrics and alerts            | Open: needs a new dependency, which waits for the lead       |
+| Item                                     | Status                                                                                    |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Remove the EPFL defaults                 | Done                                                                                      |
+| Assets folder                            | Done                                                                                      |
+| Observability switches                   | Done                                                                                      |
+| Elasticsearch switch                     | Done                                                                                      |
+| Tableau switch, whole app and per module | Done, one commit for both items                                                           |
+| JWT login roles                          | Done                                                                                      |
+| Roles from a configurable claim          | Done                                                                                      |
+| Units from a CSV file                    | Done                                                                                      |
+| Theme file                               | Done                                                                                      |
+| Unit levels                              | Done                                                                                      |
+| ECB switch                               | Done                                                                                      |
+| Neutral access portal texts              | Done                                                                                      |
+| System and source links                  | Done                                                                                      |
+| Fixed unit results route                 | Done, the route is deleted                                                                |
+| Keycloak in Docker Compose               | Done, the browser login passes on the full stack                                          |
+| Deployment guide                         | Done: `infra/08-deploy-for-an-institution.md` and `infra/09-institution-configuration.md` |
+| SIUS codes from the backend              | Open: the module form and table take their options from code                              |
+| `EPFL_TABLEAU` rename                    | Open: needs a generated migration, which a human runs                                     |
+| Exchange rates from a table              | Open: needs a new table, so a generated migration                                         |
+| GlitchTip in the backend                 | Open: needs a new dependency, which waits for the lead                                    |
+| Prometheus metrics and alerts            | Open: needs a new dependency, which waits for the lead                                    |
 
 The `@epfl.ch` email fallback stays: only the Accred provider uses it, and
 Accred exists only at EPFL.
