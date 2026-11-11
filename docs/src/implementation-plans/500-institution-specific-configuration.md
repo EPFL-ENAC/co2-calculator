@@ -291,7 +291,7 @@ branch, except where this list says otherwise.
 | Neutral access portal texts              | Done                                                         |
 | System and source links                  | Done                                                         |
 | Fixed unit results route                 | Done, the route is deleted                                   |
-| Keycloak in Docker Compose               | Written, the full-stack run is not verified yet              |
+| Keycloak in Docker Compose               | Done, the browser login passes on the full stack             |
 | Deployment guide                         | Not done, on request                                         |
 | SIUS codes from the backend              | Open: the module form and table take their options from code |
 | `EPFL_TABLEAU` rename                    | Open: needs a generated migration, which a human runs        |
