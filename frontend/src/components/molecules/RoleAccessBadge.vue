@@ -28,7 +28,7 @@ const userType = computed(() =>
 );
 
 // Access-management portal (name + URL), configurable per deployment via
-// APP_ACCESS_MANAGEMENT_PROVIDER_* — see src/config/runtime.ts. No default: when
+// APP_INSTITUTION_ACCESS_PROVIDER_* — see src/config/runtime.ts. No default: when
 // unset the popover CTA link is hidden. Principals delegate roles here; standard
 // users instead email the principal.
 const accessManagementProviderName = runtimeConfig.accessManagementProviderName;

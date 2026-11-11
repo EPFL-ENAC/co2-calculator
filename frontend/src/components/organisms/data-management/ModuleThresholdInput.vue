@@ -111,7 +111,7 @@ function onValueChange() {
   bottom: 0;
 }
 .active {
-  background-color: rgba($accent, 0.04);
+  background-color: color-mix(in srgb, $accent 4%, transparent);
   border-color: $accent;
 }
 </style>

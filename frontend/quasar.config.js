@@ -81,7 +81,7 @@ export default defineConfig(function () {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['sentry', 'matomo', 'i18n', 'router', 'icons'],
+    boot: ['institution', 'sentry', 'matomo', 'i18n', 'router', 'icons'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
@@ -141,34 +141,61 @@ export default defineConfig(function () {
         // Access-management provider (label + portal URL) shown in the
         // calculator's access popover (see src/config/runtime.ts). No code
         // default; set per-pod via /injectEnv.js to rebrand for an institution.
-        APP_ACCESS_MANAGEMENT_PROVIDER_NAME:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_NAME || '',
-        APP_ACCESS_MANAGEMENT_PROVIDER_URL:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL || '',
-        APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL || '',
-        APP_ROLES_DOC_URL: process.env.APP_ROLES_DOC_URL || '',
+        APP_INSTITUTION_ACCESS_PROVIDER_NAME:
+          process.env.APP_INSTITUTION_ACCESS_PROVIDER_NAME || '',
+        APP_INSTITUTION_ACCESS_PROVIDER_URL:
+          process.env.APP_INSTITUTION_ACCESS_PROVIDER_URL || '',
+        APP_INSTITUTION_ACCESS_PROVIDER_ABOUT_URL:
+          process.env.APP_INSTITUTION_ACCESS_PROVIDER_ABOUT_URL || '',
+        APP_INSTITUTION_ROLES_DOC_URL:
+          process.env.APP_INSTITUTION_ROLES_DOC_URL || '',
         // Recipient for the Equipment power-feedback mailto (see
         // src/config/runtime.ts). Empty string in dev falls back to the default
         // in runtimeConfig; in production it comes from /injectEnv.js.
-        APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
-          process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
+        APP_INSTITUTION_EQUIPMENT_FEEDBACK_EMAIL:
+          process.env.APP_INSTITUTION_EQUIPMENT_FEEDBACK_EMAIL || '',
         // Matomo analytics (see src/utils/matomo.ts). Empty in dev falls back to
         // the endpoint default in runtimeConfig; the site id has no default, so
         // an empty value keeps tracking off. In production both come from
         // /injectEnv.js.
-        APP_MATOMO_URL: process.env.APP_MATOMO_URL || '',
-        APP_MATOMO_SITE_ID: process.env.APP_MATOMO_SITE_ID || '',
+        APP_INSTITUTION_MATOMO_URL:
+          process.env.APP_INSTITUTION_MATOMO_URL || '',
+        APP_INSTITUTION_MATOMO_SITE_ID:
+          process.env.APP_INSTITUTION_MATOMO_SITE_ID || '',
         // Project-planner year horizon (see src/config/runtime.ts). Empty in
         // dev falls back to the defaults in runtimeConfig; in production it
         // comes from /injectEnv.js.
         APP_PLANNER_MIN_YEAR: process.env.APP_PLANNER_MIN_YEAR || '',
         APP_PLANNER_MAX_YEAR: process.env.APP_PLANNER_MAX_YEAR || '',
         // Demo instance (see src/config/runtime.ts). APP_DEMO_MODE=true
-        // replaces the app with a notice linking to APP_PRODUCTION_URL; in
+        // replaces the app with a notice linking to APP_INSTITUTION_PRODUCTION_URL; in
         // production both come from /injectEnv.js.
         APP_DEMO_MODE: process.env.APP_DEMO_MODE || '',
-        APP_PRODUCTION_URL: process.env.APP_PRODUCTION_URL || '',
+        APP_INSTITUTION_PRODUCTION_URL:
+          process.env.APP_INSTITUTION_PRODUCTION_URL || '',
+        // Institution identity (#500): name, logo, accent colors, contact
+        // and documentation links. Each one has an EPFL default in
+        // runtimeConfig; in production they come from /injectEnv.js.
+        APP_INSTITUTION_NAME: process.env.APP_INSTITUTION_NAME || '',
+        APP_INSTITUTION_NAME_FR_DE:
+          process.env.APP_INSTITUTION_NAME_FR_DE || '',
+        APP_INSTITUTION_NAME_FR_A: process.env.APP_INSTITUTION_NAME_FR_A || '',
+        APP_INSTITUTION_ID_LABEL: process.env.APP_INSTITUTION_ID_LABEL || '',
+        APP_INSTITUTION_LOGO_URL: process.env.APP_INSTITUTION_LOGO_URL || '',
+        APP_INSTITUTION_FAVICON_URL:
+          process.env.APP_INSTITUTION_FAVICON_URL || '',
+        APP_INSTITUTION_ACCENT_COLOR:
+          process.env.APP_INSTITUTION_ACCENT_COLOR || '',
+        APP_INSTITUTION_CONTACT_EMAIL:
+          process.env.APP_INSTITUTION_CONTACT_EMAIL || '',
+        APP_INSTITUTION_STRATEGY_URL:
+          process.env.APP_INSTITUTION_STRATEGY_URL || '',
+        APP_INSTITUTION_STRATEGY_URL_FR:
+          process.env.APP_INSTITUTION_STRATEGY_URL_FR || '',
+        APP_INSTITUTION_USER_DOC_URL:
+          process.env.APP_INSTITUTION_USER_DOC_URL || '',
+        APP_INSTITUTION_BACKOFFICE_DOC_URL:
+          process.env.APP_INSTITUTION_BACKOFFICE_DOC_URL || '',
       },
       // ignorePublicFolder: true,
       minify: true,

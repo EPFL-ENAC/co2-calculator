@@ -11,12 +11,12 @@ export default {
     fr: 'Vérifiez les membres de l’unité et leurs équivalents plein-temps (EPT)',
   },
   [`${MODULES.Headcount}-title-subtext`]: {
-    en: `This module automatically displays the names, functions, SCIPERs, and FTEs of your unit’s members for the reference year. For student contributions, please manually enter their combined FTE for the entire year. The total FTE of the unit is used to generate indicators for additional categories (Food, Commuting, and Waste), as well as your unit’s carbon footprint per FTE.`,
-    fr: `Ce module affiche automatiquement les noms, fonctions, SCIPERs et valeurs EPT des membres de votre unité pour l'année de référence. Pour les contributions des étudiant·e·s, veuillez ajouter manuellement leur EPT total sur l'ensemble de l'année. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets), ainsi que l'empreinte carbone totale par EPT pour votre unité.`,
+    en: `This module automatically displays the names, functions, %institution_id_label%s, and FTEs of your unit’s members for the reference year. For student contributions, please manually enter their combined FTE for the entire year. The total FTE of the unit is used to generate indicators for additional categories (Food, Commuting, and Waste), as well as your unit’s carbon footprint per FTE.`,
+    fr: `Ce module affiche automatiquement les noms, fonctions, %institution_id_label%s et valeurs EPT des membres de votre unité pour l'année de référence. Pour les contributions des étudiant·e·s, veuillez ajouter manuellement leur EPT total sur l'ensemble de l'année. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets), ainsi que l'empreinte carbone totale par EPT pour votre unité.`,
   },
   [`${MODULES.Headcount}-documentation-link`]: {
-    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/headcount/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/headcount/',
+    en: '%user_doc_url%/headcount/',
+    fr: '%user_doc_url%/fr/headcount/',
   },
   [`${MODULES.Headcount}-member`]: {
     en: 'Member| Members',

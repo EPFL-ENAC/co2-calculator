@@ -18,8 +18,8 @@ export default {
     fr: 'Doit avoir maximum {count} décimale | Doit avoir maximum {count} décimales',
   },
   logo_alt: {
-    en: 'Logo EPFL',
-    fr: 'Logo EPFL',
+    en: 'Logo %institution%',
+    fr: 'Logo %institution%',
   },
   calculator_title: {
     en: 'CO₂ Calculator',
@@ -388,20 +388,20 @@ export default {
     fr: 'Obligatoire',
   },
   header_documentation_link: {
-    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/',
+    en: '%user_doc_url%/',
+    fr: '%user_doc_url%/fr/',
   },
   header_backoffice_documentation_link: {
-    en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
+    en: '%backoffice_doc_url%/',
+    fr: '%backoffice_doc_url%/',
   },
   header_dev_documentation_link: {
     en: 'https://epfl-enac.github.io/co2-calculator/',
     fr: 'https://epfl-enac.github.io/co2-calculator/',
   },
   header_user_documentation_link: {
-    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/',
+    en: '%user_doc_url%/',
+    fr: '%user_doc_url%/fr/',
   },
   csv_no_files_uploaded: {
     en: 'No files uploaded',

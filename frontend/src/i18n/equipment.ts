@@ -33,7 +33,7 @@ Please complete the following columns:
 
 This list is based on an export from your unit’s official inventory. If you notice any discrepancies, please correct them in the dedicated inventory application.
 
-If the average power (in active or standby mode) of your equipment differs from the default value, please contact co2calculator{'@'}epfl.ch.`,
+If the average power (in active or standby mode) of your equipment differs from the default value, please contact %contact_email%.`,
     fr: `Ce module vous aide à estimer l'empreinte carbone liée à la consommation électrique de vos équipements (scientifiques, IT, etc.) en usage actif et standby. La consommation totale par équipment estimée à partir de vos saisies est convertie en empreinte carbone selon le facteur d'émission officiel du mix électrique suisse.
 
 Veuillez compléter les colonnes suivantes :
@@ -42,11 +42,11 @@ Veuillez compléter les colonnes suivantes :
 
 La liste s'appuie sur une extraction de l'inventaire officiel contrôlé par votre unité. Si vous constatez des écarts, merci de les corriger dans l'application d'inventaire dédiée.
 
-Si la puissance moyenne (en mode actif ou en veille) de votre équipement est différente de la valeur par défaut, merci de contacter à co2calculator{'@'}epfl.ch`,
+Si la puissance moyenne (en mode actif ou en veille) de votre équipement est différente de la valeur par défaut, merci de contacter à %contact_email%`,
   },
   [`${MODULES.Equipment}-documentation-link`]: {
-    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/equipment/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/equipment/',
+    en: '%user_doc_url%/equipment/',
+    fr: '%user_doc_url%/fr/equipment/',
   },
   [`${MODULES.Equipment}-charts-title`]: {
     en: 'Charts',
@@ -228,8 +228,8 @@ Merci.`,
     fr: "total de l'unité",
   },
   [`${MODULES.Equipment}-results-share-of-lab-total-comparison`]: {
-    en: 'at EPFL in average electrical consumption represents {percentage}.',
-    fr: "à l'EPFL en moyenne, la consommation électrique représente {percentage}.",
+    en: 'at %institution% in average electrical consumption represents {percentage}.',
+    fr: '%institution_fr_a% en moyenne, la consommation électrique représente {percentage}.',
   },
   [`${MODULES.Equipment}-results-year-to-year-evolution`]: {
     en: 'Year-to-year evolution',

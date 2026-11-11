@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import epflLogo from '@/assets/epfl-logo.svg';
+import { institutionLogo } from '@/config/institutionLogo';
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
@@ -76,7 +76,7 @@ const buttonLabel = computed(() => {
       <!-- Logo + Title -->
       <div class="q-gutter-sm flex flex-center column">
         <q-img
-          :src="epflLogo"
+          :src="institutionLogo"
           :alt="$t('login_logo_alt')"
           class="login__logo"
           width="125px"

@@ -134,7 +134,11 @@ $tooltip-box-shadow: dec.$tooltip-box-shadow !default;
 // Table
 $table-border-color: dec.$color-border !default;
 $table-hover-background: rgb(0 0 0 / 3%) !default;
-$table-selected-background: rgb(255 0 0 / 6%) !default;
+$table-selected-background: color-mix(
+  in srgb,
+  #{opt.$tokens-colors-accent} 6%,
+  transparent
+) !default;
 $table-dark-border-color: $separator-dark-color !default;
 $table-dark-hover-background: rgb(255 255 255 / 7%) !default;
 $table-dark-selected-background: rgb(255 255 255 / 10%) !default;

@@ -22,8 +22,8 @@ export default {
     fr: `Ce module vous aide à estimer les émissions de gaz à effet de serre liées à vos procédures expérimentales et aux fuites d’équipements, par exemple : l'utilisation de CO₂ dans les protocoles de laboratoire, les fuites de SF₆ lors de la gravure, les fuites de gaz fluorés des systèmes de réfrigération, ou l’évaporation d’éthers fluorés pendant la manipulation des échantillons. Veuillez noter que les empreintes carbone associées aux achats de gaz sont traitées séparément dans le module des achats.`,
   },
   [`${MODULES.ProcessEmissions}-documentation-link`]: {
-    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/processes/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/processes/',
+    en: '%user_doc_url%/processes/',
+    fr: '%user_doc_url%/fr/processes/',
   },
   [`${MODULES.ProcessEmissions}-process_emissions-form-title`]: {
     en: 'Add an emitted gas',

@@ -6,7 +6,7 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entryPoints.web.address=:80"
       - "--api.insecure=true"
-      - "--entryPoints.traefik.address=:8833"  # ← isolate the API/dashboard entrypoint
+      - "--entryPoints.traefik.address=:8833" # ← isolate the API/dashboard entrypoint
       - "--api.dashboard=true"
       - "--log.level=DEBUG"
       - "--ping=true"
@@ -55,7 +55,8 @@ services:
     # Shared memory: limit=1000 sorts overflow the 64MB container /dev/shm
     # ("could not resize shared memory segment").
     shm_size: "1gb"
-    command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]
+    command:
+      ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d $$DB_URL"]
       interval: 3s
@@ -118,7 +119,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
-      start_period: 20s   # give alembic time to run migrations first
+      start_period: 20s # give alembic time to run migrations first
     depends_on:
       postgres:
         condition: service_healthy
@@ -147,8 +148,8 @@ services:
       APP_ENVIRONMENT: "${APP_ENVIRONMENT:-compose}"
       # Matomo analytics. Empty site id keeps tracking off, so a compose run
       # never sends hits to a real Matomo site by accident.
-      APP_MATOMO_URL: "${APP_MATOMO_URL:-}"
-      APP_MATOMO_SITE_ID: "${APP_MATOMO_SITE_ID:-}"
+      APP_INSTITUTION_MATOMO_URL: "${APP_INSTITUTION_MATOMO_URL:-}"
+      APP_INSTITUTION_MATOMO_SITE_ID: "${APP_INSTITUTION_MATOMO_SITE_ID:-}"
     labels:
       - "traefik.enable=true"
       # match everything else
@@ -167,14 +168,13 @@ services:
     labels:
       - "traefik.enable=false"
     ports:
-      - "127.0.0.1:9464:9464"   # Prometheus — host access
-      - "127.0.0.1:4317:4317"   # gRPC OTLP — add if you need host access too
+      - "127.0.0.1:9464:9464" # Prometheus — host access
+      - "127.0.0.1:4317:4317" # gRPC OTLP — add if you need host access too
     expose:
-      - "4317"        # gRPC OTLP — makes it reachable by other containers
-      - "4318"        # HTTP OTLP
+      - "4317" # gRPC OTLP — makes it reachable by other containers
+      - "4318" # HTTP OTLP
     volumes:
       - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
-
 
 volumes:
   pgadmin_data:

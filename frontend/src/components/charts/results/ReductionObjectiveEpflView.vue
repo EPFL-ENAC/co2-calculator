@@ -333,7 +333,7 @@ function buildTooltipState(rawParams: unknown): TooltipState {
         value: formatTooltipPopulation(
           extractSeriesValue(populationParam.value),
         ),
-        color: '#ff0000',
+        color: populationColorHex.value ?? undefined,
       }
     : undefined;
 
@@ -356,6 +356,8 @@ function readCssVarHex(name: string): string | null {
 }
 
 const accentColorHex = ref<string | null>(null);
+// Population forecast line: the institution accent color.
+const populationColorHex = ref<string | null>(null);
 
 async function ensureYearConfigFetched(): Promise<void> {
   const y = currentYear.value;
@@ -366,6 +368,7 @@ async function ensureYearConfigFetched(): Promise<void> {
 
 onMounted(async () => {
   accentColorHex.value = readCssVarHex('--q-info');
+  populationColorHex.value = readCssVarHex('--q-accent');
   await ensureYearConfigFetched();
 });
 
@@ -417,9 +420,13 @@ const populationSeries = computed(() => {
     symbolSize: 7,
     zlevel: 6,
     z: 60,
-    lineStyle: { type: 'dotted', width: 2, color: '#ff0000' },
+    lineStyle: {
+      type: 'dotted',
+      width: 2,
+      color: populationColorHex.value ?? undefined,
+    },
     itemStyle: {
-      color: '#ff0000',
+      color: populationColorHex.value ?? undefined,
       borderColor: '#ffffff',
       borderWidth: 2,
     },

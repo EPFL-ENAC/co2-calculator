@@ -18,8 +18,8 @@ To identify all usage across your unit, review licenses, subscriptions, and invo
 Afin d'identifier l'ensemble des usages de votre unité, basez-vous sur les licences, abonnements ou factures réglés l'année écoulée. Veillez également à inclure les usages individuels des outils du quotidien, comme le stockage partagé en ligne ou les assistants IA (rédaction, traduction, génération de code,...).`,
   },
   [`${MODULES.ExternalCloudAndAI}-documentation-link`]: {
-    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/external-cloud/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/external-cloud/',
+    en: '%user_doc_url%/external-cloud/',
+    fr: '%user_doc_url%/fr/external-cloud/',
   },
   // external-cloud-and-ai-external_clouds-form-title
   // Add an external cloud usage / Ajouter une utilisation de cloud externe

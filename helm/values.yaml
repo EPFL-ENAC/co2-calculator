@@ -19,7 +19,7 @@ backend:
 
   command: []
   args: []
-  
+
   service:
     type: ClusterIP
     port: 8000
@@ -361,30 +361,47 @@ frontend:
     # Environment label attached to every Sentry event. Override per-cluster
     # in the ops repo (e.g. "stage", "production").
     APP_ENVIRONMENT: "production"
+    # Institution identity (#500): name, logo, accent colors, contact and
+    # documentation links. Empty string → the EPFL default in the frontend
+    # code (src/config/runtime.ts), so an EPFL deploy leaves the block empty.
+    # Another institution sets it in its ops repo. frontend/.env.example
+    # documents each variable.
+    APP_INSTITUTION_NAME: "" # e.g. "EPFL"
+    APP_INSTITUTION_NAME_FR_DE: "" # e.g. "de l'EPFL"
+    APP_INSTITUTION_NAME_FR_A: "" # e.g. "à l'EPFL"
+    APP_INSTITUTION_ID_LABEL: "" # e.g. "SCIPER"
+    APP_INSTITUTION_LOGO_URL: ""
+    APP_INSTITUTION_FAVICON_URL: ""
+    APP_INSTITUTION_ACCENT_COLOR: "" # "#rrggbb"
+    APP_INSTITUTION_CONTACT_EMAIL: ""
+    APP_INSTITUTION_STRATEGY_URL: ""
+    APP_INSTITUTION_STRATEGY_URL_FR: ""
+    APP_INSTITUTION_USER_DOC_URL: ""
+    APP_INSTITUTION_BACKOFFICE_DOC_URL: ""
     # Public label + portal URL shown in the calculator's access popover (role
     # delegation). Free text — NOT the backend ROLE_PROVIDER_TYPE/
     # UNIT_PROVIDER_TYPE provider selection.
     # Example placeholders only; real per-env values are set in the ops repo.
     # No code default: if unset the popover CTA/label is hidden.
-    APP_ACCESS_MANAGEMENT_PROVIDER_NAME: "ACCRED"
-    APP_ACCESS_MANAGEMENT_PROVIDER_URL: "https://access-management.example.com"
-    APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL: "https://access-management.example.com/about"
-    APP_ROLES_DOC_URL: "https://docs.example.com/roles/"
-    APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: "test@epfl.ch"
+    APP_INSTITUTION_ACCESS_PROVIDER_NAME: "ACCRED"
+    APP_INSTITUTION_ACCESS_PROVIDER_URL: "https://access-management.example.com"
+    APP_INSTITUTION_ACCESS_PROVIDER_ABOUT_URL: "https://access-management.example.com/about"
+    APP_INSTITUTION_ROLES_DOC_URL: "https://docs.example.com/roles/"
+    APP_INSTITUTION_EQUIPMENT_FEEDBACK_EMAIL: "test@epfl.ch"
     # Matomo analytics (ENAC web analytics). The site id is the on/off switch:
     # empty string → src/boot/matomo.ts loads no tracker, so an unconfigured
     # deploy sends nothing. One Matomo site per instance — the real ids are set
     # per-cluster in the ops repo.
-    APP_MATOMO_URL: "https://enac-webanalytics.epfl.ch/piwik/"
-    APP_MATOMO_SITE_ID: ""
+    APP_INSTITUTION_MATOMO_URL: "https://enac-webanalytics.epfl.ch/piwik/"
+    APP_INSTITUTION_MATOMO_SITE_ID: ""
     # Project-planner horizon: bounds for the plan start/end year selects.
     # No code default — unset leaves the year selects empty.
     APP_PLANNER_MIN_YEAR: "2016"
     APP_PLANNER_MAX_YEAR: "2050"
     # Demo instance: "true" replaces the whole app with a notice linking to
-    # APP_PRODUCTION_URL. Enabled per-cluster in the ops repo only for the demo.
+    # APP_INSTITUTION_PRODUCTION_URL. Enabled per-cluster in the ops repo only for the demo.
     APP_DEMO_MODE: "false"
-    APP_PRODUCTION_URL: "https://go.epfl.ch/co2"
+    APP_INSTITUTION_PRODUCTION_URL: "https://go.epfl.ch/co2"
 
   podAnnotations: {}
 

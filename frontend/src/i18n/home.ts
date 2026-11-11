@@ -28,16 +28,16 @@ export default {
     fr: "Seul le responsable d'unité a un accès complet à toutes les fonctionnalités du CO₂ calculateur mais peut déléguer l'accès à d'autres membres de l'équipe en leur attribuant le rôle d'utilisateur principal via Accred. La majorité des données remontent automatiquement mais certaines peuvent être saisies manuellement ou importées via un fichier CSV. Vous pouvez passer en mode \"color-blind\" en cliquant sur votre prénom et nom et en activant le mode.",
   },
   home_intro_4_part_1: {
-    en: "For more information on the methodology and EPFL's Climate and Sustainability Strategy, see our ",
-    fr: "Pour plus d'informations sur la méthodologie et la Stratégie Climat et Durabilité de l'EPFL, consultez notre ",
+    en: "For more information on the methodology and %institution%'s Climate and Sustainability Strategy, see our ",
+    fr: "Pour plus d'informations sur la méthodologie et la Stratégie Climat et Durabilité %institution_fr_de%, consultez notre ",
   },
   home_intro_4_link_text: {
     en: 'page',
     fr: 'page',
   },
   home_intro_4_link_url: {
-    en: 'https://www.epfl.ch/about/sustainability/strategy/',
-    fr: 'https://www.epfl.ch/about/sustainability/fr/strategie/',
+    en: '%strategy_url%',
+    fr: '%strategy_url_fr%',
   },
   home_intro_4_part_2: {
     en: '. If you need help, please ',
@@ -48,8 +48,8 @@ export default {
     fr: 'nous contacter',
   },
   home_intro_4_contact_link_url: {
-    en: 'mailto:co2calculator%40epfl.ch',
-    fr: 'mailto:co2calculator%40epfl.ch',
+    en: 'mailto:%contact_email%',
+    fr: 'mailto:%contact_email%',
   },
   home_intro_4_part_3: {
     en: '.',
@@ -175,8 +175,8 @@ export default {
     fr: 'Vous êtes utilisateur·rice standard',
   },
   co2_calculator_access_standard_body: {
-    en: 'You can view and edit your own data in the External cloud & AI and Professional travel modules. In accordance with EPFL’s data protection rules, all other modules and data can only be viewed and updated by your unit’s Principal user. Need full access? Please contact your unit head to request principal access.',
-    fr: "Vous pouvez consulter et ajouter vos propres données dans les modules Clouds externes & IA et Voyages professionnels. Conformément aux règles de protection des données d’EPFL, tous les autres modules et données ne peuvent être consultés et mis à jour que par l'utilisateur·trice principal·e de votre unité. Besoin d'un accès complet ? Veuillez contacter la personne responsable de votre unité pour demander un accès principal.",
+    en: 'You can view and edit your own data in the External cloud & AI and Professional travel modules. In accordance with %institution%’s data protection rules, all other modules and data can only be viewed and updated by your unit’s Principal user. Need full access? Please contact your unit head to request principal access.',
+    fr: "Vous pouvez consulter et ajouter vos propres données dans les modules Clouds externes & IA et Voyages professionnels. Conformément aux règles de protection des données %institution_fr_de%, tous les autres modules et données ne peuvent être consultés et mis à jour que par l'utilisateur·trice principal·e de votre unité. Besoin d'un accès complet ? Veuillez contacter la personne responsable de votre unité pour demander un accès principal.",
   },
   co2_calculator_access_principal_title: {
     en: "You're a principal user",
@@ -202,7 +202,7 @@ export default {
     en: 'About {provider}',
     fr: 'À propos de {provider}',
   },
-  // Generic {provider} fallback when APP_ACCESS_MANAGEMENT_PROVIDER_NAME is
+  // Generic {provider} fallback when APP_INSTITUTION_ACCESS_PROVIDER_NAME is
   // unset, so the popover body reads grammatically without an institution name.
   co2_calculator_access_provider_generic: {
     en: 'the access management portal',

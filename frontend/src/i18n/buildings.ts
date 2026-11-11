@@ -14,8 +14,8 @@ export default {
     fr: 'Vérifiez les données d’utilisation de vos locaux.',
   },
   [`${MODULES.Buildings}-documentation-link`]: {
-    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/building/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/building/',
+    en: '%user_doc_url%/building/',
+    fr: '%user_doc_url%/fr/building/',
   },
   [`${MODULES.Buildings}-title-subtext`]: {
     en: 'This module helps you estimate carbon emissions from energy combustion (if your unit uses a non-centralized energy source) as well as building operations (heating, cooling, ventilation, and lighting). Based on overall building energy data, these operational emissions are allocated to each space according to its surface area and usage type.',

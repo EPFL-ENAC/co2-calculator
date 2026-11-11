@@ -28,8 +28,8 @@ export default {
     fr: 'Enregistrer',
   },
   user_management_page_description_system: {
-    en: 'User management at EPFL is handled via Accred.',
-    fr: "La gestion des utilisateur·rices à l'EPFL est gérée via Accred.",
+    en: 'User management at %institution% is handled via Accred.',
+    fr: 'La gestion des utilisateur·rices %institution_fr_a% est gérée via Accred.',
   },
   user_management_page_button_label_system: {
     en: 'Go to User management system (Accred)',

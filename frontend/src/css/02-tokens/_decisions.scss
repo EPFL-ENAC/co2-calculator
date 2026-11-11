@@ -1,8 +1,8 @@
 @use 'options' as opt;
 
 // Brand Palette
-$color-primary: opt.$tokens-colors-red-red-100 !default;
-$color-primary-hover: opt.$tokens-colors-red-red-200 !default;
+$color-primary: opt.$tokens-colors-accent !default;
+$color-primary-hover: opt.$tokens-colors-accent-hover !default;
 $color-secondary: opt.$tokens-colors-grey-scale-grey-200 !default;
 $color-surface: opt.$tokens-colors-base-white !default;
 $color-surface-muted: opt.$tokens-colors-grey-scale-grey-100 !default;

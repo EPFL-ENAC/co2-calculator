@@ -1,15 +1,9 @@
+import { runtimeConfig } from '@/config/runtime';
+
 /**
- * Institution-specific display configuration.
+ * Label of the personal identifier the institution gives its members, stored
+ * in headcount ("SCIPER" at EPFL). Set APP_INSTITUTION_ID_LABEL to change it.
  *
- * Configuring for your institution:
- *   - Set INSTITUTIONAL_ID_LABEL to the term your institution uses
- *     for the internal user identifier stored in headcount.
- *
- * Examples:
- *   EPFL  → 'SCIPER'
- *   Other → 'Institutional ID'
- *
- * This value is used in headcount form labels, table column headers,
- * and error messages across the application.
+ * Used in headcount form labels, table column headers and error messages.
  */
-export const INSTITUTIONAL_ID_LABEL = 'SCIPER';
+export const INSTITUTIONAL_ID_LABEL = runtimeConfig.institution.idLabel;

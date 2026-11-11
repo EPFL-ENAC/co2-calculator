@@ -19,8 +19,8 @@ $header-title-color: opt.$tokens-colors-base-black !default;
 
 // Buttons
 $button-radius: opt.$tokens-border-radius-generic-border-radius !default;
-$button-primary-bg-default: opt.$tokens-colors-red-red-100 !default;
-$button-primary-bg-hover: opt.$tokens-colors-red-red-200 !default;
+$button-primary-bg-default: opt.$tokens-colors-accent !default;
+$button-primary-bg-hover: opt.$tokens-colors-accent-hover !default;
 $button-primary-color: opt.$tokens-colors-base-white !default;
 $button-secondary-bg-default: opt.$tokens-colors-base-white !default;
 $button-secondary-bg-hover: opt.$tokens-colors-grey-scale-grey-100 !default;
@@ -87,11 +87,11 @@ $timeline-item-in-progress-bg: opt.$tokens-colors-grey-scale-grey-500 !default;
 $timeline-item-in-progress-border-color: opt.$tokens-colors-base-white !default;
 $timeline-item-in-progress-text: opt.$tokens-colors-grey-scale-grey-400 !default;
 $timeline-item-in-progress-selected-bg: opt.$tokens-colors-grey-scale-grey-500 !default;
-$timeline-item-validated-icon: opt.$tokens-colors-red-red-100 !default;
-$timeline-item-validated-bg: opt.$tokens-colors-red-red-100 !default;
+$timeline-item-validated-icon: opt.$tokens-colors-accent !default;
+$timeline-item-validated-bg: opt.$tokens-colors-accent !default;
 $timeline-item-validated-border-color: opt.$tokens-colors-base-white !default;
-$timeline-item-validated-text: opt.$tokens-colors-red-red-100 !default;
-$timeline-item-validated-selected-bg: opt.$tokens-colors-red-red-100 !default;
+$timeline-item-validated-text: opt.$tokens-colors-accent !default;
+$timeline-item-validated-selected-bg: opt.$tokens-colors-accent !default;
 
 // Icons
 $icon-icon-size-xl: opt.$tokens-spacing-32 !default;
@@ -99,12 +99,12 @@ $icon-icon-size-lg: opt.$tokens-spacing-24 !default;
 $icon-icon-size-md: opt.$tokens-spacing-16 !default;
 $icon-icon-size-sm: opt.$tokens-spacing-16 !default;
 $icon-color-grey: opt.$tokens-colors-grey-scale-grey-600 !default;
-$icon-color-red: opt.$tokens-colors-red-red-100 !default;
+$icon-color-red: opt.$tokens-colors-accent !default;
 $icon-color-black: opt.$tokens-colors-base-black !default;
 $icon-color-white: opt.$tokens-colors-base-white !default;
 
 // Radio Buttons
-$radio-selected-radio-color: opt.$tokens-colors-red-red-100 !default;
+$radio-selected-radio-color: opt.$tokens-colors-accent !default;
 $radio-selected-text-color: opt.$tokens-colors-base-black !default;
 $radio-button-size: opt.$tokens-spacing-16 !default;
 $radio-unselected-radio-color: opt.$tokens-colors-grey-scale-grey-600 !default;
@@ -114,7 +114,7 @@ $radio-disabled-text-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $radio-gap: opt.$tokens-spacing-4 !default;
 
 // Checkboxes
-$checkbox-selected-radio-color: opt.$tokens-colors-red-red-100 !default;
+$checkbox-selected-radio-color: opt.$tokens-colors-accent !default;
 $checkbox-button-size: opt.$tokens-spacing-16 !default;
 $checkbox-selected-text-color: opt.$tokens-colors-base-black !default;
 $checkbox-unselected-radio-color: opt.$tokens-colors-grey-scale-grey-600 !default;
@@ -129,11 +129,11 @@ $progress-bar-height: opt.$tokens-spacing-4 !default;
 $progress-bar-gap: opt.$tokens-spacing-2 !default;
 $progress-bar-segment-radius: opt.$tokens-border-radius-generic-border-radius-px !default;
 $progress-bar-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
-$progress-bar-selected-bg: opt.$tokens-colors-red-highlight-200 !default;
-$progress-bar-fill-bg: opt.$tokens-colors-red-red-100 !default;
+$progress-bar-selected-bg: opt.$tokens-colors-accent-highlight-strong !default;
+$progress-bar-fill-bg: opt.$tokens-colors-accent !default;
 
 // Status Indicators
-$status-indicator-high-bg: opt.$tokens-colors-red-red-100 !default;
+$status-indicator-high-bg: opt.$tokens-colors-accent !default;
 $status-indicator-high-color: opt.$tokens-colors-base-white !default;
 $status-indicator-low-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
 $status-indicator-low-color: opt.$tokens-colors-grey-scale-grey-600 !default;
@@ -164,7 +164,7 @@ $table-gap: opt.$tokens-spacing-32 !default;
 $table-bg-even: opt.$tokens-colors-grey-scale-grey-100 !default;
 $table-bg-odd: opt.$tokens-colors-base-white !default;
 $table-color-primary: opt.$tokens-colors-base-black !default;
-$table-color-selected: opt.$tokens-colors-red-highlight !default;
+$table-color-selected: opt.$tokens-colors-accent-highlight !default;
 $table-color-disabled: opt.$tokens-colors-grey-scale-grey-400 !default;
 $table-border-weight: opt.$tokens-spacing-1 !default;
 $table-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;
@@ -177,9 +177,10 @@ $table-header-z-index: opt.$tokens-z-index-sticky !default;
 $table-action-size: opt.$tokens-table-action-size !default;
 $table-action-icon-size: opt.$tokens-typography-font-size-lg !default;
 $table-action-hover-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
-$table-action-delete-hover-bg: rgba(
-  opt.$tokens-colors-red-red-100,
-  80%
+$table-action-delete-hover-bg: color-mix(
+  in srgb,
+  #{opt.$tokens-colors-accent} 80%,
+  transparent
 ) !default;
 $table-field-hover-bg: rgb(0 0 0 / 4%) !default;
 $table-inline-icon-color: opt.$tokens-colors-grey-scale-grey-400 !default;
@@ -215,16 +216,16 @@ $container-secondary: opt.$tokens-colors-grey-scale-grey-600 !default;
 $container-disabled-color: opt.$tokens-colors-grey-scale-grey-400 !default;
 $container-divider-disabled: opt.$tokens-colors-grey-scale-grey-200 !default;
 $container-border-weight: opt.$tokens-spacing-1 !default;
-$container-selected-hover-bg: opt.$tokens-colors-red-highlight !default;
-$container-selected-hover-border: opt.$tokens-colors-red-red-100 !default;
+$container-selected-hover-bg: opt.$tokens-colors-accent-highlight !default;
+$container-selected-hover-border: opt.$tokens-colors-accent !default;
 $container-gap-x: opt.$tokens-spacing-4 !default;
 $container-hover-bg: opt.$tokens-colors-base-white !default;
-$container-hover-border: opt.$tokens-colors-red-red-100 !default;
+$container-hover-border: opt.$tokens-colors-accent !default;
 $container-disabled-bg-fill: opt.$tokens-colors-grey-scale-grey-100 !default;
 
 // Tabs
-$tabs-selected-bg: opt.$tokens-colors-red-red-100 !default;
-$tabs-selected-border: opt.$tokens-colors-red-red-100 !default;
+$tabs-selected-bg: opt.$tokens-colors-accent !default;
+$tabs-selected-border: opt.$tokens-colors-accent !default;
 $tabs-default-bg: opt.$tokens-colors-base-white !default;
 $tabs-default-border: opt.$tokens-colors-grey-scale-grey-200 !default;
 $tabs-selected-color: opt.$tokens-colors-base-white !default;
