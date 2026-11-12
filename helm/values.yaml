@@ -363,30 +363,54 @@ frontend:
     # Environment label attached to every Sentry event. Override per-cluster
     # in the ops repo (e.g. "stage", "production").
     APP_ENVIRONMENT: "production"
-    # Public label + portal URL shown in the calculator's access popover (role
-    # delegation). Free text — NOT the backend ROLE_PROVIDER_TYPE/
-    # UNIT_PROVIDER_TYPE provider selection.
-    # Example placeholders only; real per-env values are set in the ops repo.
-    # No code default: if unset the popover CTA/label is hidden.
-    APP_ACCESS_MANAGEMENT_PROVIDER_NAME: "ACCRED"
-    APP_ACCESS_MANAGEMENT_PROVIDER_URL: "https://access-management.example.com"
-    APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL: "https://access-management.example.com/about"
-    APP_ROLES_DOC_URL: "https://docs.example.com/roles/"
-    APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: "test@epfl.ch"
-    # Matomo analytics (ENAC web analytics). The site id is the on/off switch:
-    # empty string → src/boot/matomo.ts loads no tracker, so an unconfigured
-    # deploy sends nothing. One Matomo site per instance — the real ids are set
-    # per-cluster in the ops repo.
-    APP_MATOMO_URL: "https://enac-webanalytics.epfl.ch/piwik/"
+    # Institution values (#3244). Required: an empty one makes the app show
+    # the missing-values page. Example values are in
+    # institutions/epfl/frontend.env.example and set in the ops repo.
+    APP_INSTITUTION_NAME: ""
+    APP_INSTITUTION_NAME_FR_DE: ""
+    APP_INSTITUTION_NAME_FR_A: ""
+    APP_INSTITUTIONAL_ID_LABEL: ""
+    APP_CONTACT_EMAIL: ""
+    APP_USER_DOC_URL: ""
+    APP_BACKOFFICE_DOC_URL: ""
+    APP_STRATEGY_URL_EN: ""
+    APP_STRATEGY_URL_FR: ""
+    # Optional links. An empty value hides the link.
+    APP_ACCESS_MANAGEMENT_URL: ""
+    APP_ACCESS_MANAGEMENT_ABOUT_URL: ""
+    APP_ROLES_DOC_URL: ""
+    APP_SOURCE_CODE_URL: ""
+    APP_USER_DOC_SOURCE_URL: ""
+    APP_BACKOFFICE_DOC_SOURCE_URL: ""
+    APP_DEVELOPER_DOC_URL: ""
+    APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: ""
+    # Operations links of the system logs page, for this cluster only.
+    APP_OPS_ARGOCD_URL: ""
+    APP_OPS_GRAFANA_DASHBOARD_URL: ""
+    APP_OPS_GRAFANA_GRAPHS_URL: ""
+    APP_OPS_LOGS_URL: ""
+    APP_OPS_OPENSHIFT_URL: ""
+    # Matomo analytics. The site id is the on/off switch: empty string →
+    # src/boot/matomo.ts loads no tracker. With a site id, APP_MATOMO_URL is
+    # required. One Matomo site per instance, set per-cluster in the ops repo.
+    APP_MATOMO_URL: ""
     APP_MATOMO_SITE_ID: ""
     # Project-planner horizon: bounds for the plan start/end year selects.
     # No code default — unset leaves the year selects empty.
     APP_PLANNER_MIN_YEAR: "2016"
     APP_PLANNER_MAX_YEAR: "2050"
     # Demo instance: "true" replaces the whole app with a notice linking to
-    # APP_PRODUCTION_URL. Enabled per-cluster in the ops repo only for the demo.
+    # APP_PRODUCTION_URL, which is then required. Enabled per-cluster in the
+    # ops repo only for the demo.
     APP_DEMO_MODE: "false"
-    APP_PRODUCTION_URL: "https://go.epfl.ch/co2"
+    APP_PRODUCTION_URL: ""
+
+  # Volume with the institution assets folder, mounted at /institution
+  # (#3244): logo.svg, login-illustration.svg, the favicons, fonts/*.woff2
+  # and theme.conf. Any volume source works, for example a ConfigMap built
+  # from institutions/<name>/assets with binaryData. Required.
+  institutionAssets:
+    volume: {}
 
   podAnnotations: {}
 

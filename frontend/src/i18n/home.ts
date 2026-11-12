@@ -183,30 +183,24 @@ export default {
     fr: 'Vous êtes utilisateur·rice principal·e',
   },
   co2_calculator_access_principal_body: {
-    en: 'You have access to all active modules. Certain data contains personal and research-related information: please handle it securely and responsibly. If relevant, the head of unit can delegate this role to  members of their unit via {provider}.',
-    fr: "Vous avez accès à l'ensemble des modules. Certaines données incluent des informations personnelles et liées aux activités de recherche : merci de les traiter de manière sécurisée et responsable. Si besoin, la personne responsable d'unité peut déléguer ce droit via {provider}.",
+    en: 'You have access to all active modules. Certain data contains personal and research-related information: please handle it securely and responsibly. If relevant, the head of unit can delegate this role to  members of their unit in the access management tool.',
+    fr: "Vous avez accès à l'ensemble des modules. Certaines données incluent des informations personnelles et liées aux activités de recherche : merci de les traiter de manière sécurisée et responsable. Si besoin, la personne responsable d'unité peut déléguer ce droit dans l'outil de gestion des accès.",
   },
   co2_calculator_access_cta_standard: {
     en: 'Email the unit head',
     fr: 'Écrire à la personne responsable',
   },
   co2_calculator_access_cta_principal: {
-    en: 'Manage access in {provider}',
-    fr: 'Gérer les accès dans {provider}',
+    en: 'Manage access in the access management tool',
+    fr: "Gérer les accès dans l'outil de gestion des accès",
   },
   co2_calculator_access_cta_roles_doc: {
     en: 'Roles in the CO₂ Calculator',
     fr: 'Les rôles dans le Calculateur CO₂',
   },
   co2_calculator_access_cta_about_provider: {
-    en: 'About {provider}',
-    fr: 'À propos de {provider}',
-  },
-  // Generic {provider} fallback when APP_ACCESS_MANAGEMENT_PROVIDER_NAME is
-  // unset, so the popover body reads grammatically without an institution name.
-  co2_calculator_access_provider_generic: {
-    en: 'the access management portal',
-    fr: 'le portail de gestion des accès',
+    en: 'About the access management tool',
+    fr: "À propos de l'outil de gestion des accès",
   },
   co2_calculator_access_no_email: {
     en: "No contact email is available for your unit's principal user, {name}.",

@@ -84,7 +84,16 @@ spec:
               mountPath: /var/cache/nginx
             - name: run
               mountPath: /var/run
+            # Logo, icons, fonts and theme of the institution (#3244).
+            - name: institution
+              mountPath: /institution
+              readOnly: true
       volumes:
+        - name: institution
+          {{- if not .Values.frontend.institutionAssets.volume }}
+          {{- fail "frontend.institutionAssets.volume is required: the volume with the institution assets folder" }}
+          {{- end }}
+          {{- toYaml .Values.frontend.institutionAssets.volume | nindent 10 }}
         - name: cache
           emptyDir: {}
         - name: run

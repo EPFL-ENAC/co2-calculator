@@ -63,6 +63,11 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # the base image's own 10–30 init scripts. See docker/entrypoint.sh for what
 # it writes and why.
 COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-inject-env.sh
+# Institution assets check and theme (see docker/institution.sh). Numbered
+# 41 so it runs after the env injection. A failure stops the container.
+COPY --chmod=755 docker/institution.sh /docker-entrypoint.d/41-institution.sh
+COPY --chmod=755 docker/theme.awk /usr/local/share/institution/theme.awk
+ENV THEME_AWK=/usr/local/share/institution/theme.awk
 
 # Copy built static files. (Source maps are not generated — see
 # `sourcemap: false` in quasar.config.js for the reason.)

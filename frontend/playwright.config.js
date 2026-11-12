@@ -8,6 +8,14 @@ import process from 'process';
 
 const port = Number(process.env.PREVIEW_PORT ?? 4173);
 
+// The e2e tests run with the values and assets of institutions/epfl:
+// `npm run preview` writes
+// them into dist/spa with the container scripts (build/prepare-preview.mjs).
+// The tracked example keeps CI and local runs equal (#3244).
+process.env.INSTITUTION_ENV_FILE ??=
+  '../institutions/epfl/frontend.env.example';
+process.env.INSTITUTION_ASSETS_DIR ??= '../institutions/epfl/assets';
+
 export default defineConfig({
   testDir: './tests',
   srcDir: './src',

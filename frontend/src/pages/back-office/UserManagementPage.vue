@@ -4,6 +4,7 @@ import { BACKOFFICE_NAV } from '@/constant/navigation';
 import { ROLES } from '@/constant/roles';
 import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
 import { useI18n } from 'vue-i18n';
+import { runtimeConfig } from '@/config/runtime';
 
 const { t } = useI18n();
 
@@ -60,13 +61,14 @@ const roles = computed(() => [
           </q-card-section>
         </q-card>
         <q-btn
+          v-if="runtimeConfig.links.accessManagementUrl"
           no-caps
           :label="$t('user_management_page_button_label')"
           color="accent"
           size="md"
           class="q-mr-sm text-weight-medium"
           external
-          :href="'https://accred.epfl.ch?opentab=authorizations'"
+          :href="runtimeConfig.links.accessManagementUrl"
           rel="noopener noreferrer"
         />
         <q-btn

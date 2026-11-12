@@ -1,27 +1,25 @@
-// The brand font comes from the ENAC font server, which serves *.epfl.ch pages
-// (and localhost on the EPFL network/VPN). Elsewhere the stack falls back.
+// The fonts come from the institution folder that the deployment mounts at
+// /institution/ (#3244). The family keeps one neutral name, so the tokens do
+// not change per institution.
 @font-face {
-  font-family: SuisseIntl;
-  src: url('https://enac-it-fonts.epfl.ch/SuisseIntl-Regular-WebS.woff2')
-    format('woff2');
+  font-family: InstitutionFont;
+  src: url('/institution/fonts/regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: SuisseIntl;
-  src: url('https://enac-it-fonts.epfl.ch/SuisseIntl-Medium-WebS.woff2')
-    format('woff2');
+  font-family: InstitutionFont;
+  src: url('/institution/fonts/medium.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: SuisseIntl;
-  src: url('https://enac-it-fonts.epfl.ch/SuisseIntl-Bold-WebS.woff2')
-    format('woff2');
+  font-family: InstitutionFont;
+  src: url('/institution/fonts/bold.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;

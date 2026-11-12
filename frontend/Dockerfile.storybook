@@ -15,9 +15,16 @@ RUN cd storybook && npm ci --ignore-scripts
 
 # Copy source code (be selective to avoid copying node_modules)
 COPY src/ ./src/
-COPY public/ ./public/
 COPY storybook/ ./storybook/
 COPY index.html tsconfig.json quasar.config.js quasar.extensions.json ./
+# The Storybook build writes injectEnv.js, theme.css and the institution
+# folder with the container scripts (#3244). storybook/.storybook/main.ts
+# reads institutions/epfl, which is outside this build context: the workflow
+# passes the institutions folder as the named context "institutions", and it
+# lands at ../institutions from /app.
+COPY build/ ./build/
+COPY docker/ ./docker/
+COPY --from=institutions . /institutions/
 
 # Prepare Quasar (generates .quasar/)
 RUN npx quasar prepare

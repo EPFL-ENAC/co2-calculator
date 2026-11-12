@@ -78,6 +78,7 @@ install: ## Install all dependencies and set up git hooks
 	cd docs && $(MAKE) install
 	@echo "Install env files if missing..."
 	@if [ ! -f .database.env ]; then cp .database.env.example .database.env; fi
+	@if [ ! -f institutions/epfl/frontend.env ]; then cp institutions/epfl/frontend.env.example institutions/epfl/frontend.env; fi
 	@echo "✅ Setup complete!"
 
 .PHONY: clean
