@@ -32,8 +32,6 @@ def _guard_target_db() -> None:
     vars don't reliably override dotenv here, so check the effective URL.
     """
     settings = get_settings()
-    if settings.DB_URL is None:
-        raise SystemExit("DB_URL must be set to run this seed script")
     host = urlsplit(
         settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     ).hostname

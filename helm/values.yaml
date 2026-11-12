@@ -46,7 +46,9 @@ backend:
     UNIT_PROVIDER_TYPE: "database" # Could be 'database', 'accred', or 'test'
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
-    FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
+    # Required, no default (#3244): the backend does not start while it is
+    # empty. Set the public URL of the frontend in the ops repo.
+    FRONTEND_URL: ""
     CSRF_ADDITIONAL_ORIGINS: "" # Extra origins for cookie-auth writes (#89); FRONTEND_URL is already allowed
     ACCRED_AUTHORIZATION_HEALTHCHECK_URL: "https://url-you-want-to-check"
     MIN_CONFIGURABLE_YEAR: "2025" # Earliest year an admin can create a YearConfiguration for

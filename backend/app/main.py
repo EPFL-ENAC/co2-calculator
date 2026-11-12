@@ -158,8 +158,6 @@ def assert_poller_isolation(settings) -> None:
     """
     if not settings.LOCAL_ENVIRONMENT or not settings.RUN_BACKGROUND_POLLER:
         return
-    if settings.DB_URL is None:
-        return
     host = make_url(settings.DB_URL).host
     if host in _LOCAL_DB_HOSTS:
         return

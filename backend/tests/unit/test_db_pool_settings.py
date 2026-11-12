@@ -176,8 +176,8 @@ def test_sqlite_connect_args_carry_no_libpq_options():
 
 
 def test_already_async_sqlite_url_is_detected_as_sqlite():
-    """Regression, #2566: the check was ``drivername == "sqlite"``, so the
-    shipped default -- which already names the async driver -- fell through
+    """Regression, #2566: the check was ``drivername == "sqlite"``, so a
+    sqlite URL that already names the async driver fell through
     to the Postgres branch. It only ever looked harmless because the
     Postgres connect args were empty at the time.
     """
@@ -204,15 +204,6 @@ def test_postgres_url_gains_psycopg_and_valid_libpq_options(scheme):
     assert is_sqlite is False
     assert url.drivername == "postgresql+psycopg"
     make_conninfo("", **url.query)
-
-
-def test_shipped_default_db_url_is_sqlite():
-    """Ties the detection to the actual default rather than a literal in
-    this test -- CI runs with no .env, so this is the URL it uses.
-    """
-    default = Settings.model_fields["DB_URL"].default
-
-    assert _normalize_url(default)[1] is True
 
 
 class _RecordingCounter:

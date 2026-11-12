@@ -90,8 +90,13 @@ services:
       HOST: "0.0.0.0"
       PORT: "8000"
       WORKERS: "1"
+    # backend/.env serves `make dev`, so its DB_URL names the host localhost.
+    # Inside this container localhost is the backend itself: the command
+    # points DB_URL at the postgres service. The credentials stay those of
+    # backend/.env, which the postgres service reads too.
     command: >
       sh -c '
+        export DB_URL="$$(printf %s "$$DB_URL" | sed "s#@localhost:#@postgres:#")" &&
         alembic upgrade head &&
         exec opentelemetry-instrument uvicorn app.main:app --host $$HOST --port $$PORT --workers $$WORKERS
       '
