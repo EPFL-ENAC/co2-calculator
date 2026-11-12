@@ -541,7 +541,7 @@ import { PermissionAction } from '@/stores/auth';
 import { fetchTemplate } from '@/constant/templateAssets';
 import { downloadFrom } from '@/utils/download';
 import { getTemplateFileName } from '@/constant/templateMapping';
-import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
+import { runtimeConfig } from '@/config/runtime';
 import { CARBON_PROJECT } from '@/constant/carbon-project';
 import { resolveTravelerCellText } from '@/constant/module-config/traveler-options';
 import type {
@@ -1747,10 +1747,7 @@ async function commitInline(
     let msg = err instanceof Error ? err.message : $t('validation_save_failed');
     if (msg === 'DUPLICATE_INSTITUTIONAL_ID') {
       msg = $t('headcount-member-error-duplicate-uid', {
-        label:
-          typeof INSTITUTIONAL_ID_LABEL !== 'undefined'
-            ? INSTITUTIONAL_ID_LABEL
-            : '',
+        label: runtimeConfig.institution.institutionalIdLabel,
       });
     }
     setError(row, col, msg);

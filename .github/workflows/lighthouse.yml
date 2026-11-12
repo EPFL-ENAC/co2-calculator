@@ -48,6 +48,15 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
+      # nginx serves these files in the container (#3244). `serve` does not,
+      # so they go into the build output, as for `npm run preview`.
+      - name: Write the institution files into the build
+        working-directory: ./frontend
+        env:
+          INSTITUTION_ENV_FILE: ../institutions/epfl/frontend.env.example
+          INSTITUTION_ASSETS_DIR: ../institutions/epfl/assets
+        run: node build/prepare-preview.mjs
+
       - name: Inject Lighthouse bypass flag into index.html
         run: |
           node -e "

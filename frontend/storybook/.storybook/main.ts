@@ -4,17 +4,22 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { mergeConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import { institutionPlugin } from '../../build/institution.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
+
+// Stories render with the values and assets of institutions/epfl, written by
+// the container scripts (#3244). Paths are relative to frontend/.
+process.env.INSTITUTION_ENV_FILE ??=
+  '../institutions/epfl/frontend.env.example';
+process.env.INSTITUTION_ASSETS_DIR ??= '../institutions/epfl/assets';
 
 const config: StorybookConfig = {
   stories: [
     '../../src/components/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
-
-  staticDirs: ['../../public'],
 
   addons: ['@storybook/addon-a11y', '@storybook/addon-docs'],
 
@@ -35,7 +40,7 @@ const config: StorybookConfig = {
     return mergeConfig(
       { ...config, plugins: filteredPlugins },
       {
-        plugins: [vue()],
+        plugins: [vue(), institutionPlugin()],
         resolve: {
           alias: {
             '@': path.resolve(projectRoot, 'src'),

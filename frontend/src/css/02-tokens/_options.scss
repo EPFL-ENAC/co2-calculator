@@ -12,15 +12,26 @@ $tokens-spacing-48: 3rem !default;
 $tokens-spacing-64: 4rem !default;
 
 // Border Radius
-$tokens-border-radius-generic-border-radius: 0.1875rem !default;
-$tokens-border-radius-generic-border-radius-px: 3px !default;
+// Theme values (#3244): --theme-* comes from the theme.conf of the
+// institution (docker/theme.awk). The fallback is the base design.
+$tokens-border-radius-generic-border-radius: var(
+  --theme-radius,
+  0.1875rem
+) !default;
+$tokens-border-radius-generic-border-radius-px: var(
+  --theme-radius,
+  3px
+) !default;
 $tokens-border-radius-full-border-radius: 62.4375rem !default;
-$tokens-border-radius-lg-border-radius: 0.75rem !default;
+$tokens-border-radius-lg-border-radius: var(
+  --theme-radius-lg,
+  0.75rem
+) !default;
 
 // Font Family
 // deactivate prettier for the next line to avoid formatting issues
 // prettier-ignore
-$tokens-typography-font-family-base: 'SuisseIntl', '-apple-system', sans-serif !default;
+$tokens-typography-font-family-base: 'InstitutionFont', system-ui, -apple-system, 'Segoe UI', 'Roboto', sans-serif !default;
 
 // Font Size
 $tokens-typography-font-size-3xl: 1.75rem !default;
@@ -94,24 +105,39 @@ $tokens-typography-line-height-snug: 1.2 !default;
 $tokens-typography-line-height-relaxed: 1.3 !default;
 
 // Colors
-$tokens-colors-status-green: #28a745 !default;
-$tokens-colors-status-red: #dc3545 !default;
-$tokens-colors-status-yellow: #ffc107 !default;
+// Theme values (#3244), see Border Radius. The accent has no fallback: it
+// is the one required theme value. Its shades mix from it unless the theme
+// sets them.
+$tokens-colors-status-green: var(--theme-success, #28a745) !default;
+$tokens-colors-status-red: var(--theme-error, #dc3545) !default;
+$tokens-colors-status-yellow: var(--theme-warning, #ffc107) !default;
 $tokens-colors-grey-scale-grey-100: #f5f5f5 !default;
 $tokens-colors-grey-scale-grey-200: #e6e6e6 !default;
 $tokens-colors-grey-scale-grey-300: #d5d5d5 !default;
 $tokens-colors-grey-scale-grey-400: #c1c1c1 !default;
 $tokens-colors-grey-scale-grey-500: #8e8e8e !default;
 $tokens-colors-grey-scale-grey-600: #707070 !default;
-$tokens-colors-leman: #00a79f !default;
+$tokens-colors-leman: var(--theme-highlight, #00a79f) !default;
 $tokens-colors-canard: #007480 !default;
-$tokens-colors-red-red-100: #ff0000 !default;
-$tokens-colors-red-red-200: #b51f1f !default;
+$tokens-colors-red-red-100: var(--theme-accent) !default;
+$tokens-colors-red-red-200: var(
+  --theme-accent-hover,
+  color-mix(in srgb, var(--theme-accent) 70%, black)
+) !default;
 $tokens-colors-base-black: #212121 !default;
 $tokens-colors-base-white: #ffffff !default;
-$tokens-colors-red-highlight: #fbeceb !default;
-$tokens-colors-red-highlight-200: #f4c6c2 !default;
-$tokens-colors-validated-highlight: #def1f1 !default;
+$tokens-colors-red-highlight: var(
+  --theme-accent-light,
+  color-mix(in srgb, var(--theme-accent) 8%, white)
+) !default;
+$tokens-colors-red-highlight-200: var(
+  --theme-accent-lighter,
+  color-mix(in srgb, var(--theme-accent) 25%, white)
+) !default;
+$tokens-colors-validated-highlight: var(
+  --theme-validated-light,
+  #def1f1
+) !default;
 
 // Layout
 $tokens-layout-page-width: 1320px !default;
@@ -132,7 +158,6 @@ $tokens-box-shadow: rgb(99 99 99 / 40%) 0px 2px 8px 0px !default;
 
 // Z-Index
 $tokens-z-index-background-base: -2 !default;
-$tokens-z-index-background-overlay: -1 !default;
 $tokens-z-index-sticky: 2 !default;
 $tokens-z-index-top: 99 !default;
 

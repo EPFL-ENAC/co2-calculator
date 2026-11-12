@@ -50,6 +50,8 @@ export async function setLanguageCookieGuard(
   if (toLang !== fromLang) {
     const newLocale = LOCALE_MAP[toLang as Language] as MessageLanguages;
     i18n.global.locale.value = newLocale;
+    // The tab title is text, so it follows the language (#3244).
+    document.title = i18n.global.t('app_document_title');
     Cookies.set(LOCALE_COOKIE_KEY, newLocale, {
       expires: LOCALE_COOKIE_EXPIRE_DAYS,
       path: LOCALE_COOKIE_PATH,

@@ -5,8 +5,15 @@ import { BACKOFFICE_NAV } from '@/constant/navigation';
 import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
+import { runtimeConfig } from '@/config/runtime';
 
 const { t } = useI18n();
+
+// Documentation sites and their sources come from the deployment (#3244). An
+// empty value hides the link.
+const { links } = runtimeConfig;
+const sourceTreeUrl = (repoUrl: string, path: string): string =>
+  repoUrl && `${repoUrl}/tree/main/${path}`;
 
 const docRows = computed(() => [
   {
@@ -14,26 +21,24 @@ const docRows = computed(() => [
     description: t(
       'documentation_editing_calculator_user_documentation_description',
     ),
-    docUrl: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator-user-doc/tree/main/docs',
+    docUrl: runtimeConfig.institution.userDocUrl,
+    githubUrl: sourceTreeUrl(links.userDocSourceUrl, 'docs'),
   },
   {
     topic: t('documentation_editing_calculator_backoffice_documentation_title'),
     description: t(
       'documentation_editing_calculator_backoffice_documentation_description',
     ),
-    docUrl: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator-back-office-doc/tree/main/docs',
+    docUrl: runtimeConfig.institution.backofficeDocUrl,
+    githubUrl: sourceTreeUrl(links.backofficeDocSourceUrl, 'docs'),
   },
   {
     topic: t('documentation_editing_calculator_developer_documentation_title'),
     description: t(
       'documentation_editing_calculator_developer_documentation_description',
     ),
-    docUrl: '/docs/',
-    githubUrl: 'https://github.com/EPFL-ENAC/co2-calculator/tree/main/docs/src',
+    docUrl: links.developerDocUrl,
+    githubUrl: sourceTreeUrl(links.sourceCodeUrl, 'docs/src'),
   },
 ]);
 
@@ -97,18 +102,21 @@ const columns: QTableColumn[] = [
             <q-tr :props="props" class="q-tr--no-hover">
               <q-td key="topic" :props="props">
                 <a
+                  v-if="props.row.docUrl"
                   :href="props.row.docUrl"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   {{ props.row.topic }}
                 </a>
+                <span v-else>{{ props.row.topic }}</span>
               </q-td>
               <q-td key="description" :props="props">
                 {{ props.row.description }}
               </q-td>
               <q-td key="githubUrl" :props="props">
                 <q-btn
+                  v-if="props.row.githubUrl"
                   :icon="outlinedArticle"
                   color="grey-4"
                   text-color="primary"

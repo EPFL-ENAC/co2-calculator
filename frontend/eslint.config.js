@@ -15,7 +15,11 @@ export default defineConfigWithVueTs([
 
   // 👇 Node environment for Quasar config and CLI scripts
   {
-    files: ['quasar.config.js', 'scripts/**/*.{js,mjs,cjs}'],
+    files: [
+      'quasar.config.js',
+      'scripts/**/*.{js,mjs,cjs}',
+      'build/**/*.{js,mjs,cjs}',
+    ],
     languageOptions: {
       globals: {
         ...globals.node, // __dirname, require, process, etc.

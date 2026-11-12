@@ -177,9 +177,13 @@ $table-header-z-index: opt.$tokens-z-index-sticky !default;
 $table-action-size: opt.$tokens-table-action-size !default;
 $table-action-icon-size: opt.$tokens-typography-font-size-lg !default;
 $table-action-hover-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
-$table-action-delete-hover-bg: rgba(
-  opt.$tokens-colors-red-red-100,
-  80%
+
+// color-mix(), not rgba(): the accent is a CSS custom property, and
+// rgba(var(...), 80%) is invalid CSS that the browser drops.
+$table-action-delete-hover-bg: color-mix(
+  in srgb,
+  opt.$tokens-colors-red-red-100 80%,
+  transparent
 ) !default;
 $table-field-hover-bg: rgb(0 0 0 / 4%) !default;
 $table-inline-icon-color: opt.$tokens-colors-grey-scale-grey-400 !default;
@@ -250,10 +254,7 @@ $login-page-width: opt.$tokens-layout-full-width !default;
 $login-page-height: opt.$tokens-layout-full-height !default;
 $login-page-bg-image: opt.$tokens-colors-base-white !default;
 $login-page-bg-blur: 0px !default;
-$login-page-bg-opacity: 0.75 !default;
-$login-page-bg-color: opt.$tokens-colors-base-white !default;
 $login-page-bg-z-index: opt.$tokens-z-index-background-base !default;
-$login-page-bg-blur-z-index: opt.$tokens-z-index-background-overlay !default;
 
 // Sidebar
 $sidebar-width: opt.$tokens-spacing-64 !default;
