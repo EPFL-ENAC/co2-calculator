@@ -59,7 +59,9 @@ def test_cache_clear_is_what_drops_a_poisoned_dotenv_settings(tmp_path: Path) ->
 def test_env_var_beats_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A one-off ``DB_URL=... uv run ...`` must outrank the file (#1153 reverted)."""
     dotenv = tmp_path / ".env"
-    dotenv.write_text("DB_URL=postgresql://app:x@co2-prod.dbaas.intranet.epfl.ch/app\n")
+    dotenv.write_text(
+        "DB_URL=postgresql://app:x@co2-prod.dbaas.intranet.example.org/app\n"
+    )
     local = "postgresql://app:x@localhost:55433/throwaway"
     monkeypatch.setenv("DB_URL", local)
     assert Settings(_env_file=dotenv).DB_URL == local
@@ -79,7 +81,9 @@ def test_local_hosts_pass(db_url: str) -> None:
 
 
 def test_remote_host_refused_unless_allowed() -> None:
-    remote = "postgresql://app:x@co2-prod.postgresql.dbaas.intranet.epfl.ch:5432/app"
+    remote = (
+        "postgresql://app:x@co2-prod.postgresql.dbaas.intranet.example.org:5432/app"
+    )
     with pytest.raises(SystemExit, match="co2-prod.postgresql.dbaas"):
         refuse_remote_host(remote, allow_remote=False)
     refuse_remote_host(remote, allow_remote=True)

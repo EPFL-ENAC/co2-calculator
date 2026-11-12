@@ -2728,8 +2728,8 @@ export interface paths {
          *     Used by Kubernetes readinessProbe.
          *
          *     External provider health (Accred) lives in /health/deps (#2050 A1):
-         *     it must never gate readiness — a blip there is EPFL's incident, not
-         *     ours.
+         *     it must never gate readiness — a blip there is the provider's incident,
+         *     not ours.
          */
         get: operations["ready_ready_get"];
         put?: never;
@@ -2752,7 +2752,8 @@ export interface paths {
          * @description Operator-facing external-dependency health (Accred).
          *
          *     Not a Kubernetes probe target — Accred availability must never gate
-         *     pod readiness (#2050 A1); a blip there is EPFL's incident, not ours.
+         *     pod readiness (#2050 A1); a blip there is the provider's incident, not
+         *     ours.
          *     This reports the same signal for humans/monitoring instead, via a
          *     real status code (503 on failure) so alerting can key off it directly
          *     instead of parsing the body — safe here specifically because nothing
@@ -4580,12 +4581,12 @@ export interface components {
             level: number;
             /**
              * Parent Institutional Code
-             * @description Soft reference to parent unit id. No FK constraint — API data is trusted. Null only for EPFL root (level 1).
+             * @description Soft reference to parent unit id. No FK constraint — API data is trusted. Null only for the root unit (level 1).
              */
             parent_institutional_code?: string | null;
             /**
              * Parent Institutional Id
-             * @description Soft reference to parent unit cf. No FK constraint — API data is trusted. Null only for EPFL root (level 1).
+             * @description Soft reference to parent unit cf. No FK constraint — API data is trusted. Null only for the root unit (level 1).
              */
             parent_institutional_id?: string | null;
             /**
@@ -4680,12 +4681,12 @@ export interface components {
             id: number;
             /**
              * Name
-             * @description Unit name like 'ENAC-IT4R'
+             * @description Unit name like 'UNIT-IT'
              */
             name: string;
             /**
              * Institutional Id
-             * @description EPFL unit/unit ID
+             * @description Institutional unit ID
              */
             institutional_id: string;
             /**

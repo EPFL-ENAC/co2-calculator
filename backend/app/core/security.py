@@ -169,11 +169,11 @@ def tag_span_with_user(user: User) -> None:
     "41" }`` does not.
 
     Deliberately our own ``User.id``, never the institutional id: a sciper
-    identifies a person across every EPFL system, while this id means nothing
-    without our database. Traces leave the namespace for a shared collector,
-    so the pseudonymous key is the one that belongs there — worth the extra
-    lookup it costs us. A no-op without a tracer configured, which is every
-    local run.
+    identifies a person across every system of the institution, while this
+    id means nothing without our database. Traces leave the namespace for a
+    shared collector, so the pseudonymous key is the one that belongs there —
+    worth the extra lookup it costs us. A no-op without a tracer configured,
+    which is every local run.
     """
     trace.get_current_span().set_attribute("user.id", str(user.id))
 

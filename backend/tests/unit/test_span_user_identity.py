@@ -7,7 +7,8 @@ rescheduled onto an untrusted address all break the IP route).
 
 The regression worth pinning is which identifier lands there: traces leave the
 namespace for a shared collector, and an institutional id identifies a person
-across every EPFL system while ``User.id`` means nothing without our database.
+across every system of the institution while ``User.id`` means nothing
+without our database.
 """
 
 from opentelemetry.sdk.trace import TracerProvider
@@ -36,10 +37,10 @@ def _tag_inside_a_recorded_span(user: User):
 
 def test_span_carries_our_id_never_the_sciper():
     attributes = _tag_inside_a_recorded_span(
-        User(id=41, institutional_id=SCIPER, email="tester@epfl.ch")
+        User(id=41, institutional_id=SCIPER, email="tester@example.org")
     )
     assert attributes["user.id"] == "41"
     assert SCIPER not in attributes.values(), (
-        "the institutional id identifies a person across every EPFL system "
-        "and must not reach the shared collector"
+        "the institutional id identifies a person across every system of the "
+        "institution and must not reach the shared collector"
     )

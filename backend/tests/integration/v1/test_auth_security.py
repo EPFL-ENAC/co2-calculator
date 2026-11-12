@@ -832,7 +832,7 @@ def test_e2e_callback_session_logout_happy_path(client, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# #89 — request origin. A sibling under the shared `*.epfl.ch` registrable
+# #89 — request origin. A sibling under the shared `*.example.org` registrable
 # domain is `same-site`, so `SameSite=Lax` attaches `auth_token` to its
 # requests. These pin the middleware that refuses them, on the two endpoints
 # a preflight does not already cover: a query-param-only POST and a
@@ -887,7 +887,7 @@ def test_foreign_origin_header_is_rejected():
     """
     with TestClient(app) as bare:
         response = _authed(bare).post(
-            RECOMPUTE_PATH, headers={"Origin": "https://evil.epfl.ch"}
+            RECOMPUTE_PATH, headers={"Origin": "https://evil.example.org"}
         )
 
     assert response.status_code == 403

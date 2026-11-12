@@ -28,7 +28,7 @@ def make_test_user_id(user_id: str) -> str:
 
     This is used to generate institutional_id for test users, ensuring that the same
     user_id string always maps to the same institutional_id. The TEST- prefix prevents
-    collisions with real institutional IDs (e.g., EPFL IDs like "111756").
+    collisions with real institutional IDs (e.g., IDs like "111756").
     """
     return "TEST-" + str(int(hashlib.sha256(user_id.encode()).hexdigest(), 16))[:10]
 
@@ -84,14 +84,14 @@ _PRINCIPAL_ID = TEST_USERS[RoleName.CO2_USER_PRINCIPAL]["institutional_id"]
 # A coherent ENAC subtree: lvl2 anchor -> lvl3 -> four sibling lvl4 labs. Each
 # unit's own institutional_code is the last token of its (self-inclusive)
 # root->leaf path_institutional_code, mirroring real ACCRED data
-# (" ".join(ancestors + [self])). EPFL root (code 10582 / cf 13029) is an
+# (" ".join(ancestors + [self])). The root unit (code 10582 / cf 13029) is an
 # ancestor token only; it is not a stored unit.
 #
 # Only level-4 units surface as workspaces (see UnitService.get_user_units),
 # so the four leaves below are what a login-test user picks between.
 _LVL4_PATH_CODE = "10582 12635 11435"
 _LVL4_PATH_IID = "13029 13030 13031"
-_LVL4_PATH_NAME = "EPFL ENAC-TEST ENAC-SG-TEST"
+_LVL4_PATH_NAME = "UNIV ENAC-TEST ENAC-SG-TEST"
 
 
 def _test_leaf(institutional_code: str, institutional_id: str, name: str) -> Unit:
@@ -119,7 +119,7 @@ TEST_UNITS: list[Unit] = [
         principal_user_institutional_id=_PRINCIPAL_ID,
         path_institutional_code="10582 12635",
         path_institutional_id="13029 13030",
-        path_name="EPFL ENAC-TEST",
+        path_name="UNIV ENAC-TEST",
     ),
     Unit(
         provider=UserProvider.TEST,
@@ -130,7 +130,7 @@ TEST_UNITS: list[Unit] = [
         principal_user_institutional_id=_PRINCIPAL_ID,
         path_institutional_code="10582 12635 11435",
         path_institutional_id="13029 13030 13031",
-        path_name="EPFL ENAC-TEST ENAC-SG-TEST",
+        path_name="UNIV ENAC-TEST ENAC-SG-TEST",
     ),
     _test_leaf("14270", "13032", "ENAC-IT4R-TEST"),
     _test_leaf("14271", "13033", "ENAC-LAB1-TEST"),

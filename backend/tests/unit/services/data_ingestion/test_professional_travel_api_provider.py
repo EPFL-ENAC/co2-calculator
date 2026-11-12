@@ -391,7 +391,7 @@ class TestTransformData:
         assert len(result) == 0
 
     async def test_allows_missing_sciper(self, provider):
-        # #1153: SCIPER is no longer mandatory — a traveler with no EPFL
+        # #1153: SCIPER is no longer mandatory — a traveler with no
         # SCIPER still comes through, tagged with the external-traveler
         # sentinel the frontend resolves to "Other traveler (external)".
         records = [self._make_record(SCIPER="")]
