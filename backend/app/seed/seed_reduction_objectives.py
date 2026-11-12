@@ -41,7 +41,7 @@ INPUT_DATA_FOLDER = Path(__file__).parent.parent.parent / "INPUT_DATA"
 # Category → source CSV.  Categories are the ``FileCategory`` literals the
 # upload endpoint accepts.
 CSV_BY_CATEGORY: dict[str, Path] = {
-    "footprint": INPUT_DATA_FOLDER / "reduction_obj_epfl_footprint(in).csv",
+    "footprint": INPUT_DATA_FOLDER / "reduction_obj_institution_footprint(in).csv",
     "population": INPUT_DATA_FOLDER / "reduction_obj_population_forecast(in).csv",
     "scenarios": INPUT_DATA_FOLDER / "reduction_obj_unit_scenarios_reduction(in).csv",
 }

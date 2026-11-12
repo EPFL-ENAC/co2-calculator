@@ -148,7 +148,7 @@ def test_cloud_factor_without_service_type_still_raises() -> None:
     ],
 )
 def test_canonical_token_is_separator_only(raw: str, expected: str) -> None:
-    # These four spellings appear verbatim in the shipped EPFL headcount
+    # These four spellings appear verbatim in the shipped headcount
     # factor CSVs and each has a leaf under exactly this name — before
     # #2091 none of them matched, and all four degraded to their parent.
     assert canonical_token(raw) == expected

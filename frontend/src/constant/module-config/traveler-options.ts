@@ -11,7 +11,7 @@ import { MODULES } from '@/constant/modules';
 // member. Backend task #1153 switched from string sentinels to `-1` (internal) and
 // `null` (external), matching the backend's database representation.
 // - INTERNAL: traveler has a SCIPER but is not in this unit's headcount.
-// - EXTERNAL: traveler has no EPFL SCIPER at all.
+// - EXTERNAL: traveler has no institutional ID at all.
 export const TRAVELER_OTHER_INTERNAL = '-1';
 export const TRAVELER_OTHER_EXTERNAL = null;
 

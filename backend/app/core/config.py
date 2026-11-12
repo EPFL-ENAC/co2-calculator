@@ -256,7 +256,7 @@ class Settings(BaseSettings):
         default="",
         description=(
             "Comma-separated host suffixes an API-connection server_url may "
-            "target (e.g. 'epfl.ch'). SSRF guard; empty fails closed."
+            "target (e.g. 'example.org'). SSRF guard; empty fails closed."
         ),
     )
 
@@ -266,17 +266,17 @@ class Settings(BaseSettings):
     ROLE_PROVIDER_TYPE: RoleProviderType = Field(
         description=(
             "Where app roles come from: 'jwt' (parse from JWT claims), "
-            "'accred' (EPFL Accred API), or 'test' (for testing/development)."
+            "'accred' (Accred API), or 'test' (for testing/development)."
         ),
     )
     UNIT_PROVIDER_TYPE: UnitProviderType = Field(
         description=(
             "Where institutional units come from: 'database' (local DB), "
-            "'accred' (EPFL Accred API), or 'test' (for testing/development)."
+            "'accred' (Accred API), or 'test' (for testing/development)."
         ),
     )
 
-    # EPFL Accred API Configuration — required whenever ROLE_PROVIDER_TYPE
+    # Accred API Configuration — required whenever ROLE_PROVIDER_TYPE
     # and/or UNIT_PROVIDER_TYPE is 'accred', enforced at app boot by
     # assert_accred_settings (app/main.py), NOT here: Settings is also
     # built by non-app contexts (alembic migrations) that never call Accred.
@@ -284,15 +284,15 @@ class Settings(BaseSettings):
     # serving both concerns, so the config is not role- or unit-specific.
     ACCRED_API_BASE_URL: str | None = Field(
         default=None,
-        description="EPFL Accred API base URL (e.g., https://api.epfl.ch/v1/accreds)",
+        description="Accred API base URL (e.g., https://api.example.org/v1/accreds)",
     )
     ACCRED_API_USERNAME: str | None = Field(
         default=None,
-        description="EPFL Accred API username for Basic Auth",
+        description="Accred API username for Basic Auth",
     )
     ACCRED_API_KEY: str | None = Field(
         default=None,
-        description="EPFL Accred API key/password for Basic Auth",
+        description="Accred API key/password for Basic Auth",
     )
     ACCRED_AUTHORIZATION_HEALTHCHECK_URL: str | None = Field(
         default=None,

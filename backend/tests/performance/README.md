@@ -34,13 +34,15 @@ per stage, `table_matrix.csv` for the matrix.
 ## Against dev, clef en main
 
 ```bash
+export PERF_DEV_HOST=https://<dev-host>/api          # required, no default
 make perf-dev                                         # 50 × ExplorerReadUser, 3 min
 make perf-dev PERF_USERS=200 PERF_CLASSES=ModuleReadUser
 make perf-report
 ```
 
-That is the whole recipe. `perf-dev` targets `PERF_DEV_HOST`
-(`https://co2-calculator-dev.epfl.ch/api` — the `/api` prefix matters:
+That is the whole recipe. `perf-dev` targets `PERF_DEV_HOST`, which has
+no default and must be set (for example
+`https://co2-calculator-dev.example.org/api` — the `/api` prefix matters:
 the bare host is the SPA and answers every path with `index.html`),
 logs each VU in through `/v1/auth/login-test` (dev is a DEBUG build, so
 the endpoint exists), and refuses `PlanUser` / `ExploreCreateUser` /
@@ -89,8 +91,8 @@ make perf-summary PERF_SUMMARY_TAGS="dev_pool70_base_100 dev_pool70_base_600"   
   (the `grafana_session` cookie of a logged-in tab). A copied cookie can
   expire during a 10-minute ladder, so use a token for unattended runs.
   A 401/403 fails hard: export a fresh one and rerun `perf-summary`.
-  Override `GRAFANA_URL`, `GRAFANA_DATASOURCE_UID` or `PERF_NAMESPACE` to
-  point it elsewhere.
+  `GRAFANA_URL` has no default and must be set. Override
+  `GRAFANA_DATASOURCE_UID` or `PERF_NAMESPACE` to point it elsewhere.
 
 The summary prints one markdown table, one column per tag, and writes
 `reports/<tag>_infra.json`:
@@ -117,7 +119,7 @@ read-only classes.
 
 ## `backend/.env`'s `DB_URL` may not be localhost
 
-`DB_URL` may point at a shared platform DB (e.g. `co2-dev.xxxx.epfl.ch`), not
+`DB_URL` may point at a shared platform DB (e.g. `co2-dev.xxxx.example.org`), not
 local compose — real backend/worker pods are already on it. Run in order:
 
 - [ ] `psql "$DB_URL" -tAc "select count(*) from data_entries"` — 0 → seed

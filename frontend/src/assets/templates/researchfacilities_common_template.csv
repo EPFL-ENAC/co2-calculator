@@ -1,7 +1,7 @@
 ﻿researchfacility_id,researchfacility_name,use,use_unit,note
 # 1) Choose the ID and name of the research facilities (cost center) used by your unit from the list below.,,,,
 # 2) Enter the usage amount (in CHF hours or % depending on the facility). The right metric is already associated to each of the facilities.,,,,
-# 3) For detailed guidance consult the documentation section: Modules specification - EPFL research facilities,,,,
+# 3) For detailed guidance consult the documentation section: Modules specification - research facilities,,,,
 # 4) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,
 1902,SCITAS-GE,0,CHF,
 2028,SPC-GE,0,CHF,

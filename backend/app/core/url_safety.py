@@ -14,8 +14,8 @@ def validate_external_url(url: str) -> str:
     """Return ``url`` if it is https and its host matches the allowlist.
 
     SSRF guard for a form-supplied ``server_url``. Fails closed when the
-    allowlist is empty. Suffix match is on a dot boundary so ``evil-epfl.ch``
-    does not match ``epfl.ch``.
+    allowlist is empty. Suffix match is on a dot boundary so ``evil-example.org``
+    does not match ``example.org``.
     """
     suffixes = _allowed_suffixes()
     if not suffixes:

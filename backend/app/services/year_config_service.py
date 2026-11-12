@@ -13,9 +13,10 @@ from app.models.module_type import (
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
 
-# #2007 — Research Facilities manual entry ships off: EPFL feeds this module
-# from the platform API and CSV only, and a hand-typed row would compete with
-# it. Another institution turns both boxes on from the backoffice.
+# #2007 — Research Facilities manual entry ships off: the reference
+# deployment feeds this module from the platform API and CSV only, and a
+# hand-typed row would compete with it. Another institution turns both boxes
+# on from the backoffice.
 MANUAL_INPUT_OFF_BY_DEFAULT: frozenset[DataEntryTypeEnum] = frozenset(
     {DataEntryTypeEnum.research_facilities, DataEntryTypeEnum.animal_facilities}
 )

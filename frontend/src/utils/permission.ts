@@ -217,7 +217,7 @@ export function hasAnyScopePermission(
  * The back-office area is the `backoffice.*` page family (reporting, users,
  * documentation, ui_texts, configuration, pipeline_operations, logs). Matches
  * bare keys (`backoffice.users`, emitted for GlobalScope / super admin) AND
- * affiliation-scoped keys (`backoffice.reporting/ENAC-SG`, emitted for ACCRED
+ * affiliation-scoped keys (`backoffice.reporting/ENAC-SG`, emitted for provider
  * sub-perimeter users). Used to gate UI entry points to the back-office area
  * as a whole (#459). The former `system.*` family was removed in #862.
  */

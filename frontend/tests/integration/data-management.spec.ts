@@ -201,7 +201,7 @@ test.describe('back-office data-management — happy paths', () => {
   test('3 — create year auto-triggers unit_sync pipeline and refetches on FINISHED (#867)', async ({
     page,
   }) => {
-    // Issue #867 — the standalone "Sync units from Accred" button is
+    // Issue #867 — the standalone "Sync units" button is
     // gone; year creation now mints a ``pipeline_id`` on the create
     // response and the page subscribes to its SSE stream.  Verify the
     // full chain end-to-end:

@@ -78,8 +78,8 @@ async def test_login_redirect_forces_https_behind_tls_terminator(monkeypatch):
     monkeypatch.setattr(
         auth_module.oauth.co2_oauth_provider, "authorize_redirect", capture
     )
-    await auth_module.oauth_login(_login_request("http://co2-dev.epfl.ch/callback"))
-    assert str(captured["redirect_uri"]) == "https://co2-dev.epfl.ch/callback"
+    await auth_module.oauth_login(_login_request("http://co2-dev.example.org/callback"))
+    assert str(captured["redirect_uri"]) == "https://co2-dev.example.org/callback"
 
 
 @pytest.mark.asyncio
@@ -196,7 +196,7 @@ async def test_auth_callback_accred_500_redirects_and_counts(monkeypatch):
     instead of falling into its generic 401.
     """
     with patch("app.providers.role_provider.settings") as provider_settings:
-        provider_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
+        provider_settings.ACCRED_API_BASE_URL = "https://api.example.org"
         provider_settings.ACCRED_API_USERNAME = "test_user"
         provider_settings.ACCRED_API_KEY = "test_key"
         provider = AccredRoleProvider()
@@ -212,7 +212,7 @@ async def test_auth_callback_accred_500_redirects_and_counts(monkeypatch):
     client = AsyncMock()
     client.__aenter__.return_value = client
     client.get.return_value = httpx.Response(
-        500, request=httpx.Request("GET", "https://api.epfl.ch/persons/123456")
+        500, request=httpx.Request("GET", "https://api.example.org/persons/123456")
     )
 
     with patch("app.providers.role_provider.httpx.AsyncClient", return_value=client):
@@ -260,7 +260,7 @@ async def test_get_session_echoes_the_address_the_server_saw(
     to be attributable. It comes from ``scope["client"]`` — which uvicorn
     resolves against FORWARDED_ALLOW_IPS — never from the forgeable header.
     """
-    user = User(id=2, institutional_id="123456", email="tester@epfl.ch")
+    user = User(id=2, institutional_id="123456", email="tester@example.org")
     monkeypatch.setattr(
         auth_module.UnitService, "get_user_units", AsyncMock(return_value=[])
     )

@@ -30,7 +30,7 @@ def _settings(**overrides) -> SimpleNamespace:
         "SESSION_HMAC_KEY": "s" * 64,
         "CREDENTIALS_ENCRYPTION_KEY": "key",
         "CREDENTIALS_ENCRYPTION_SALT": "salt",
-        "CONNECTOR_ALLOWED_HOST_SUFFIXES": "epfl.ch",
+        "CONNECTOR_ALLOWED_HOST_SUFFIXES": "example.org",
         "FILES_ENCRYPTION_KEY": "files-key",
         "FILES_ENCRYPTION_SALT": "files-salt",
     }
@@ -115,11 +115,11 @@ def _poller_settings(**overrides) -> SimpleNamespace:
 
 def test_local_poller_against_shared_db_refuses_to_boot():
     settings = _poller_settings(
-        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app"
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.test:5432/app"
     )
     with pytest.raises(RuntimeError) as exc:
         assert_poller_isolation(settings)
-    assert "co2-dev.postgresql.dbaas.intranet.epfl.ch" in str(exc.value)
+    assert "co2-dev.postgresql.dbaas.intranet.test" in str(exc.value)
     assert "RUN_BACKGROUND_POLLER" in str(exc.value)
 
 
@@ -139,7 +139,7 @@ def test_local_poller_against_local_db_boots(db_url):
 def test_shared_db_allowed_when_poller_disabled():
     settings = _poller_settings(
         RUN_BACKGROUND_POLLER=False,
-        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app",
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.test:5432/app",
     )
     assert_poller_isolation(settings)  # must not raise
 
@@ -148,7 +148,7 @@ def test_deployed_pods_are_exempt():
     # Pods legitimately poll a remote DB; the guard is local-only.
     settings = _poller_settings(
         LOCAL_ENVIRONMENT=False,
-        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app",
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.test:5432/app",
     )
     assert_poller_isolation(settings)  # must not raise
 

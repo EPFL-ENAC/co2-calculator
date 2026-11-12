@@ -2,8 +2,8 @@
   "name": "co2-calculator",
   "version": "0.0.6",
   "description": "co2-calculator",
-  "productName": "EPFL CO2 Calculator",
-  "author": "Guilbert Pierre <pierre.guilbert@epfl.ch>",
+  "productName": "CO2 Calculator",
+  "author": "EPFL-ENAC",
   "private": true,
   "scripts": {
     "lint": "eslint .",

@@ -88,9 +88,9 @@ class DatabaseUnitProvider(UnitProvider):
 
 class AccredUnitProvider(UnitProvider):
     type: UserProvider = UserProvider.ACCRED
-    """Accred unit provider that fetches units from EPFL Accred API.
+    """Accred unit provider that fetches units from Accred API.
 
-    Calls the EPFL Accred units endpoint to fetch unit details
+    Calls the Accred units endpoint to fetch unit details
     and maps them to CO2 application Unit model.
     """
 
@@ -214,7 +214,7 @@ class AccredUnitProvider(UnitProvider):
         )
 
     async def get_units(self, unit_ids: list[str] | None = None) -> list[Unit]:
-        """Fetch units from EPFL Accred API.
+        """Fetch units from Accred API.
 
         Args:
             unit_ids: Optional list of unit IDs to filter by. If None, return all.
@@ -227,7 +227,7 @@ class AccredUnitProvider(UnitProvider):
             return []
 
         try:
-            # Call EPFL Accred units endpoint
+            # Call Accred units endpoint
             url = f"{self.api_url}/units"
             params: dict[str, str | int] = {}
 
@@ -366,7 +366,7 @@ def get_unit_provider(
                 raise ValueError("DatabaseUnitProvider requires a database session")
             return DatabaseUnitProvider(db_session)
         case UnitProviderType.ACCRED | UserProvider.ACCRED:
-            logger.info("Using AccredUnitProvider (EPFL Accred API)")
+            logger.info("Using AccredUnitProvider (Accred API)")
             return AccredUnitProvider()
         case UnitProviderType.TEST | UserProvider.TEST:
             logger.info("Using TestUnitProvider (for testing)")

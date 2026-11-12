@@ -228,7 +228,7 @@ backend:
     restMinApiVersion: "2.4"
     maxFields: "50"
   connector:
-    allowedHostSuffixes: "" # SSRF guard; empty fails closed, e.g. "epfl.ch"
+    allowedHostSuffixes: "" # SSRF guard; empty fails closed, e.g. "example.org"
 
   initContainers:
     waitForPostgres:

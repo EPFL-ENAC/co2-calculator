@@ -30,9 +30,9 @@ TEST_URL = f"{CONNECTORS_URL}/EPFL_TABLEAU/test"
 
 VALID_BODY = {
     "label": "EPFL Tableau",
-    "server_url": "https://tableau.epfl.ch/",
+    "server_url": "https://tableau.example.org/",
     "site_content_url": "co2fp",
-    "username": "svc-calcco2-epfl-api",
+    "username": "svc-calcco2-api",
     "client_id": "cid",
     "secret_id": "sid",
     "secret_value": "the-real-secret",
@@ -55,7 +55,7 @@ def _clear_overrides():
 def _crypto_env(monkeypatch):
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
-    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "example.org")
     crypto.get_settings.cache_clear()
     url_safety.get_settings.cache_clear()
 
@@ -243,7 +243,7 @@ async def test_test_endpoint_records_audit_without_secret(
             ConnectorConnection(
                 connector=ConnectorType.EPFL_TABLEAU,
                 label="EPFL Tableau",
-                server_url="https://tableau.epfl.ch/",
+                server_url="https://tableau.example.org/",
                 site_content_url="co2fp",
                 username="svc",
                 client_id="cid",
