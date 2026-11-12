@@ -7372,7 +7372,7 @@ export interface operations {
     search_locations_v1_locations_search_get: {
         parameters: {
             query: {
-                /** @description Search query string (minimum 2 characters) */
+                /** @description Search query string (2 to 255 characters) */
                 query: string;
                 /** @description Maximum number of results to return (default: 5, max: 20) */
                 limit?: number;

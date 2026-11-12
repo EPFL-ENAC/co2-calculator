@@ -5490,7 +5490,7 @@
           "locations"
         ],
         "summary": "Search Locations",
-        "description": "Search locations by name with relevance ordering.\n\nResults are ordered by relevance:\n1. Exact matches (name = query)\n2. Starts with query (name ILIKE 'query%')\n3. Contains query (name ILIKE '%query%')\n\nArgs:\n    query: Search query string (minimum 2 characters)\n    limit: Maximum number of results (default: 5, max: 20)\n    transport_mode: Filter by location transport mode ('train' or 'plane').\n        If None, returns both types.\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    List of LocationRead DTOs ordered by relevance",
+        "description": "Search locations by name with relevance ordering.\n\nResults are ordered by relevance:\n1. Exact matches (name = query)\n2. Starts with query (name ILIKE 'query%')\n3. Contains query (name ILIKE '%query%')\n\nArgs:\n    query: Search query string (minimum 2 characters)\n    limit: Maximum number of results (default: 5, max: 20)\n    page: Page number (1-indexed); a page shorter than ``limit`` is the last\n    transport_mode: Filter by location transport mode ('train' or 'plane').\n        If None, returns both types.\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    List of LocationRead DTOs ordered by relevance",
         "operationId": "search_locations_v1_locations_search_get",
         "parameters": [
           {
@@ -5500,10 +5500,11 @@
             "schema": {
               "type": "string",
               "minLength": 2,
-              "description": "Search query string (minimum 2 characters)",
+              "maxLength": 255,
+              "description": "Search query string (2 to 255 characters)",
               "title": "Query"
             },
-            "description": "Search query string (minimum 2 characters)"
+            "description": "Search query string (2 to 255 characters)"
           },
           {
             "name": "limit",
@@ -5518,6 +5519,20 @@
               "title": "Limit"
             },
             "description": "Maximum number of results to return (default: 5, max: 20)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
           },
           {
             "name": "transport_mode",
@@ -5992,7 +6007,7 @@
           "data-sync"
         ],
         "summary": "Sync Module Data Entries",
-        "description": "Sync data entries for a specific module.\n\n**Required Permission**: `backoffice.configuration.edit` (global data-sync)\nOR `modules.{name}.sync` for the unit (principal users uploading from the\nmodule page). The module-owner path requires `target_type=DATA_ENTRIES`\nwith both `carbon_report_module_id` and `module_type_id` in config.\nSimulator reports (Explore/Plan) relax to unit membership plus plan\nscoping, matching the report-addressed module routes (#1988, #2366).\n\nExample of request body for module_type_year:\n{\n    \"ingestion_method\": \"csv\",\n    \"target_type\": 0,\n    \"year\": 2025,\n    \"carbon_report_module_id\": 123,\n    \"filters\": {},\n    \"config\": {},\n    \"file_path\": \"tmp/1770129151949277/seed_equipment_data.csv\"\n}\n\nexample of request body for carbon_report_module_id only:\n{\n    \"ingestion_method\": \"api\",\n    \"target_type\": 0,\n    \"carbon_report_module_id\": 123,\n    \"filters\": {},\n    \"config\": {}\n}",
+        "description": "Sync data entries for a specific module.\n\n**Required Permission**: `backoffice.configuration.edit` (global data-sync)\nOR `modules.{name}.sync` for the unit (principal users uploading from the\nmodule page). The module-owner path requires `target_type=DATA_ENTRIES`\nwith both `carbon_report_module_id` and `module_type_id` in config.\nSimulator reports (Explore/Plan) relax to unit membership plus plan\nscoping, matching the report-addressed module routes (#1988, #2366).\n\nExample of request body for module_type_year:\n{\n    \"ingestion_method\": \"csv\",\n    \"target_type\": 0,\n    \"year\": 2025,\n    \"carbon_report_module_id\": 123,\n    \"filters\": {},\n    \"config\": {},\n    \"file_path\": \"tmp/42/1770129151949277/seed_equipment_data.csv\"\n}\n\nexample of request body for carbon_report_module_id only:\n{\n    \"ingestion_method\": \"api\",\n    \"target_type\": 0,\n    \"carbon_report_module_id\": 123,\n    \"filters\": {},\n    \"config\": {}\n}",
         "operationId": "sync_module_data_entries_v1_sync_dispatch_post",
         "parameters": [
           {
@@ -6432,7 +6447,7 @@
           "data-sync"
         ],
         "summary": "Job Stream By Id",
-        "description": "Server-Sent Events endpoint to stream a single job update in real-time.\n\nPolls the database for status changes and sends updates to the client.\nStream ends when the job is completed, failed, or the client disconnects.\n\nSession lifetime: no pooled connection is held anywhere on this path.\n``get_current_user`` hands its connection back before the stream opens\n(it used to be pinned until the stream ended, #2654, #2689), and a fresh\n``SessionLocal()`` is opened per poll\niteration and closed before the sleep, so no pool slot is pinned for the\nfull stream duration (minutes).  ``request.is_disconnected()`` is checked\nat the top of each iteration so client aborts surface immediately rather\nthan after the next poll.\n\nTODO(#459): tighten when sub-perimeter scoping ships",
+        "description": "Server-Sent Events endpoint to stream a single job update in real-time.\n\nPolls the database for status changes and sends updates to the client.\nStream ends when the job is completed, failed, the client disconnects,\nor a poll hits a DB error (``_end_stream_on_db_error``).\n\nSession lifetime: no pooled connection is held anywhere on this path.\n``get_current_user`` hands its connection back before the stream opens\n(it used to be pinned until the stream ended, #2654, #2689), and a fresh\n``SessionLocal()`` is opened per poll\niteration and closed before the sleep, so no pool slot is pinned for the\nfull stream duration (minutes).  ``request.is_disconnected()`` is checked\nat the top of each iteration so client aborts surface immediately rather\nthan after the next poll.\n\nTODO(#459): tighten when sub-perimeter scoping ships",
         "operationId": "job_stream_by_id_v1_sync_jobs__job_id__stream_get",
         "parameters": [
           {
@@ -11064,7 +11079,7 @@
               }
             ],
             "title": "Keywords",
-            "description": "Keywords (e.g., ['airport', 'train station']); indexed via explicit Alembic trigram GIN migration"
+            "description": "Keywords (e.g., ['airport', 'train station'])"
           },
           "id": {
             "type": "integer",
