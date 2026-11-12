@@ -131,7 +131,7 @@ const reductionObjectives = computed(() => {
   return ro ?? null;
 });
 
-const epflFootprintRows = computed<FootprintRow[]>(() => {
+const institutionFootprintRows = computed<FootprintRow[]>(() => {
   const raw = reductionObjectives.value?.institutional_footprint ?? [];
   return (raw as unknown[]).filter(Boolean).map((r) => {
     const row = r as FootprintRow;
@@ -142,17 +142,17 @@ const epflFootprintRows = computed<FootprintRow[]>(() => {
   }) as FootprintRow[];
 });
 
-const epflPopulationRows = computed<PopulationRow[]>(() => {
+const institutionPopulationRows = computed<PopulationRow[]>(() => {
   const raw = reductionObjectives.value?.population_projections ?? [];
   return (raw as unknown[]).filter(Boolean) as PopulationRow[];
 });
 
-const epflGoals = computed(
+const institutionGoals = computed(
   () => reductionObjectives.value?.goals?.slice() ?? [],
 );
 
 const yearsStart = computed(() => {
-  const candidates = [...epflFootprintTotalsByYear.value.entries()]
+  const candidates = [...institutionFootprintTotalsByYear.value.entries()]
     .filter(([, total]) => total > 0)
     .map(([year]) => year);
 
@@ -167,15 +167,15 @@ const years = computed(() => {
   return Array.from({ length: YEARS_END - start + 1 }, (_, i) => start + i);
 });
 
-const epflFootprintRowsForChart = computed(() => {
-  const rows = epflFootprintRows.value;
+const institutionFootprintRowsForChart = computed(() => {
+  const rows = institutionFootprintRows.value;
   if (!props.hideResearchFacilities) return rows;
   return rows.filter((r) => r.category !== 'research_facilities');
 });
 
-const epflFootprintByYearCategory = computed(() => {
+const institutionFootprintByYearCategory = computed(() => {
   const out = new Map<number, Map<string, number>>();
-  for (const r of epflFootprintRowsForChart.value) {
+  for (const r of institutionFootprintRowsForChart.value) {
     if (typeof r.year !== 'number') continue;
     const key = r.category;
     const bucket = out.get(r.year) ?? new Map<string, number>();
@@ -188,9 +188,12 @@ const epflFootprintByYearCategory = computed(() => {
   return out;
 });
 
-const epflFootprintTotalsByYear = computed(() => {
+const institutionFootprintTotalsByYear = computed(() => {
   const out = new Map<number, number>();
-  for (const [year, byCat] of epflFootprintByYearCategory.value.entries()) {
+  for (const [
+    year,
+    byCat,
+  ] of institutionFootprintByYearCategory.value.entries()) {
     let sum = 0;
     for (const v of byCat.values()) sum += v;
     out.set(year, sum);
@@ -198,29 +201,31 @@ const epflFootprintTotalsByYear = computed(() => {
   return out;
 });
 
-function getEpflYearCategorySums(year: number): Record<string, number> {
-  const byCat = epflFootprintByYearCategory.value.get(year);
+function getInstitutionYearCategorySums(year: number): Record<string, number> {
+  const byCat = institutionFootprintByYearCategory.value.get(year);
   if (!byCat) return {};
   return Object.fromEntries(byCat.entries());
 }
 
-function getEpflYearTotal(year: number): number {
-  return epflFootprintTotalsByYear.value.get(year) ?? 0;
+function getInstitutionYearTotal(year: number): number {
+  return institutionFootprintTotalsByYear.value.get(year) ?? 0;
 }
 
-const epflBaselineYear = computed(() => {
-  return years.value.find((y) => getEpflYearTotal(y) > 0) ?? yearsStart.value;
+const institutionBaselineYear = computed(() => {
+  return (
+    years.value.find((y) => getInstitutionYearTotal(y) > 0) ?? yearsStart.value
+  );
 });
 
-// The institutional footprint CSV uses EPFL-level category names that don't
+// The institutional footprint CSV uses institution-level category names that don't
 // exist in CHART_CATEGORY_COLOR_SCHEMES; map them to the matching module key.
-const EPFL_FOOTPRINT_CATEGORY_ALIASES: Record<string, string> = {
+const INSTITUTION_FOOTPRINT_CATEGORY_ALIASES: Record<string, string> = {
   energy: 'buildings_room',
   'professional trips': 'professional_travel',
 };
 
 function canonicalCategoryKey(categoryKey: string): string {
-  return EPFL_FOOTPRINT_CATEGORY_ALIASES[categoryKey] ?? categoryKey;
+  return INSTITUTION_FOOTPRINT_CATEGORY_ALIASES[categoryKey] ?? categoryKey;
 }
 
 function categoryColor(categoryKey: string): string {
@@ -257,7 +262,7 @@ const onChartReady = async () => {
 };
 
 const downloadPNG = () =>
-  downloadEchartAsPng(chartRef.value?.chart, 'reduction-objective-epfl');
+  downloadEchartAsPng(chartRef.value?.chart, 'reduction-objective-institution');
 
 defineExpose({ downloadPNG });
 
@@ -377,7 +382,7 @@ onUpdated(async () => {
 });
 
 const populationSeries = computed(() => {
-  const pop = epflPopulationRows.value;
+  const pop = institutionPopulationRows.value;
   if (!pop.length) return null;
   const popByYear = Object.fromEntries(pop.map((r) => [r.year, r.pop]));
   const firstPopYear = pop.reduce<number | null>((min, r) => {
@@ -388,7 +393,7 @@ const populationSeries = computed(() => {
   const firstPopValue =
     firstPopYear == null ? null : (popByYear[firstPopYear] ?? null);
 
-  const baselineYear = epflBaselineYear.value;
+  const baselineYear = institutionBaselineYear.value;
   const baselineIdx = Math.max(0, years.value.indexOf(baselineYear));
   const lastIdx = years.value.length - 1;
 
@@ -447,25 +452,25 @@ const populationSeries = computed(() => {
   };
 });
 
-type EpflSeriesPayload = {
+type InstitutionSeriesPayload = {
   stackedSeries: unknown[];
   totalsByYear: Record<number, number>;
   baselineYear: number;
 };
 
-const epflSeriesData = computed<EpflSeriesPayload | null>(() => {
-  const footprint = epflFootprintRowsForChart.value;
-  const goals = epflGoals.value;
+const institutionSeriesData = computed<InstitutionSeriesPayload | null>(() => {
+  const footprint = institutionFootprintRowsForChart.value;
+  const goals = institutionGoals.value;
   if (footprint.length === 0) return null;
 
-  const baselineYear = epflBaselineYear.value;
-  const baselineByCat = getEpflYearCategorySums(baselineYear);
+  const baselineYear = institutionBaselineYear.value;
+  const baselineByCat = getInstitutionYearCategorySums(baselineYear);
   const baselineTotal = Object.values(baselineByCat).reduce((a, b) => a + b, 0);
   if (baselineTotal <= 0) return null;
 
   const anchors: Array<{ year: number; total: number }> = [];
   for (const g of goals) {
-    const refTotal = getEpflYearTotal(g.reference_year);
+    const refTotal = getInstitutionYearTotal(g.reference_year);
     if (refTotal <= 0) continue;
     anchors.push({
       year: g.target_year,
@@ -569,13 +574,13 @@ const epflSeriesData = computed<EpflSeriesPayload | null>(() => {
   };
 });
 
-const showEpflEmptyState = computed(() => !epflSeriesData.value);
+const showInstitutionEmptyState = computed(() => !institutionSeriesData.value);
 
 const chartOption = computed<EChartsOption | null>(() => {
-  const payload = epflSeriesData.value;
+  const payload = institutionSeriesData.value;
   if (!payload) return null;
   const popSeries = populationSeries.value;
-  const popRows = epflPopulationRows.value;
+  const popRows = institutionPopulationRows.value;
   const popByYear = Object.fromEntries(popRows.map((r) => [r.year, r.pop]));
   const firstPopYear = popRows.reduce<number | null>((min, r) => {
     if (typeof r.year !== 'number') return min;
@@ -709,7 +714,7 @@ const chartOption = computed<EChartsOption | null>(() => {
 <template>
   <div class="objective-chart">
     <VChart
-      v-if="chartOption && !showEpflEmptyState"
+      v-if="chartOption && !showInstitutionEmptyState"
       ref="chartRef"
       :key="colorblindStore.enabled ? 'cb' : 'default'"
       :option="chartOption"
@@ -721,10 +726,10 @@ const chartOption = computed<EChartsOption | null>(() => {
       <q-card-section class="objective-empty-card__content">
         <q-icon :name="outlinedInfo" size="md" color="accent" class="q-mb-md" />
         <div class="text-h6 text-weight-medium text-center q-mb-sm">
-          {{ $t('results_objectives_epfl_no_data_title') }}
+          {{ $t('results_objectives_institution_no_data_title') }}
         </div>
         <div class="text-body2 text-secondary text-center">
-          {{ $t('results_objectives_epfl_no_data_message') }}
+          {{ $t('results_objectives_institution_no_data_message') }}
         </div>
       </q-card-section>
     </q-card>
