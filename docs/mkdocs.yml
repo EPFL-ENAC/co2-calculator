@@ -157,6 +157,7 @@ nav:
       - Overview: infra/01-overview.md
       - Install: infra/install.md
       - Observability & SLOs: infra/03-observability-slo.md
+      - Set up a new institution: infra/08-new-institution.md
       - Postmortem, OAuth HTTP redirect: infra/02-postmortem-oauth-http-redirect.md
       - Postmortem, prod DB dropped: infra/07-postmortem-prod-db-dropped.md
 
