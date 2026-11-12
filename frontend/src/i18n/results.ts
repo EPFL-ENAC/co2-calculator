@@ -357,7 +357,7 @@ export default {
     en: 'Study',
     fr: 'Étude',
   },
-  results_objectives_2040_epfl_button: {
+  results_objectives_2040_institution_button: {
     en: '%institution%',
     fr: '%institution%',
   },
@@ -365,7 +365,7 @@ export default {
     en: 'My unit',
     fr: 'Mon unité',
   },
-  results_objectives_epfl_chart_title: {
+  results_objectives_institution_chart_title: {
     en: '%institution% carbon footprint goals over the years',
     fr: 'Objectifs CO2 %institution_fr_de% au fil des années',
   },
@@ -377,11 +377,11 @@ export default {
     en: 'My unit carbon footprint by category over the years',
     fr: 'Empreinte carbone de mon unité par catégorie au fil des années',
   },
-  results_objectives_epfl_no_data_title: {
+  results_objectives_institution_no_data_title: {
     en: '%institution% objectives not available yet',
     fr: 'Objectifs %institution% pas encore disponibles',
   },
-  results_objectives_epfl_no_data_message: {
+  results_objectives_institution_no_data_message: {
     en: '%institution% reduction objectives data has not been loaded yet.',
     fr: "Les données d'objectifs de réduction %institution% ne sont pas encore chargées.",
   },
