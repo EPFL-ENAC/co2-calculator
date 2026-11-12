@@ -57,13 +57,14 @@ class Settings(BaseSettings):
     API_VERSION: str = "/v1"
 
     # Database Configuration
-    # Provide full DB_URL directly (takes precedence)
-    DB_URL: str | None = Field(
-        default="sqlite+aiosqlite:///./co2_calculator.db",
-        description="""
-            Full database URL. If not set, defaults to SQLite.
-            Example: sqlite+aiosqlite:///./co2_calculator.db
-            """,
+    # Required: a missing or empty value stops the boot instead of opening
+    # a local SQLite file that the PostgreSQL-only migrations cannot build.
+    DB_URL: str = Field(
+        min_length=1,
+        description=(
+            "Full database URL (required). Example: "
+            "postgresql://user:pass@localhost:5432/co2_calculator"
+        ),
     )
     # #1723 — explicit pool sizing (skipped for sqlite, see app/db.py).
     # Without these SQLAlchemy defaults to pool_size=5/max_overflow=10,
@@ -364,10 +365,14 @@ class Settings(BaseSettings):
     # 401. Also the base unit for the two-strikes deprovisioning window
     # (2x this) in RoleSyncService._handle_suspicious_empty.
     ROLE_SYNC_TTL_MINUTES: int = 60
-    # Frontend URL for redirects
+    # Frontend URL for redirects. Required: an empty value (a Helm value
+    # rendered as "") stops the boot like a missing one.
     FRONTEND_URL: str = Field(
-        default="http://localhost:9000",
-        description="Frontend application URL for OAuth redirects",
+        min_length=1,
+        description=(
+            "Frontend application URL for OAuth redirects (required). "
+            "Example: http://localhost:9000"
+        ),
     )
     CSRF_ADDITIONAL_ORIGINS: str = Field(
         default="",
