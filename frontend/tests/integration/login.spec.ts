@@ -29,7 +29,7 @@ test('clicking the login button navigates to the OAuth login endpoint', async ({
 });
 
 /**
- * The backend redirects a callback it cannot finish (Accred down) to
+ * The backend redirects a callback it cannot finish (access management down) to
  * /login?reason=… because it does not know the UI language. It used to
  * hard-code /en/login, so a French user always got the English banner.
  */
@@ -51,6 +51,6 @@ test('language-less /login keeps the reason and resolves the UI language', async
 
   await expect(page).toHaveURL(/\/fr\/login\?reason=accred-unavailable$/);
   await expect(page.getByRole('alert')).toContainText(
-    'EPFL Accred est indisponible',
+    'Le service de gestion des accès est indisponible',
   );
 });

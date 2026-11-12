@@ -87,8 +87,8 @@ export default {
 
   // ── Headcount ──────────────────────────────────────────────────────────────
   'module-headcount-submodule-member': {
-    en: "Member's name, their function, SCIPER, and FTE are automatically displayed based on HR data for the reference calendar year. To ensure consistency with its records, this data cannot be edited or deleted. To include additional members not captured by the automatic upload, use the Add FTE option.",
-    fr: "Le nom du membre, sa fonction, SCIPER et son EPT sont automatiquement affichés à partir des données RH de l'année civile de référence. Afin de garantir la cohérence avec les données RH, ces informations ne peuvent être ni modifiées ni supprimées. Pour ajouter des membres supplémentaires non pris en compte par l'importation automatique, utilisez l'option « Ajouter un EPT",
+    en: "Member's name, their function, %institutional_id%, and FTE are automatically displayed based on HR data for the reference calendar year. To ensure consistency with its records, this data cannot be edited or deleted. To include additional members not captured by the automatic upload, use the Add FTE option.",
+    fr: "Le nom du membre, sa fonction, son %institutional_id% et son EPT sont automatiquement affichés à partir des données RH de l'année civile de référence. Afin de garantir la cohérence avec les données RH, ces informations ne peuvent être ni modifiées ni supprimées. Pour ajouter des membres supplémentaires non pris en compte par l'importation automatique, utilisez l'option « Ajouter un EPT",
   },
   'module-headcount-submodule-student': {
     en: 'Due to data-protection rules, students names and individual FTE are not shown automatically.',
@@ -100,8 +100,8 @@ export default {
 
   // ── Buildings ──────────────────────────────────────────────────────────────
   'module-buildings-submodule-building': {
-    en: 'Room surfaces and types are extracted from the centralized Archibus database, and energy consumption data is provided based on measurements specific to EPFL buildings. An allocation ratio has been added to indicate whether the space is shared or not; in the case of shared use, the ratio is less than 1.',
-    fr: ' Les surfaces et types de locaux sont extraites de la base de données centralisée Archibus et les données de consommation énergétique par type de surface sont fournies sur la base de mesures spécifiques aux bâtiments EPFL. Le ratio alloué a été ajouté pour spécifier si ce local est mutualisé ou pas. Dans le cas d’une mutualisation, le ratio est inférieur à 1.',
+    en: 'Room surfaces and types are extracted from the centralized Archibus database, and energy consumption data is provided based on measurements specific to %institution% buildings. An allocation ratio has been added to indicate whether the space is shared or not; in the case of shared use, the ratio is less than 1.',
+    fr: ' Les surfaces et types de locaux sont extraites de la base de données centralisée Archibus et les données de consommation énergétique par type de surface sont fournies sur la base de mesures spécifiques aux bâtiments %institution%. Le ratio alloué a été ajouté pour spécifier si ce local est mutualisé ou pas. Dans le cas d’une mutualisation, le ratio est inférieur à 1.',
   },
   'module-buildings-submodule-energy_combustion': { en: '', fr: '' },
 
@@ -131,8 +131,8 @@ export default {
 
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane': {
-    en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. Complete any missing entries manually, if applicable. Data rows for external passengers are highlighted in orange.',
-    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. Saisissez manuellement les vols manquants, le cas échéant. Les lignes de données des passagers externes sont surlignées en orange.",
+    en: 'The flights listed in the table are provided by the %institution% Central Travel Agency. Complete any missing entries manually, if applicable. Data rows for external passengers are highlighted in orange.',
+    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central %institution%. Saisissez manuellement les vols manquants, le cas échéant. Les lignes de données des passagers externes sont surlignées en orange.",
   },
   'module-professional-travel-submodule-train': {
     en: 'Enter your train trips manually, whether they were taken in Switzerland or abroad. ',
@@ -145,8 +145,8 @@ export default {
     fr: 'Ce tableau regroupe les achats automatiquement catégorisés comme équipements scientifiques selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).',
   },
   'module-purchase-submodule-it_equipment': {
-    en: 'This table lists purchases that are automatically categorized as IT equipment based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse). For this category, EPFL-specific emission factors are used.',
-    fr: "Ce tableau regroupe les achats automatiquement catégorisés comme équipements informatiques selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse). Pour cette catégorie, les facteurs d'émission spécifiques à l'EPFL sont utilisés.",
+    en: 'This table lists purchases that are automatically categorized as IT equipment based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse). For this category, %institution%-specific emission factors are used.',
+    fr: "Ce tableau regroupe les achats automatiquement catégorisés comme équipements informatiques selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse). Pour cette catégorie, les facteurs d'émission spécifiques %institution_fr_a% sont utilisés.",
   },
   'module-purchase-submodule-consumable_accessories': {
     en: 'This table lists purchases that are automatically categorized as consumables and accessories based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse).',
@@ -210,7 +210,7 @@ export default {
   // ── Buildings ──────────────────────────────────────────────────────────────
   'module-buildings-submodule-building-form': {
     en: "Please add any missing premises to the list above. If the information provided is incorrect, please contact your faculty's infrastructure manager to update the centralized database.",
-    fr: "Veuillez ajouter tout local manquant à la liste ci-dessus. Si les informations fournies ne sont pas correctes, veuillez contacter le ou la responsable des infrastructures de votre faculté afin de faire mettre à jour les données figurant dans la base de données centralisée de l'EPFL (Archibus).",
+    fr: 'Veuillez ajouter tout local manquant à la liste ci-dessus. Si les informations fournies ne sont pas correctes, veuillez contacter le ou la responsable des infrastructures de votre faculté afin de faire mettre à jour les données figurant dans la base de données centralisée %institution_fr_de% (Archibus).',
   },
   'module-buildings-submodule-energy_combustion-form': {
     en: 'Please select one or more combustion sources (fossil or non-fossil) from the list if they are not included in the main module.',
@@ -350,21 +350,21 @@ export default {
     fr: "Ratio de surface du local alloué à l'unité. Par défaut, 1 (100%).",
   },
   'module-buildings-submodule-building-table-heating_kwh_per_square_meter': {
-    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at EPFL (VPO)',
-    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations de l'EPFL (VPO)",
+    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at %institution% (VPO)',
+    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations %institution_fr_de% (VPO)",
   },
   'module-buildings-submodule-building-table-cooling_kwh_per_square_meter': {
-    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at EPFL (VPO)',
-    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations de l'EPFL (VPO)",
+    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at %institution% (VPO)',
+    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations %institution_fr_de% (VPO)",
   },
   'module-buildings-submodule-building-table-ventilation_kwh_per_square_meter':
     {
-      en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at EPFL (VPO)',
-      fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations de l'EPFL (VPO)",
+      en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at %institution% (VPO)',
+      fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations %institution_fr_de% (VPO)",
     },
   'module-buildings-submodule-building-table-lighting_kwh_per_square_meter': {
-    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at EPFL (VPO)',
-    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations de l'EPFL (VPO)",
+    en: 'Annual heating energy consumption calculated from room surface and electricity consumption per surface unit extrapolated from information provided by the Vice-Presidency for Operations at %institution% (VPO)',
+    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface des locaux et de la consommation d'électricité par unité de surface, extrapolée à partir des informations fournies par la Vice-présidence des opérations %institution_fr_de% (VPO)",
   },
   'module-buildings-submodule-building-table-kg_co2eq': {
     en: 'Values appear in red when they exceed the threshold set for this specific module.',
@@ -513,8 +513,8 @@ export default {
       fr: '',
     },
   'module-research-facilities-submodule-animal_facilities-table-use': {
-    en: "For EPFL's rodent and fish animal facilities, only the animal housing component is considered. The Phenotyping Unit (UDP) and the Transgenesis Platform (TCF) are not included.",
-    fr: "Pour l'utilisation des animaleries rongeurs et poissons à l'EPFL, nous ne considérons que la partie hébergement des animaux et pas ce qui concerne l'unité de phénotypage (UDP) et la plateforme de transgénèse (TCF).",
+    en: "For %institution%'s rodent and fish animal facilities, only the animal housing component is considered. The Phenotyping Unit (UDP) and the Transgenesis Platform (TCF) are not included.",
+    fr: "Pour l'utilisation des animaleries rongeurs et poissons %institution_fr_a%, nous ne considérons que la partie hébergement des animaux et pas ce qui concerne l'unité de phénotypage (UDP) et la plateforme de transgénèse (TCF).",
   },
   'module-research-facilities-submodule-animal_facilities-table-kg_co2eq': {
     en: 'Values appear in red when they exceed the threshold set for this specific module.',
@@ -604,20 +604,20 @@ export default {
     fr: "Les empreintes carbone considérées ici sont celles liées à l'achat d'équipement informatique, à l'énergie nécessaire pour l'utiliser, et à l'usage des services (internes ou externes) tels que l'IA et les clouds externes.",
   },
   'results-charts-unit-trajectory-title': {
-    en: 'Play around with the different reduction sliders to see if your unit can follow the EPFL objective trajectory.',
-    fr: "Jouez avec les différents curseurs de réduction pour voir si votre unité peut suivre la trajectoire des objectifs de l'EPFL.",
+    en: 'Play around with the different reduction sliders to see if your unit can follow the %institution% objective trajectory.',
+    fr: 'Jouez avec les différents curseurs de réduction pour voir si votre unité peut suivre la trajectoire des objectifs %institution_fr_de%.',
   },
   'results-charts-embodied-energy-title': {
-    en: 'This analysis only covers current constructions, renovations and demolitions; it does not include buildings constructed, renovated or demolished in other years. The actual footprint of EPFL buildings is higher.',
-    fr: "Cette analyse ne concerne que les constructions, rénovations et démolitions en cours; elle n'inclut pas les bâtiments construits, rénovés ou démolis dans le passé. L'empreinte carbone réelle des bâtiments de l'EPFL est plus élevée.",
+    en: 'This analysis only covers current constructions, renovations and demolitions; it does not include buildings constructed, renovated or demolished in other years. The actual footprint of %institution% buildings is higher.',
+    fr: "Cette analyse ne concerne que les constructions, rénovations et démolitions en cours; elle n'inclut pas les bâtiments construits, rénovés ou démolis dans le passé. L'empreinte carbone réelle des bâtiments %institution_fr_de% est plus élevée.",
   },
   'results-charts-research-facilities-filter': {
     en: 'These carbon footprints are calculated based on research facilities data.',
     fr: 'Ces empreintes carbone sont calculées à partir des données propres aux infrastructure de recherche.',
   },
   'results-charts-additional-data-filter': {
-    en: "These carbon footprints are calculated based on EPFL's general assumptions.",
-    fr: "Ces empreintes carbone sont calculées à partir des hypothèses générales de l'EPFL.",
+    en: "These carbon footprints are calculated based on %institution%'s general assumptions.",
+    fr: 'Ces empreintes carbone sont calculées à partir des hypothèses générales %institution_fr_de%.',
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -634,8 +634,8 @@ export default {
   //   Research Facilities → Commuting → Food → Waste → Embodied Energy
 
   'results-reduction-title': {
-    en: 'This section presents two graphs. The first allows you to simulate the evolution of your unit carbon footprints and adjust each category in order to converge towards the net zero trajectory. The second illustrates the reference net zero trajectory for EPFL, aligned with the carbon footprint reduction targets set by the Swiss Confederation and the Climate Act.',
-    fr: "Cette section présente deux graphiques. Le premier vous permet de simuler l'évolution des émissions de votre unité et d'ajuster chaque catégorie afin de converger vers la trajectoire net zéro. Le deuxième illustre la trajectoire net zéro de référence pour l'EPFL, alignée sur les objectifs de réduction des émissions de CO₂ fixés par la Confédération et la Loi Climat.",
+    en: 'This section presents two graphs. The first allows you to simulate the evolution of your unit carbon footprints and adjust each category in order to converge towards the net zero trajectory. The second illustrates the reference net zero trajectory for %institution%, aligned with the carbon footprint reduction targets set by the Swiss Confederation and the Climate Act.',
+    fr: "Cette section présente deux graphiques. Le premier vous permet de simuler l'évolution des émissions de votre unité et d'ajuster chaque catégorie afin de converger vers la trajectoire net zéro. Le deuxième illustre la trajectoire net zéro de référence %institution_fr_de%, alignée sur les objectifs de réduction des émissions de CO₂ fixés par la Confédération et la Loi Climat.",
   },
   'results-reduction-process_emissions': {
     en: 'Low effort: improve tracking of processes. Middle of the road: replace high emission processes with low-emission processes. High effort: convert activities to closed-loop systems. Ambitious: systemically eliminate high emission processes.',
@@ -738,13 +738,13 @@ export default {
   },
 
   'planner-grant-proposal-title': {
-    en: "This section allows you to gather information related to a research project’s carbon footprint as requested by funding agencies. Please contact co2calculator{'@'}epfl.ch if the agencies ask for information that you cannot find here.",
-    fr: "Cette section vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter co2calculator{'@'}epfl.ch si les agences vous demandent des informations que vous ne retrouvez pas ici.",
+    en: 'This section allows you to gather information related to a research project’s carbon footprint as requested by funding agencies. Please contact %contact_email% if the agencies ask for information that you cannot find here.',
+    fr: "Cette section vous permet de collecter les informations liées à l'empreinte carbone d'un projet de recherche demandées par les agences de financement. Merci de contacter %contact_email% si les agences vous demandent des informations que vous ne retrouvez pas ici.",
   },
 
   'planner-grant-section-title': {
-    en: "Start completing the modules to obtain the carbon footprint estimate for a research project, as required by funding agencies. Please contact co2calculator{'@'}epfl.ch if you do not find necessary information here.",
-    fr: "Commencez à remplir les sections afin d'obtenir l'estimation de l'empreinte carbone d'un projet de recherche. Merci de contacter co2calculator{'@'}epfl.ch, si vous ne retrouvez pas ici les informations qui vous sont nécessaires",
+    en: 'Start completing the modules to obtain the carbon footprint estimate for a research project, as required by funding agencies. Please contact %contact_email% if you do not find necessary information here.',
+    fr: "Commencez à remplir les sections afin d'obtenir l'estimation de l'empreinte carbone d'un projet de recherche. Merci de contacter %contact_email%, si vous ne retrouvez pas ici les informations qui vous sont nécessaires",
   },
 
   'planner-grant-module-headcount-title': {
@@ -853,8 +853,8 @@ export default {
   },
 
   'planner-grant-module-research-facilities-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with the use of EPFL research infrastructures specific to your project (Scope 3). To do so, add the relevant research infrastructures and animal facilities, indicating the corresponding budget for each.',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche EPFL spécifiques à votre projet (Scope 3). Pour cela, ajoutez les infrastructures de recherche et animaleries en indiquant le budget correspondant.",
+    en: 'This module allows you to estimate the carbon footprint associated with the use of %institution% research infrastructures specific to your project (Scope 3). To do so, add the relevant research infrastructures and animal facilities, indicating the corresponding budget for each.',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche %institution% spécifiques à votre projet (Scope 3). Pour cela, ajoutez les infrastructures de recherche et animaleries en indiquant le budget correspondant.",
   },
   'planner-grant-module-research-facilities-submodule-research-facilities': {
     en: '',
@@ -977,8 +977,8 @@ export default {
   },
 
   'planner-year-module-research-facilities-title': {
-    en: 'This module allows you to estimate the carbon footprint associated with the use of EPFL research facilities specific to your project (Scope 3).',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche EPFL spécifiques à votre projet (Scope 3).",
+    en: 'This module allows you to estimate the carbon footprint associated with the use of %institution% research facilities specific to your project (Scope 3).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée à l'utilisation des infrastructures de recherche %institution% spécifiques à votre projet (Scope 3).",
   },
   'planner-year-module-research-facilities-submodule-research-facilities': {
     en: 'Indicate the use of research infrastructure to estimate its carbon footprint specific to your project (Scope 3). You can enter the percentage of use based on the reference year in the table.',
@@ -1112,8 +1112,8 @@ export default {
   },
 
   'explorer-module-research-facilities-title': {
-    en: 'This module allows you to explore the carbon footprint associated with the use of EPFL research facilities (Scope 3).\n\nThe methodology used is documented in the Documentation pages.',
-    fr: "Ce module permet d'explorer l'empreinte carbone liée à l'utilisation des infrastructures de recherche EPFL (Scope 3).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
+    en: 'This module allows you to explore the carbon footprint associated with the use of %institution% research facilities (Scope 3).\n\nThe methodology used is documented in the Documentation pages.',
+    fr: "Ce module permet d'explorer l'empreinte carbone liée à l'utilisation des infrastructures de recherche %institution% (Scope 3).\n\nLa méthodologie utilisée est documentée dans les pages Documentation.",
   },
   'explorer-module-research-facilities-submodule-research-facilities': {
     en: 'Explore the carbon footprint associated with the use of a research facility. Please enter the corresponding budget and/or number of usage hours depending on the facility.',
