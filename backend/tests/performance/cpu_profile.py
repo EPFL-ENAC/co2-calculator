@@ -202,7 +202,6 @@ ENDPOINTS: dict[str, Request] = {
         {"unit_ids": t.merged},
     ),
     "unit_totals": lambda t, i: (f"/v1/unit/{t.unit(i)}/{t.year(i)}/totals", {}),
-    "unit_results": lambda t, i: (f"/v1/unit/{t.unit(i)}/results", {}),
     "explore_read": lambda t, i: (
         f"/v1/carbon-reports/simulator/explore/unit/{t.unit(i)}/",
         {},

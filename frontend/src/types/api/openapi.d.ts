@@ -176,23 +176,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/unit/{unit_id}/results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Unit Results */
-        get: operations["get_unit_results_v1_unit__unit_id__results_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/unit/{unit_id}/{year}/totals": {
         parameters: {
             query?: never;
@@ -5177,46 +5160,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoleSyncResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_unit_results_v1_unit__unit_id__results_get: {
-        parameters: {
-            query?: {
-                /** @description Number of records to skip */
-                skip?: number;
-                /** @description Maximum number of records to return */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                unit_id: number;
-            };
-            cookie?: {
-                auth_token?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */

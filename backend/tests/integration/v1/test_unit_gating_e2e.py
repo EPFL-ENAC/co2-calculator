@@ -3,7 +3,6 @@
 Covers:
 - ``carbon_report.py::list_carbon_report_modules`` (gated this PR)
 - ``carbon_report.py::update_carbon_report_module_status`` (gated this PR)
-- ``unit_results.py::get_unit_results`` (gated this PR)
 - ``unit_results.py::get_unit_totals`` (gated this PR)
 - ``unit_results.py::get_validated_emissions`` (gated this PR)
 - ``files.py::list_files`` / ``get_file`` / ``upload_temp_files``
@@ -261,10 +260,9 @@ class TestUpdateCarbonReportModuleStatus:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# unit_results.py — 3 endpoints (gated this PR)
+# unit_results.py — 2 endpoints (gated this PR)
 # ─────────────────────────────────────────────────────────────────────────────
 
-UR_RESULTS_URL = "/api/v1/unit/1/results"
 UR_TOTALS_URL = "/api/v1/unit/1/2024/totals"
 UR_EMISSIONS_URL = "/api/v1/unit/1/yearly-validated-emissions"
 
@@ -277,28 +275,7 @@ def _mock_unit_totals_service(monkeypatch) -> None:
 
 
 class TestUnitResults:
-    """All three endpoints take ``unit_id`` and must gate on it."""
-
-    def test_get_unit_results_cross_unit_denied(self, client, monkeypatch):
-        _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))
-        _wire_db_unit(OTHER_IID)
-        _mock_unit_totals_service(monkeypatch)
-        r = client.get(UR_RESULTS_URL)
-        assert r.status_code == 403, r.text
-
-    def test_get_unit_results_in_unit_allowed(self, client, monkeypatch):
-        _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))
-        _wire_db_unit(UNIT_IID)
-        _mock_unit_totals_service(monkeypatch)
-        r = client.get(UR_RESULTS_URL)
-        assert r.status_code == 200, r.text
-
-    def test_get_unit_results_backoffice_disallowed(self, client, monkeypatch):
-        _wire_user(_user(USER_IID, [_backoffice(AFFILIATION)]))
-        _wire_db_unit(OTHER_IID)
-        _mock_unit_totals_service(monkeypatch)
-        r = client.get(UR_RESULTS_URL)
-        assert r.status_code == 403, r.text
+    """Both endpoints take ``unit_id`` and must gate on it."""
 
     def test_get_unit_totals_cross_unit_denied(self, client, monkeypatch):
         _wire_user(_user(USER_IID, [_principal(UNIT_IID)]))
