@@ -13,10 +13,11 @@
     />
 
     <!--
-      Browser icons, fonts and theme come from the institution folder that
-      the deployment mounts at /institution/ (#3244). nginx serves it as is,
-      so these URLs stay unhashed. The fonts are preloaded because the CSS
-      @font-face chain discovers them late and delays the first text.
+      Browser icons and theme come from the institution folder that the
+      container builds at startup from its defaults and the mounted folder
+      (#3244). nginx serves it as is, so these URLs stay unhashed. The fonts
+      are not preloaded: theme.conf can point them at another server, so
+      their URLs are only known in theme.css.
       Without the apple-touch-icon link Safari probes two root icon URLs
       that 404.
     -->
@@ -46,30 +47,9 @@
     />
     <link rel="icon" type="image/ico" href="/institution/favicon.ico" />
     <link rel="apple-touch-icon" href="/institution/favicon-128x128.png" />
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      href="/institution/fonts/regular.woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      href="/institution/fonts/medium.woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      href="/institution/fonts/bold.woff2"
-      crossorigin
-    />
     <!--
-      Colors and corner radii of the institution, written at container
-      startup from its theme.conf by docker/institution.sh.
+      Colors, corner radii and fonts of the institution, written at
+      container startup from its theme.conf by docker/institution.sh.
     -->
     <link rel="stylesheet" href="/theme.css" />
 

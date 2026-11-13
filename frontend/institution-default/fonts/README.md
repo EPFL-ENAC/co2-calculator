@@ -1,28 +1,32 @@
-# Placeholder fonts
+# Default fonts
 
-The three files in this folder are a placeholder. They are not the EPFL
-brand font.
+The three files in this folder are the default fonts of the image (#3244).
 
 - `regular.woff2` (weight 400)
 - `medium.woff2` (weight 500)
 - `bold.woff2` (weight 700)
 
 The files are Geist 1.3.1 (npm package `geist`), a free font with a Swiss
-design that is similar to Suisse Int'l. They are subset to Latin-1, the
-usual punctuation, `€`, `−` and `₂`. The app loads them as the font family
-`InstitutionFont` (see `frontend/src/css/00-fonts/_fonts.scss`).
+design. They are subset to Latin-1, the usual punctuation, `€`, `−` and
+`₂`. The app loads them as the font family `InstitutionFont`, from the
+`@font-face` rules that `docker/theme.awk` writes into `theme.css`.
 
-Local runs and the tests show Geist. The EPFL clusters mount the licensed
-Suisse Int'l files from the ops repository over these files, with the same
-names.
+An institution replaces them in one of two ways:
+
+- Its assets folder gives `fonts/regular.woff2`, `fonts/medium.woff2` and
+  `fonts/bold.woff2`.
+- Its `theme.conf` sets `font-regular`, `font-medium` and `font-bold` to
+  the URLs of a font server. Use this for a licensed brand font: the files
+  then stay on the server of the institution.
 
 ## Licensing
 
 Read the license of a font before you add it to this repository. This
 repository is public, and each file in it is redistributed.
 
-- Do not commit Suisse Int'l or any other licensed brand font. Its license
-  does not allow redistribution. The deployment volume gives these files.
+- Do not commit a licensed brand font. Its license usually does not allow
+  redistribution. Point `theme.conf` at the font server of the
+  institution instead.
 - Do not commit a system font such as Arial or Helvetica. The operating
   system gives you the right to use it, not to copy it.
 - If you replace these files with another free font, keep its license with

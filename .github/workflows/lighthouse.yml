@@ -54,7 +54,7 @@ jobs:
         working-directory: ./frontend
         env:
           INSTITUTION_ENV_FILE: ../institutions/epfl/frontend.env.example
-          INSTITUTION_ASSETS_DIR: ../institutions/epfl/assets
+          INSTITUTION_ASSETS_DIR: ./tests/institution
         run: node build/prepare-preview.mjs
 
       - name: Inject Lighthouse bypass flag into index.html

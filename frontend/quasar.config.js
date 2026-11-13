@@ -12,33 +12,11 @@ import { defineConfig } from '#q-app';
 import path from 'path';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
-import { institutionPlugin } from './build/institution.mjs';
+import { institutionPlugin, loadEnvLocal } from './build/institution.mjs';
 
-// Load .env.local into process.env for `quasar dev`. Quasar doesn't
-// auto-load .env files into the Node-side config. This loader makes the
-// INSTITUTION_* paths and the APP_* overrides of .env.local visible to the
-// institution plugin, which writes them into /injectEnv.js as the container
-// does. Lines like KEY=value (with optional quotes); `#` comments OK.
-(() => {
-  const envLocal = path.resolve(__dirname, '.env.local');
-  if (!fs.existsSync(envLocal)) return;
-  for (const raw of fs.readFileSync(envLocal, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
-    if (!m) continue;
-    let v = m[2].trim();
-    if (
-      (v.startsWith('"') && v.endsWith('"')) ||
-      (v.startsWith("'") && v.endsWith("'"))
-    ) {
-      v = v.slice(1, -1);
-    }
-    // Don't override values already exported in the shell — explicit shell
-    // env wins over .env.local (matches Vite/CRA convention).
-    if (process.env[m[1]] === undefined) process.env[m[1]] = v;
-  }
-})();
+// `quasar dev` reads the INSTITUTION_* paths and the APP_* overrides of
+// .env.local (see build/institution.mjs).
+loadEnvLocal();
 
 // Bundle identity. Baked into build.env so Sentry's `release` tag matches the
 // source maps uploaded to GlitchTip — otherwise stack traces stay minified.

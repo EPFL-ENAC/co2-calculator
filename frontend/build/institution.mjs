@@ -9,15 +9,17 @@
 // Two environment variables point at the institution:
 //   INSTITUTION_ENV_FILE    the APP_* values (KEY=value lines)
 //   INSTITUTION_ASSETS_DIR  the assets folder the container mounts
-// Both are required. There is no default institution.
+// Both are required: the values have no default, and the folder gives at
+// least theme.conf. The other assets default to institution-default/.
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const FRONTEND_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DOCKER_DIR = join(FRONTEND_DIR, 'docker');
+const DEFAULT_DIR = join(FRONTEND_DIR, 'institution-default');
 
 const requireEnv = (name) => {
   const value = process.env[name];
@@ -26,7 +28,39 @@ const requireEnv = (name) => {
       `${name} is not set. Point it at an institution, see frontend/.env.example.`,
     );
   }
-  return resolve(FRONTEND_DIR, value);
+  const path = resolve(FRONTEND_DIR, value);
+  if (!existsSync(path)) {
+    throw new Error(
+      `${name}=${value} does not exist (${path}). The root \`make install\` ` +
+        'copies institutions/epfl/frontend.env.example to frontend.env.',
+    );
+  }
+  return path;
+};
+
+/**
+ * Load frontend/.env.local into process.env, for `quasar dev` and `npm run
+ * preview`. Neither Quasar nor this script reads .env files by itself. Lines
+ * are KEY=value, with optional quotes, and `#` starts a comment. A variable
+ * already set in the shell wins, as with Vite.
+ */
+export const loadEnvLocal = () => {
+  const envLocal = join(FRONTEND_DIR, '.env.local');
+  if (!existsSync(envLocal)) return;
+  for (const raw of readFileSync(envLocal, 'utf8').split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
+    if (!m) continue;
+    let v = m[2].trim();
+    if (
+      (v.startsWith('"') && v.endsWith('"')) ||
+      (v.startsWith("'") && v.endsWith("'"))
+    ) {
+      v = v.slice(1, -1);
+    }
+    if (process.env[m[1]] === undefined) process.env[m[1]] = v;
+  }
 };
 
 /** KEY=value lines, `#` comments. Values are literal, like a compose env_file. */
@@ -56,8 +90,9 @@ const run = (script, env) => {
 };
 
 /**
- * Write injectEnv.js and theme.css into outDir with the container scripts.
- * The shell environment wins over the env file, as in the container.
+ * Write injectEnv.js, theme.css and the institution/ folder into outDir with
+ * the container scripts. The shell environment wins over the env file, as in
+ * the container.
  */
 export const writeInstitutionFiles = (outDir) => {
   const values = readEnvFile(requireEnv('INSTITUTION_ENV_FILE'));
@@ -66,14 +101,8 @@ export const writeInstitutionFiles = (outDir) => {
   run('institution.sh', {
     ...env,
     INSTITUTION_DIR: requireEnv('INSTITUTION_ASSETS_DIR'),
+    INSTITUTION_DEFAULT_DIR: DEFAULT_DIR,
   });
-};
-
-/** Copy the assets folder to outDir/institution, where nginx serves it. */
-export const copyInstitutionAssets = (outDir) => {
-  const target = join(outDir, 'institution');
-  rmSync(target, { recursive: true, force: true });
-  cpSync(requireEnv('INSTITUTION_ASSETS_DIR'), target, { recursive: true });
 };
 
 const CONTENT_TYPES = {
@@ -97,7 +126,8 @@ const send = (res, file) => {
 /**
  * Vite plugin for the dev server, the component tests and Storybook: serves
  * /injectEnv.js, /theme.css and /institution/* the way nginx does. A dev
- * server generates the files on each request, so an edit shows on reload. A
+ * server generates the files on each request of /injectEnv.js or
+ * /theme.css, which a reload makes first, so an edit shows on reload. A
  * build (component tests, Storybook) writes them next to its output. The app
  * build never uses it: there the container writes them.
  */
@@ -105,7 +135,6 @@ export const institutionPlugin = () => ({
   name: 'institution-assets',
   writeBundle(options) {
     writeInstitutionFiles(options.dir);
-    copyInstitutionAssets(options.dir);
   },
   configureServer(server) {
     const outDir = mkdtempSync(join(tmpdir(), 'co2-institution-'));
@@ -122,7 +151,7 @@ export const institutionPlugin = () => ({
         next();
         return;
       }
-      const root = requireEnv('INSTITUTION_ASSETS_DIR');
+      const root = join(outDir, 'institution');
       const relative = decodeURIComponent(path.slice('/institution/'.length));
       const file = normalize(join(root, relative));
       // A request path never leaves the assets folder.
