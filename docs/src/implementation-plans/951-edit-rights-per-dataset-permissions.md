@@ -217,6 +217,13 @@ standard" is satisfied without duplicating role logic.
 > `{USER_MANUAL, CSV_MODULE_UNIT_SPECIFIC, API_MODULE_UNIT_SPECIFIC,
 PLANNER_SNAPSHOT}`.
 
+> **Amended by #2646 (2026-11-13)** — see
+> [`2646-planner-reference-row-edit-rights.md`](./2646-planner-reference-row-edit-rights.md).
+> A `PLANNER_SNAPSHOT` row that carries a `percentage_of_reference_year` is a
+> third branch, `REFERENCE`: only the percentage and the note are writable,
+> and the row stays deletable. `provenance_of` takes the persisted `data` to
+> tell it from a plain copy, which stays `USER`.
+
 ```python
 class Provenance(str, Enum):
     USER = "user"          # source is None or USER_MANUAL

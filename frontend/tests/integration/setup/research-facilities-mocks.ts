@@ -151,6 +151,11 @@ function emptySubmodule(id: string) {
         ],
       },
       imported: { create: false, delete: false, editable_fields: ['note'] },
+      reference: {
+        create: false,
+        delete: true,
+        editable_fields: ['note', 'percentage_of_reference_year'],
+      },
     },
   };
 }
