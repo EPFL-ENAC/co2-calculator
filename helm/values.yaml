@@ -406,9 +406,11 @@ frontend:
     APP_PRODUCTION_URL: ""
 
   # Volume with the institution assets folder, mounted at /institution
-  # (#3244): logo.svg, login-illustration.svg, the favicons, fonts/*.woff2
-  # and theme.conf. Any volume source works, for example a ConfigMap built
-  # from institutions/<name>/assets with binaryData. Required.
+  # (#3244). Required, because it gives theme.conf with the accent color.
+  # The image has a neutral default for the other files (logo.svg,
+  # login-illustration.svg, the favicons, fonts/*.woff2), and a file of the
+  # volume replaces its default. Any volume source works, for example a
+  # ConfigMap built from institutions/<name>/assets.
   institutionAssets:
     volume: {}
 

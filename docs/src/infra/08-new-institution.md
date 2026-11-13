@@ -1,22 +1,25 @@
 # Set up a new institution
 
 Another institution runs the same images as EPFL. It changes no code. It
-gives the frontend a values file and a folder of assets. This page shows
-how. The example institution is `UNIV`, in the folder `institutions/univ`.
+gives the frontend a values file and a folder of assets. The image has a
+neutral default for every asset except the theme, so the smallest folder
+holds only `theme.conf` with the accent color. This page shows how. The example institution is `UNIV`, in the folder `institutions/univ`.
 
 This page covers what #3244 delivers. The frontend is fully configurable.
 Login and units still need Accred and Entra, or the test login. See
 [Limits today](#limits-today). The design and the full list of values are
 in the [plan of #3244](../implementation-plans/3244-institution-values-assets-theme.md).
 
-## 1. Copy the EPFL folder
+## 1. Make the folder
 
-1. Copy the EPFL folder to a folder for the new institution.
-2. Make the values file from its example.
+1. Make a folder for the new institution.
+2. Copy the values file of EPFL into it.
+3. Copy the theme template into its assets folder.
 
 ```sh
-cp -R institutions/epfl institutions/univ
-mv institutions/univ/frontend.env.example institutions/univ/frontend.env
+mkdir -p institutions/univ/assets
+cp institutions/epfl/frontend.env.example institutions/univ/frontend.env
+cp frontend/institution-default/theme.conf.example institutions/univ/assets/theme.conf
 ```
 
 Git ignores `institutions/*/frontend.env`, but it does not ignore the
@@ -70,7 +73,8 @@ APP_PLANNER_MAX_YEAR=2050
 
 The texts insert the French forms as they are. For example, the French
 tab title is "Calculateur CO₂ de l'UNIV". The texts add page paths after
-the two doc URLs, so each URL must end with `/`. The ID label replaces
+the two doc URLs, so each URL must end with `/`. If one does not, the app
+shows the missing-values page with that URL. The ID label replaces
 "SCIPER" in the texts and in the headcount column.
 
 The values that change per cluster do not go in this file:
@@ -79,10 +83,13 @@ The values that change per cluster do not go in this file:
 you must also set `APP_MATOMO_URL`. If `APP_DEMO_MODE` is `true`, you
 must also set `APP_PRODUCTION_URL`.
 
-## 3. Replace the assets
+## 3. Replace the assets you want
 
-Replace the files in `institutions/univ/assets/`. Every file must exist
-and must not be empty, or the container stops.
+The image has a neutral default for each file below:
+a gray logo and icons, a gray login illustration and the Geist fonts.
+`frontend/institution-default/` holds them. To replace a default, put a
+file with the same name in `institutions/univ/assets/`. Every other file
+keeps its default.
 
 | File                                         | Content                                        |
 | -------------------------------------------- | ---------------------------------------------- |
@@ -93,42 +100,57 @@ and must not be empty, or the container stops.
 | `fonts/regular.woff2`                        | the text font, weight 400                      |
 | `fonts/medium.woff2`                         | the text font, weight 500                      |
 | `fonts/bold.woff2`                           | the text font, weight 700                      |
-| `theme.conf`                                 | the colors and the corner radii                |
+
+If the folder holds a file name that is not in this table or
+`theme.conf`, the container stops. This catches a typo, for example
+`logo.SVG`, that would show the default logo without an error. One
+exception: `fonts/` can also hold a file that is not a `.woff2`, for
+example the license of a free font. An empty file also stops the
+container. At startup, the log gives the source of each
+file:
+
+```
+[institution] logo.svg: from /institution
+[institution] favicon.ico: from /usr/local/share/institution/default
+```
 
 The repository is public. Before you commit the logo of an institution,
 get the agreement of that institution.
 
 The login page repeats `login-illustration.svg` as a tile behind the login
 card, and it shows the file as it is. To make the illustration pale, put the
-opacity in the file. The EPFL file draws its icons at 25 % opacity on a white
-tile.
+opacity in the file. The default file draws its icons at 25 % opacity on a
+white tile.
 
 ### Fonts and licensing
 
-For a test, keep the Geist fonts of the EPFL folder. Their license
-allows redistribution.
-
 If the institution has a brand font, read its license before you add it
 to any repository. A brand font license usually does not allow
-redistribution. In that case, the cluster of the institution mounts the
-font files, as the EPFL clusters do for Suisse Int'l. A system font such
-as Arial is not allowed either. `institutions/epfl/assets/fonts/README.md`
-gives the rules.
+redistribution. In that case, do not add the files. Set the URLs of the
+font server of the institution in `theme.conf`, as EPFL does:
+
+```
+font-regular: https://fonts.example.org/Brand-Regular.woff2
+font-medium: https://fonts.example.org/Brand-Medium.woff2
+font-bold: https://fonts.example.org/Brand-Bold.woff2
+```
+
+The font server must allow the site of the calculator in its CORS headers.
+A system font such as Arial is not allowed in the folder either.
+`frontend/institution-default/fonts/README.md` gives the rules.
 
 ## 4. Set the colors
 
-Set the accent color in `institutions/univ/assets/theme.conf`.
+Set the accent color in `institutions/univ/assets/theme.conf`. The
+template sets a neutral gray.
 
 ```
 accent: #0050a0
 ```
 
-Delete the `accent-hover`, `accent-light` and `accent-lighter` lines.
-They hold the EPFL reds. Without them, the app mixes the three shades
-from the accent.
-
-The other names keep the default look. To change one, remove the `# `
-in front of its line and set the value. Only `accent` is required.
+The app mixes the hover and light shades from the accent. The other names
+keep the default look. To change one, remove the `# ` in front of its
+line and set the value. Only `accent` is required.
 `frontend/docker/theme.awk` lists all the names.
 
 ## 5. Run it locally
@@ -153,7 +175,7 @@ INSTITUTION_ASSETS_DIR=../institutions/univ/assets
 If the check passes, the log shows this line:
 
 ```
-[institution] checked /institution and wrote /tmp/theme.css
+[institution] wrote /tmp/institution and /tmp/theme.css
 ```
 
 ## 6. Make sure that it works
@@ -162,7 +184,8 @@ Open the app and make sure of these points:
 
 - The tab title is "UNIV CO₂ Calculator" in English and "Calculateur
   CO₂ de l'UNIV" in French.
-- The login page shows the logo and the image of the institution.
+- The login page shows the logo and the image of the institution, or the
+  gray defaults for the files that you did not give.
 - The accent buttons have the accent color.
 - The home page names the institution and links to its strategy page.
 - The headcount column header shows the ID label.
@@ -170,11 +193,12 @@ Open the app and make sure of these points:
 
 Then test the failures:
 
-| Change                            | Result                                                                                  |
-| --------------------------------- | --------------------------------------------------------------------------------------- |
-| Empty `APP_CONTACT_EMAIL`         | The app shows the missing-values page with `APP_CONTACT_EMAIL`.                         |
-| Delete `fonts/bold.woff2`         | The container stops: `[institution] missing or empty in /institution: fonts/bold.woff2` |
-| Add `colour: red` to `theme.conf` | The startup stops with the line number and `unknown name "colour"`.                     |
+| Change                            | Result                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------ |
+| Empty `APP_CONTACT_EMAIL`         | The app shows the missing-values page with `APP_CONTACT_EMAIL`.                |
+| Delete `theme.conf`               | The container stops: `[institution] missing or empty: /institution/theme.conf` |
+| Rename `logo.svg` to `logo.SVG`   | The container stops: `[institution] unknown files in /institution: logo.SVG`   |
+| Add `colour: red` to `theme.conf` | The startup stops with the line number and `unknown name "colour"`.            |
 
 The dev server runs the same scripts, so it shows the same messages.
 
@@ -185,20 +209,16 @@ The dev server runs the same scripts, so it shows the same messages.
 2. Make a ConfigMap from the assets folder.
 3. Mount the ConfigMap with `frontend.institutionAssets.volume`.
 
-Without the volume, the Helm chart does not render.
+Without the volume, the Helm chart does not render, because the volume
+gives `theme.conf`.
 
-A ConfigMap key cannot contain `/`. So give each font its own key:
+Put only the files that replace a default in the ConfigMap. The smallest
+ConfigMap holds `theme.conf` alone:
 
 ```sh
 kubectl create configmap co2-institution \
-  --from-file=institutions/univ/assets \
-  --from-file=fonts-regular.woff2=institutions/univ/assets/fonts/regular.woff2 \
-  --from-file=fonts-medium.woff2=institutions/univ/assets/fonts/medium.woff2 \
-  --from-file=fonts-bold.woff2=institutions/univ/assets/fonts/bold.woff2
+  --from-file=institutions/univ/assets/theme.conf
 ```
-
-Then map the font keys back to `fonts/`. List every file in `items`,
-because Kubernetes mounts only the keys that `items` lists.
 
 ```yaml
 frontend:
@@ -206,19 +226,14 @@ frontend:
     volume:
       configMap:
         name: co2-institution
-        items:
-          - { key: logo.svg, path: logo.svg }
-          - { key: login-illustration.svg, path: login-illustration.svg }
-          - { key: favicon.ico, path: favicon.ico }
-          - { key: favicon-16x16.png, path: favicon-16x16.png }
-          - { key: favicon-32x32.png, path: favicon-32x32.png }
-          - { key: favicon-96x96.png, path: favicon-96x96.png }
-          - { key: favicon-128x128.png, path: favicon-128x128.png }
-          - { key: theme.conf, path: theme.conf }
-          - { key: fonts-regular.woff2, path: fonts/regular.woff2 }
-          - { key: fonts-medium.woff2, path: fonts/medium.woff2 }
-          - { key: fonts-bold.woff2, path: fonts/bold.woff2 }
 ```
+
+Without `items`, Kubernetes mounts every key of the ConfigMap. A key
+cannot contain `/`, so a font file needs its own key and an `items` entry
+that maps it to `fonts/`, for example
+`{ key: fonts-bold.woff2, path: fonts/bold.woff2 }`. With `items`, list
+every file, because Kubernetes then mounts only the keys that `items`
+lists. To avoid this, point `theme.conf` at a font server.
 
 The backend also needs `DB_URL` and `FRONTEND_URL`. They have no default.
 

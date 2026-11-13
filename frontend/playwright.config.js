@@ -8,13 +8,14 @@ import process from 'process';
 
 const port = Number(process.env.PREVIEW_PORT ?? 4173);
 
-// The e2e tests run with the values and assets of institutions/epfl:
+// The e2e tests run with the values of institutions/epfl and the default
+// assets (tests/institution gives only theme.conf):
 // `npm run preview` writes
 // them into dist/spa with the container scripts (build/prepare-preview.mjs).
 // The tracked example keeps CI and local runs equal (#3244).
 process.env.INSTITUTION_ENV_FILE ??=
   '../institutions/epfl/frontend.env.example';
-process.env.INSTITUTION_ASSETS_DIR ??= '../institutions/epfl/assets';
+process.env.INSTITUTION_ASSETS_DIR ??= './tests/institution';
 
 export default defineConfig({
   testDir: './tests',
@@ -28,7 +29,9 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
   },
   webServer: {
-    command: `npm run preview -- --port ${port} --strictPort`,
+    // Not `npm run preview`: that one reads .env.local, and the tests must
+    // run on the tracked values, as in CI.
+    command: `node build/prepare-preview.mjs && npx vite preview --outDir dist/spa --port ${port} --strictPort`,
     port,
     reuseExistingServer: !process.env.CI,
   },

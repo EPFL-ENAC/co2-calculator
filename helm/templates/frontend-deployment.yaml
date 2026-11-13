@@ -84,16 +84,20 @@ spec:
               mountPath: /var/cache/nginx
             - name: run
               mountPath: /var/run
-            # Logo, icons, fonts and theme of the institution (#3244).
+            # Theme of the institution, and the files that replace the
+            # neutral defaults of the image (#3244).
             - name: institution
               mountPath: /institution
               readOnly: true
       volumes:
+        # `helm lint` turns fail into a message and keeps rendering, so the
+        # else branch must still give valid YAML.
         - name: institution
-          {{- if not .Values.frontend.institutionAssets.volume }}
-          {{- fail "frontend.institutionAssets.volume is required: the volume with the institution assets folder" }}
+          {{- with .Values.frontend.institutionAssets.volume }}
+          {{- toYaml . | nindent 10 }}
+          {{- else }}
+          {{- fail "frontend.institutionAssets.volume is required: the volume with the institution theme.conf" }}
           {{- end }}
-          {{- toYaml .Values.frontend.institutionAssets.volume | nindent 10 }}
         - name: cache
           emptyDir: {}
         - name: run

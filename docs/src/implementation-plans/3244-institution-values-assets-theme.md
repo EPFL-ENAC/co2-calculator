@@ -1,8 +1,8 @@
 ---
 status: in-progress
 issue: 3244
-last_updated: 2026-11-12
-summary: "Institution name, texts, documentation links, logo, fonts and color theme come from the deployment. The code has no EPFL default and the texts do not name Accred. A CI check finds hard-coded EPFL, Accred or Entra."
+last_updated: 2026-11-13
+summary: "Institution name, texts, documentation links, logo, fonts and color theme come from the deployment. The image has neutral default assets, so a deployment gives only its values and a theme.conf. The code has no EPFL default and the texts do not name Accred. A CI check finds hard-coded EPFL, Accred or Entra."
 ---
 
 # Institution values, assets and theme from the deployment (#3244)
@@ -27,6 +27,16 @@ preview`, the component tests and Storybook get `injectEnv.js` and
   because it names the institution.
 - The theme file sets CSS custom properties. The SCSS tokens read
   `var(--theme-*)`, so one image serves every institution.
+- The image has a neutral default for every asset except `theme.conf`,
+  as Keycloak ships its default theme (decided with the lead on
+  2026-11-13). A new deployment works with its values and one theme line.
+  The accent color stays required, so the folder still gives
+  `theme.conf`. A default is visible on the first page, unlike a wrong
+  number. The startup log names the source of each file, and an unknown
+  file name stops the container, so a typo in an override is not silent.
+- The fonts default to Geist in the image. `theme.conf` can point them at
+  a font server. EPFL points them at `enac-it-fonts.epfl.ch`, so the
+  licensed Suisse Int'l files are in no repository.
 
 ## Values
 
@@ -57,7 +67,18 @@ Optional values. An empty value hides the link that uses it.
 Two values lose their EPFL default. If `APP_MATOMO_SITE_ID` is set,
 `APP_MATOMO_URL` is required. If `APP_DEMO_MODE` is `true`,
 `APP_PRODUCTION_URL` is required. The backend loses its defaults for `DB_URL`
-and `FRONTEND_URL`.
+and `FRONTEND_URL`. The Helm default of `FRONTEND_URL` is empty, so a
+cluster that does not set it stops at boot. Docker Compose takes `DB_URL`
+from `backend/.env` and changes only its host from `localhost` to
+`postgres`, so the credentials are written in one file.
+
+The texts add page paths after `APP_USER_DOC_URL` and
+`APP_BACKOFFICE_DOC_URL`. If one does not end with `/`, the missing-values
+page lists it with the reason.
+
+If `APP_EQUIPMENT_POWER_FEEDBACK_EMAIL` is empty, the equipment dialog has
+no power request tab: a mailto link without a recipient opens an empty
+draft.
 
 The EPFL values are in `institutions/epfl/frontend.env.example`. A
 developer copies it to `frontend.env`, which git ignores. If the file is
@@ -67,7 +88,16 @@ same values. The clusters get the same values from the ops repository.
 
 The dev server needs two paths in `frontend/.env.local`:
 `INSTITUTION_ENV_FILE` and `INSTITUTION_ASSETS_DIR`. See
-`frontend/.env.example`.
+`frontend/.env.example`. `build/institution.mjs` loads `.env.local` for
+`quasar dev` and for `npm run preview`. If a path does not exist, the error
+names `make install`. `wtx` copies `frontend.env` into a new worktree, as
+it copies `.env.local`.
+
+Three builds outside the container write the institution files with the
+same scripts. `npm run preview` and the Lighthouse workflow run
+`build/prepare-preview.mjs` on `dist/spa`. The Storybook image gets the
+EPFL folder through the named build context `institutions`, because the
+folder is outside its build context `frontend/`.
 
 ## Texts
 
@@ -101,7 +131,11 @@ référence de l'EPFL" instead of "de référence pour l'EPFL".
 
 ## Assets folder
 
-The container mounts the folder at `/institution`, and nginx serves it at
+The deployment mounts its folder at `/institution`. At startup,
+`frontend/docker/institution.sh` runs after `entrypoint.sh`. It copies the
+defaults of the image (`frontend/institution-default/`, in the image at
+`/usr/local/share/institution/default`), then the files of the mounted
+folder, to `/tmp/institution`. nginx serves that folder at
 `/institution/` with revalidation. The files:
 
 ```
@@ -110,23 +144,30 @@ login-illustration.svg
 favicon.ico
 favicon-16x16.png  favicon-32x32.png  favicon-96x96.png  favicon-128x128.png
 fonts/regular.woff2  fonts/medium.woff2  fonts/bold.woff2
-theme.conf
+theme.conf         (required, no default)
 ```
 
-`frontend/docker/institution.sh` runs at startup after `entrypoint.sh`. If
-a file is missing, it exits with an error that names the file, and the
-container stops. The EPFL files are in `institutions/epfl/assets/`.
+The defaults are a gray mark with a leaf for the logo and the icons, the
+login illustration in gray, and Geist. The log gives the source of each
+file. These cases stop the container with a message: no `theme.conf`, an
+empty file, and a file name outside the list. Names that start with `.`
+are skipped, because a ConfigMap mount adds `..data`. A file of `fonts/`
+that is not a `.woff2` is allowed, because a free font keeps its license
+next to its files. A line of `theme.conf` can end with `\r\n`.
 
-The fonts of that folder are a placeholder: Geist 1.3.1 under the SIL Open
-Font License, subset with `pyftsubset` to Latin-1, the usual punctuation,
-`€`, `−` and `₂`. `fonts/README.md` explains the placeholder, gives the
-licensing rules for that folder, and holds the license text. The license
-of the EPFL brand font Suisse Int'l does not allow it in the repository.
-The license of a system font such as Arial does not allow it either. The
-EPFL clusters mount the licensed files through the ops repository, so local
-runs and the tests show Geist, and the clusters show Suisse Int'l. Docker
-Compose mounts this folder. The Helm chart mounts the volume that
-`frontend.institutionAssets.volume` gives, and fails to render without it.
+The default fonts are Geist 1.3.1 under the SIL Open Font License, subset
+with `pyftsubset` to Latin-1, the usual punctuation, `€`, `−` and `₂`.
+`frontend/institution-default/fonts/README.md` gives the licensing rules
+and holds the license text. The license of the EPFL brand font Suisse
+Int'l does not allow it in a repository. The license of a system font such
+as Arial does not allow it either.
+
+The EPFL folder `institutions/epfl/assets/` gives the logo, the icons, the
+login illustration and `theme.conf`. It has no font files. Docker Compose
+mounts it. The tests mount `frontend/tests/institution/`, which holds only
+`theme.conf`, so they run on the defaults. The Helm chart mounts the volume
+that `frontend.institutionAssets.volume` gives, and fails to render
+without it, because the volume gives `theme.conf`.
 
 ## Theme
 
@@ -135,8 +176,17 @@ with `#` is a comment. `frontend/docker/theme.awk` writes `theme.css` with
 one `--theme-<name>` property per line. These lines stop the startup: an
 unknown name, a line without `:`, and a value with `;`, `{`, `}` or `<`.
 The message gives the line number. Only `accent` is required. The names are
-listed in `theme.awk`. `scripts/check-theme-keys.mjs` makes sure that the
+listed in `theme.awk`, and `frontend/institution-default/theme.conf.example`
+documents each one. `scripts/check-theme-keys.mjs` makes sure that the
 SCSS uses the same names.
+
+`font-regular`, `font-medium` and `font-bold` take the URL of a woff2 file:
+an `https://` URL or a path that starts with `/`. `theme.awk` writes one
+`@font-face` rule per weight for the family `InstitutionFont`, because
+`@font-face` cannot read a custom property. Without a value, the rule loads
+`/institution/fonts/<weight>.woff2`. The bundle has no `@font-face` rule,
+and `index.html` preloads no font, because the URLs are known only at
+startup.
 
 The shades of the accent (`accent-hover`, `accent-light`,
 `accent-lighter`) default to a `color-mix()` of the accent. A theme can
@@ -146,8 +196,10 @@ set them, and the EPFL theme does, so EPFL keeps its exact colors.
 
 - `GET /v1/unit/{unit_id}/results` and the fixed EPFL answer it returned,
   with the unused unit-results state of the workspace store.
-- The `epfl-logo.svg` import, the `enac-it-fonts.epfl.ch` fonts and their
-  preloads.
+- The `epfl-logo.svg` import, the `enac-it-fonts.epfl.ch` fonts of the
+  bundle and the font preloads. EPFL gets the same fonts through its
+  `theme.conf`.
+- `src/css/00-fonts/_fonts.scss` and the `fonts` CSS layer.
 - Unused texts `header_documentation_link` and
   `header_dev_documentation_link`.
 - `src/constant/institutionalId.ts`. The label is a value now.
@@ -193,9 +245,9 @@ Before the next deployment, a human changes the ops repository:
   links of each cluster.
 - Set `APP_MATOMO_URL` and `APP_PRODUCTION_URL` where they are used.
 - Give the assets volume, for example a ConfigMap made from
-  `institutions/epfl/assets/` with `binaryData`. Replace the three files of
-  `fonts/` with the licensed Suisse Int'l files of the font server, under
-  the same names.
+  `institutions/epfl/assets/` with `binaryData`. The folder has no font
+  files: its `theme.conf` points the fonts at the ENAC font server. Without
+  font keys, the ConfigMap needs no `items` list.
 - Set `FRONTEND_URL` and `DB_URL` for the backend. They have no default.
 
 A developer also adds `FRONTEND_URL` to `backend/.env`, and the two
@@ -205,5 +257,13 @@ A developer also adds `FRONTEND_URL` to `backend/.env`, and the two
 
 - The first-load badge counts only the bundle. The fonts of the
   deployment are not known at build time.
+- Without the font preloads, the browser finds the fonts later, when it
+  applies `theme.css`. The first text can show the fallback font a little
+  longer.
 - The `institution-words` job is a required check only after an admin adds
   it to the branch protection of `dev` and `main`.
+- Only the browser checks the required values. A rollout with a wrong key
+  starts its pods, and they show the missing-values page to every user.
+  `entrypoint.sh` could check the keys at startup and stop the rollout, as
+  `institution.sh` does for `theme.conf`. That needs the list of required
+  keys in the shell script too. Open question, not decided.

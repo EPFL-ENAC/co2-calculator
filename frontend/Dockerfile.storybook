@@ -24,6 +24,7 @@ COPY index.html tsconfig.json quasar.config.js quasar.extensions.json ./
 # lands at ../institutions from /app.
 COPY build/ ./build/
 COPY docker/ ./docker/
+COPY institution-default/ ./institution-default/
 COPY --from=institutions . /institutions/
 
 # Prepare Quasar (generates .quasar/)

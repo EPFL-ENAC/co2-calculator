@@ -68,6 +68,10 @@ COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-inject-env.sh
 COPY --chmod=755 docker/institution.sh /docker-entrypoint.d/41-institution.sh
 COPY --chmod=755 docker/theme.awk /usr/local/share/institution/theme.awk
 ENV THEME_AWK=/usr/local/share/institution/theme.awk
+# Neutral logo, icons, illustration and Geist fonts. The mounted folder
+# replaces any of them, so a deployment works without its own files.
+COPY institution-default /usr/local/share/institution/default
+ENV INSTITUTION_DEFAULT_DIR=/usr/local/share/institution/default
 
 # Copy built static files. (Source maps are not generated — see
 # `sourcemap: false` in quasar.config.js for the reason.)
