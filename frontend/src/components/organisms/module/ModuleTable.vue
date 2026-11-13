@@ -566,7 +566,11 @@ import { nOrDash } from '@/utils/number';
 import { getModuleIconColors } from '@/composables/useModuleIconColors';
 import { formatJobRowErrors } from '@/utils/rowErrors';
 import { getNumericRules } from '@/utils/numeric-rules';
-import { isFieldEditable, isRowDeletable } from '@/utils/dataEntryPolicy';
+import {
+  isFieldEditable,
+  isRowDeletable,
+  type PolicyRow,
+} from '@/utils/dataEntryPolicy';
 import {
   clampReferencePercentage,
   REFERENCE_PERCENTAGE_MAX,
@@ -1025,27 +1029,29 @@ const tableAccess = computed<ModuleTableAccess>(() => ({
 
 const isDisabled = computed(() => isModuleTableDisabled(tableAccess.value));
 
-// #951: null for submodules the policy layer doesn't cover (planner,
-// embodied energy) — isFieldEditable/isRowDeletable treat null as ungated.
+// #951: null for submodules the policy layer doesn't cover (planner-kind
+// types, embodied energy) — isFieldEditable/isRowDeletable treat null as
+// ungated.
 const dataEntryPolicies = computed(
   () =>
     moduleStore.state.dataSubmodule[props.submoduleType]?.data_entry_policies ??
     null,
 );
 
+function policyRow(row: ModuleRow): PolicyRow {
+  return {
+    source: row.source as number | null | undefined,
+    percentage_of_reference_year: row.percentage_of_reference_year as
+      number | null | undefined,
+  };
+}
+
 function isRowFieldPolicyLocked(row: ModuleRow, col: { field: string }) {
-  return !isFieldEditable(
-    dataEntryPolicies.value,
-    row.source as number | null | undefined,
-    col.field,
-  );
+  return !isFieldEditable(dataEntryPolicies.value, policyRow(row), col.field);
 }
 
 function isRowPolicyDeletable(row: ModuleRow) {
-  return isRowDeletable(
-    dataEntryPolicies.value,
-    row.source as number | null | undefined,
-  );
+  return isRowDeletable(dataEntryPolicies.value, policyRow(row));
 }
 
 const canEditRows = computed(() => hasRowEditPermission(tableAccess.value));
