@@ -12,33 +12,11 @@ import { defineConfig } from '#q-app';
 import path from 'path';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
+import { institutionPlugin, loadEnvLocal } from './build/institution.mjs';
 
-// Load .env.local into process.env for `quasar dev` / local `quasar build`.
-// Quasar doesn't auto-load .env files into the Node-side config (Vite only
-// exposes VITE_ prefixed vars on the client). This loader makes APP_*
-// variables from .env.local available to build.env below, so devs can put
-// their Sentry DSN etc. in a gitignored file instead of shell-exporting
-// every time. Lines like KEY=value (with optional quotes); `#` comments OK.
-(() => {
-  const envLocal = path.resolve(__dirname, '.env.local');
-  if (!fs.existsSync(envLocal)) return;
-  for (const raw of fs.readFileSync(envLocal, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
-    if (!m) continue;
-    let v = m[2].trim();
-    if (
-      (v.startsWith('"') && v.endsWith('"')) ||
-      (v.startsWith("'") && v.endsWith("'"))
-    ) {
-      v = v.slice(1, -1);
-    }
-    // Don't override values already exported in the shell — explicit shell
-    // env wins over .env.local (matches Vite/CRA convention).
-    if (process.env[m[1]] === undefined) process.env[m[1]] = v;
-  }
-})();
+// `quasar dev` reads the INSTITUTION_* paths and the APP_* overrides of
+// .env.local (see build/institution.mjs).
+loadEnvLocal();
 
 // Bundle identity. Baked into build.env so Sentry's `release` tag matches the
 // source maps uploaded to GlitchTip — otherwise stack traces stay minified.
@@ -92,9 +70,6 @@ export default defineConfig(function () {
     extras: [],
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
-    // Exposed to index.html as <%= appVersion %> so unhashed public/ files
-    // (favicon.ico) get a cache-busting query without anyone remembering.
-    htmlVariables: { appVersion: APP_VERSION },
 
     build: {
       target: {
@@ -127,48 +102,8 @@ export default defineConfig(function () {
         // APP_BUILD_TIME). Sentry release tag keys off APP_VERSION.
         APP_VERSION,
         APP_BUILD_TIME,
-        // Sentry/GlitchTip dev fallbacks. In production these come from
-        // /injectEnv.js (written by docker/entrypoint.sh from the pod's
-        // env vars — see helm/values.yaml frontend.env). In dev they come
-        // from .env.local (loaded above) or the shell. Empty string means
-        // src/boot/sentry.ts skips Sentry.init.
-        APP_SENTRY_DSN: process.env.APP_SENTRY_DSN || '',
-        APP_ENVIRONMENT: process.env.APP_ENVIRONMENT || '',
-        // MapLibre raster-tile URL (see src/components/molecules/TripsMap.vue).
-        // Default to OSM tile.openstreetmap.org; override per-pod via
-        // /injectEnv.js if a paid/internal tile source is provisioned.
-        APP_MAP_TILE_STYLE_URL: process.env.APP_MAP_TILE_STYLE_URL || '',
-        // Access-management provider (label + portal URL) shown in the
-        // calculator's access popover (see src/config/runtime.ts). No code
-        // default; set per-pod via /injectEnv.js to rebrand for an institution.
-        APP_ACCESS_MANAGEMENT_PROVIDER_NAME:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_NAME || '',
-        APP_ACCESS_MANAGEMENT_PROVIDER_URL:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL || '',
-        APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL || '',
-        APP_ROLES_DOC_URL: process.env.APP_ROLES_DOC_URL || '',
-        // Recipient for the Equipment power-feedback mailto (see
-        // src/config/runtime.ts). Empty string in dev falls back to the default
-        // in runtimeConfig; in production it comes from /injectEnv.js.
-        APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
-          process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
-        // Matomo analytics (see src/utils/matomo.ts). Empty in dev falls back to
-        // the endpoint default in runtimeConfig; the site id has no default, so
-        // an empty value keeps tracking off. In production both come from
-        // /injectEnv.js.
-        APP_MATOMO_URL: process.env.APP_MATOMO_URL || '',
-        APP_MATOMO_SITE_ID: process.env.APP_MATOMO_SITE_ID || '',
-        // Project-planner year horizon (see src/config/runtime.ts). Empty in
-        // dev falls back to the defaults in runtimeConfig; in production it
-        // comes from /injectEnv.js.
-        APP_PLANNER_MIN_YEAR: process.env.APP_PLANNER_MIN_YEAR || '',
-        APP_PLANNER_MAX_YEAR: process.env.APP_PLANNER_MAX_YEAR || '',
-        // Demo instance (see src/config/runtime.ts). APP_DEMO_MODE=true
-        // replaces the app with a notice linking to APP_PRODUCTION_URL; in
-        // production both come from /injectEnv.js.
-        APP_DEMO_MODE: process.env.APP_DEMO_MODE || '',
-        APP_PRODUCTION_URL: process.env.APP_PRODUCTION_URL || '',
+        // Every other APP_* value is a runtime value: it reaches the bundle
+        // through /injectEnv.js, also in dev (see build/institution.mjs).
       },
       // ignorePublicFolder: true,
       minify: true,
@@ -209,6 +144,9 @@ export default defineConfig(function () {
         // build so the homepage badge is visible under `quasar dev` too. No
         // dist or no meta → nothing injected, badge stays hidden.
         viteConf.plugins = viteConf.plugins || [];
+        // Dev-only: /injectEnv.js, /theme.css and /institution/* the way
+        // nginx serves them in the container (#3244).
+        viteConf.plugins.push({ ...institutionPlugin(), apply: 'serve' });
         viteConf.plugins.push({
           name: 'co2-first-load-dev',
           apply: 'serve',

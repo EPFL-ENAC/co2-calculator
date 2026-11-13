@@ -1,0 +1,68 @@
+# Theme of an institution: template (#3244).
+#
+# Copy this file to theme.conf in the assets folder of the institution. The
+# folder must give theme.conf: the image has no default for it.
+#
+# One "name: value" line per value. A line that starts with "#" is a
+# comment. A value is a CSS color or length, without ";", "{", "}" or "<".
+# An unknown name stops the frontend at startup, and the log gives the line.
+# The list of names is in frontend/docker/theme.awk.
+#
+# Only accent is required. Every other name keeps the default of the base
+# design, shown in its line below. To change one, remove the "# " in front
+# of its line and set the value.
+
+# Main accent color: accent buttons, selected tabs, radio buttons,
+# checkboxes, progress bars, the hover border of cards. Required.
+accent: #424242
+
+# Shades of the accent. Without them, the app mixes them from the accent.
+# Hover color of accent buttons. Default: 70% accent and 30% black.
+# accent-hover: #2e2e2e
+# Background of selected table rows and of hovered selected cards.
+# Default: 8% accent and 92% white.
+# accent-light: #f1f1f1
+# Background of the selected part of a progress bar.
+# Default: 25% accent and 75% white.
+# accent-lighter: #d0d0d0
+
+# Text and surfaces.
+# Main text color, also the Quasar "primary" color (outline buttons).
+# text: #212121
+# Secondary text, also the Quasar "secondary" and "disabled" colors.
+# text-muted: #707070
+# Background of menus, of the side bar and of the print pages.
+# surface: #ffffff
+# Separators and borders of tables.
+# border: #d5d5d5
+
+# Links and highlights.
+# Links, and visited and active links.
+# link: #007480
+# Main color of the module charts, and border of a validated module result.
+# highlight: #00a79f
+# Validated items, also the Quasar "info" color.
+# validated: #007480
+# Background of a validated module result.
+# validated-light: #def1f1
+
+# Status colors, also the Quasar "positive", "warning" and "negative" colors.
+# success: #28a745
+# warning: #ffc107
+# error: #dc3545
+
+# Corner radii.
+# Corners of cards, buttons, inputs, tooltips and tables (the Quasar generic
+# radius).
+# radius: 0.1875rem
+# Corners of the tabs and of the reference-year rows.
+# radius-lg: 0.75rem
+
+# Fonts. Each value is the URL of a woff2 file: an https:// URL, or a path
+# that starts with /. Without them, the app loads fonts/regular.woff2,
+# fonts/medium.woff2 and fonts/bold.woff2 of the assets folder. If the folder
+# does not give them, the image gives Geist (see fonts/README.md).
+# A font server of another host must allow this site in its CORS headers.
+# font-regular: https://fonts.example.org/Brand-Regular.woff2
+# font-medium: https://fonts.example.org/Brand-Medium.woff2
+# font-bold: https://fonts.example.org/Brand-Bold.woff2

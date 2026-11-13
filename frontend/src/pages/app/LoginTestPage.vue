@@ -21,24 +21,12 @@ import LoginCard from '@/components/organisms/login/LoginCard.vue';
     position: absolute;
     width: tokens.$login-page-width;
     height: tokens.$login-page-height;
-    background-image: url('../../assets/login-img.svg');
+    background-image: url('/institution/login-illustration.svg');
     background-size: auto;
     background-position: center;
     background-repeat: repeat;
     filter: blur(tokens.$login-page-bg-blur);
     z-index: tokens.$login-page-bg-z-index;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    width: tokens.$login-page-width;
-    height: tokens.$login-page-height;
-    background-color: rgba(
-      tokens.$login-page-bg-color,
-      tokens.$login-page-bg-opacity
-    );
-    z-index: tokens.$login-page-bg-blur-z-index;
   }
 }
 </style>

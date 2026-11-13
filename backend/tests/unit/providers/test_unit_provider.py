@@ -37,8 +37,8 @@ class TestAccredMapApiUnit:
             "parentid": 10,
             "level4cf": "STI",
             "ancestors": ["1", "5", "10"],
-            "pathcf": "EPFL STI LMSC",
-            "path": "EPFL > STI > LMSC",
+            "pathcf": "UNIV STI LMSC",
+            "path": "UNIV > STI > LMSC",
             "unittypeid": 3,
             "unittype": {"label": "Laboratory"},
             "responsibleid": "12345",
@@ -59,8 +59,8 @@ class TestAccredMapApiUnit:
         assert unit.parent_institutional_code == "10"
         assert unit.parent_institutional_id == "STI"
         assert unit.path_institutional_code == "1 5 10 42"
-        assert unit.path_institutional_id == "EPFL STI LMSC"
-        assert unit.path_name == "EPFL > STI > LMSC"
+        assert unit.path_institutional_id == "UNIV STI LMSC"
+        assert unit.path_name == "UNIV > STI > LMSC"
         assert unit.unit_type_id == 3
         assert unit.unit_type_label == "Laboratory"
         assert unit.principal_user_institutional_id == "12345"

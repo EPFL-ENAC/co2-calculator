@@ -2,7 +2,7 @@
 # Instructions:,,,,
 # 1) Optionally enter the location of the campus (ECUBLENS NEUCHATEL SION ETC),,,,
 # 2) Enter the code for the building (AAB AI BS SV etc.),,,,
-# 3) Enter the room name as it appears in EPFL map.,,,,
+# 3) Enter the room name as it appears in the campus map.,,,,
 # 4) Enter the type - choose from the 6 types in the list below. ,,,,
 # 5) For detailed guidance and location reference consult the documentation section: Modules specification - Buildings,,,,
 # 6) Important: every line starting with # is an instruction. The importer ignores them so you can leave them in the file.,,,,

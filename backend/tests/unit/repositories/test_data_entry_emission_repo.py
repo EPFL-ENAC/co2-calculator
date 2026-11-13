@@ -860,7 +860,7 @@ async def test_embodied_energy_by_building_groups_by_name(db_session: AsyncSessi
     ]:
         db_session.add(
             BuildingRoom(
-                building_location="EPFL",
+                building_location="UNIV",
                 building_name=building,
                 room_name=room,
                 room_surface_square_meter=10.0,

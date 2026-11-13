@@ -1,0 +1,35 @@
+# Exceptions of scripts/check_institution_words.py (#3244).
+#
+# One "path-glob words" line per exception, then "#" and the reason. The
+# glob is a Python fnmatch pattern, so "*" also matches "/". The words are a
+# comma list of EPFL, epfl, Accred, ACCRED, Entra, EPFL_TABLEAU and
+# EPFL Tableau. "*" allows every word. Keep this list short: a new line needs
+# a reason that no configuration value can give.
+
+# Not code.
+docs/*                          *        # documentation
+*.md                            *        # documentation, changelog, plans
+
+# The EPFL deployment.
+institutions/epfl/*             *        # EPFL values and assets, the reason the folder exists
+
+# The project repository and its tooling, not the app.
+.github/*                       *        # CI/CD of the project, hosted by EPFL
+.gitlab-ci.yml                  *        # mirror of the project, hosted by EPFL
+wtx.toml                        *        # worktree tooling of the team
+.git-board.toml                 *        # project board tooling of the team
+scripts/loki-dump.sh            *        # operator script for the EPFL log server
+scripts/check_institution_words.py      *        # the check names the words it looks for
+scripts/institution-words-allowlist.txt *        # this file
+
+# History that never changes.
+backend/alembic/versions/*      *        # applied migrations are immutable
+
+# Removed by the next sub-issues of #500.
+backend/*                       Accred,ACCRED,Entra   # Accred login and units, removed by #3246
+helm/*                          Accred,ACCRED         # Accred secrets of the backend, removed by #3246
+backend/scripts/diagnose_accred_roles.py   *          # Accred diagnosis script, removed by #3246
+backend/app/providers/role_provider.py     EPFL,epfl  # Accred role provider, removed by #3246
+frontend/src/types/api/openapi.d.ts        Accred,ACCRED,Entra,EPFL_TABLEAU   # generated from the backend, cleaned by #3245 and #3246
+frontend/scripts/openapi.snapshot.json     Accred,ACCRED,Entra,EPFL_TABLEAU   # generated from the backend, cleaned by #3245 and #3246
+*                               EPFL_TABLEAU,EPFL Tableau   # Tableau connector name, renamed by #3245

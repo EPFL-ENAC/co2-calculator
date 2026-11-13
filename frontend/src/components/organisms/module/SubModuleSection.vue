@@ -138,7 +138,7 @@ import { enumSubmodule, MODULES_THRESHOLD_TYPES } from '@/constant/modules';
 import { getModuleTypeId } from '@/constant/moduleStates';
 import { useModuleStore, useTimelineStore } from '@/stores/modules';
 import { useYearConfigStore } from '@/stores/yearConfig';
-import { INSTITUTIONAL_ID_LABEL } from '@/constant/institutionalId';
+import { runtimeConfig } from '@/config/runtime';
 import { submitCreateItem } from '@/utils/submitCreateItem';
 import { Notify } from 'quasar';
 import {
@@ -442,14 +442,17 @@ async function submitForm(payload: Record<string, FieldValue>) {
         },
         onCreateFailed: (err: unknown) => {
           // Replace generic "user institutional id" in server error messages
-          // with the institution-specific label (SCIPER for EPFL).
+          // with the label of the institution (APP_INSTITUTIONAL_ID_LABEL).
           const raw = err instanceof Error ? err.message : 'Unexpected error';
           const message =
             raw === 'DUPLICATE_INSTITUTIONAL_ID'
               ? t('headcount-member-error-duplicate-uid', {
-                  label: INSTITUTIONAL_ID_LABEL,
+                  label: runtimeConfig.institution.institutionalIdLabel,
                 })
-              : raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL);
+              : raw.replace(
+                  /user institutional id/gi,
+                  runtimeConfig.institution.institutionalIdLabel,
+                );
 
           formRef.value?.setFieldError('user_institutional_id', message);
         },

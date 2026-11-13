@@ -1,5 +1,5 @@
 /**
- * Accred outage 2026-10-27: the backend now redirects a callback it cannot
+ * Access-management outage 2026-10-27: the backend now redirects a callback it cannot
  * finish to /login?reason=accred-unavailable instead of a raw JSON 401.
  * The login card must say so, and say nothing for an absent or unknown reason.
  */
@@ -14,7 +14,7 @@ test('accred-unavailable shows the banner', async ({ mount }) => {
   });
 
   await expect(component.getByTestId('login-reason')).toContainText(
-    'EPFL Accred is unavailable',
+    'The access management service is unavailable',
   );
 });
 
@@ -24,7 +24,7 @@ test('the banner is announced to screen readers', async ({ mount }) => {
   });
 
   await expect(component.getByRole('alert')).toContainText(
-    'EPFL Accred is unavailable',
+    'The access management service is unavailable',
   );
 });
 

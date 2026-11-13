@@ -14,8 +14,8 @@ export default {
     fr: "Vérifiez et complétez les données d'achats de votre unité.",
   },
   [`${MODULES.Purchase}-documentation-link`]: {
-    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/purchases/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/purchases/',
+    en: '%user_doc_url%purchases/',
+    fr: '%user_doc_url%fr/purchases/',
   },
   [`${MODULES.Purchase}-title-subtext`]: {
     en: `This module helps you estimate your unit’s purchasing carbon footprint item by item, based on procurement records from the invoicing system. By default, each item is analyzed by its specific category to apply the corresponding spend-based emission factor.
@@ -24,7 +24,7 @@ export default {
   
 - Credit card purchases: These expenses are not currently imported automatically. Please enter your unit’s credit card purchases to ensure your assessment is as accurate as possible.
   
-- Internal store purchases: Purchases made at chemical stores (ISIC-CHSP) should not be entered here; they can be viewed directly in the EPFL research facilities module.`,
+- Internal store purchases: Purchases made at chemical stores (ISIC-CHSP) should not be entered here; they can be viewed directly in the %institution% research facilities module.`,
     fr: `Ce module vous aide à estimer l'empreinte carbone liée aux achats de votre unité, article par article, à partir des données d'approvisionnement enregistrées dans le système de facturation.
 
 Par défaut, chaque article est analysé selon sa typologie précise afin de lui attribuer le facteur d'émission monétaire correspondant.
@@ -33,7 +33,7 @@ Par défaut, chaque article est analysé selon sa typologie précise afin de lui
     
 - Achats par carte de crédit : ces dépenses ne remontant pas automatiquement actuellement. Veuillez saisir vos achats par la carte de crédit de votre unité afin d'obtenir un bilan aussi précis que possible.
     
-- Achats en magasins internes : Les achats effectués aux magasins de chimie (ISIC-CHSP) ne doivent pas être saisis ici ; ils peuvent être consultés directement dans le module Infrastructures de recherche EPFL.`,
+- Achats en magasins internes : Les achats effectués aux magasins de chimie (ISIC-CHSP) ne doivent pas être saisis ici ; ils peuvent être consultés directement dans le module Infrastructures de recherche %institution%.`,
   },
   [`${MODULES.Purchase}-charts-title`]: {
     en: 'Charts',

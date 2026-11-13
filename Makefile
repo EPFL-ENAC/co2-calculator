@@ -78,6 +78,7 @@ install: ## Install all dependencies and set up git hooks
 	cd docs && $(MAKE) install
 	@echo "Install env files if missing..."
 	@if [ ! -f .database.env ]; then cp .database.env.example .database.env; fi
+	@if [ ! -f institutions/epfl/frontend.env ]; then cp institutions/epfl/frontend.env.example institutions/epfl/frontend.env; fi
 	@echo "✅ Setup complete!"
 
 .PHONY: clean
@@ -167,6 +168,7 @@ format: ## Format all code (root, backend, frontend, docs, helm)
 .PHONY: lint
 lint: ## Run all linters (backend, frontend, docs, helm)
 	@echo "\033[36mRunning linters...\033[0m"
+	@$(MAKE) check-institution-words
 	@set -e; \
 	if [ -d "backend" ]; then \
 		echo "\033[33mLinting backend...\033[0m"; \
@@ -185,6 +187,11 @@ lint: ## Run all linters (backend, frontend, docs, helm)
 		$(MAKE) -C helm lint FILES="."; \
 	fi
 	@echo "\033[32m✅ Linting complete!\033[0m"
+
+# No institution value written in the code (#3244). CI runs it too.
+.PHONY: check-institution-words
+check-institution-words: ## Fail when the code names an institution or its tools
+	@python3 scripts/check_institution_words.py
 
 # =============================================================================
 # Type Checking

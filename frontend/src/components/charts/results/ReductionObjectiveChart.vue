@@ -5,18 +5,20 @@ import {
   outlinedInfo,
 } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
-import ReductionObjectiveEpflView from '@/components/charts/results/ReductionObjectiveEpflView.vue';
+import ReductionObjectiveInstitutionView from '@/components/charts/results/ReductionObjectiveInstitutionView.vue';
 import ReductionObjectiveUnitView from '@/components/charts/results/ReductionObjectiveUnitView.vue';
 
-const epflViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
+const institutionViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(
+  null,
+);
 const unitViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
 
 const downloadPNG = () =>
-  moduleChartView.value === 'epfl'
-    ? epflViewRef.value?.downloadPNG()
+  moduleChartView.value === 'institution'
+    ? institutionViewRef.value?.downloadPNG()
     : unitViewRef.value?.downloadPNG();
 
-type ModuleChartView = 'epfl' | 'unit';
+type ModuleChartView = 'institution' | 'unit';
 
 interface Props {
   hideResearchFacilities?: boolean;
@@ -40,8 +42,8 @@ const moduleChartViewModel = computed({
 const { t } = useI18n();
 
 const chartTitle = computed(() =>
-  moduleChartView.value === 'epfl'
-    ? t('results_objectives_epfl_chart_title')
+  moduleChartView.value === 'institution'
+    ? t('results_objectives_institution_chart_title')
     : t('results_objectives_unit_chart_title'),
 );
 </script>
@@ -77,15 +79,15 @@ const chartTitle = computed(() =>
         text-color="grey-7"
         :options="[
           { value: 'unit', slot: 'unit' },
-          { value: 'epfl', slot: 'epfl' },
+          { value: 'institution', slot: 'institution' },
         ]"
         class="chart-view-toggle text-weight-medium"
       >
         <template #unit>
           {{ $t('results_objectives_2040_unit_button') }}
         </template>
-        <template #epfl>
-          {{ $t('results_objectives_2040_epfl_button') }}
+        <template #institution>
+          {{ $t('results_objectives_2040_institution_button') }}
         </template>
       </q-btn-toggle>
     </div>
@@ -102,7 +104,7 @@ const chartTitle = computed(() =>
       </div>
 
       <div
-        v-if="moduleChartView === 'epfl'"
+        v-if="moduleChartView === 'institution'"
         class="o text-body2 text-secondary"
       >
         {{ $t('results_objectives_2040_subtitle') }}
@@ -126,9 +128,9 @@ const chartTitle = computed(() =>
     <q-separator class="q-mt-xl" />
 
     <div class="q-pl-xl">
-      <ReductionObjectiveEpflView
-        v-if="moduleChartView === 'epfl'"
-        ref="epflViewRef"
+      <ReductionObjectiveInstitutionView
+        v-if="moduleChartView === 'institution'"
+        ref="institutionViewRef"
         :hide-research-facilities="props.hideResearchFacilities"
       />
       <ReductionObjectiveUnitView

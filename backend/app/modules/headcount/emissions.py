@@ -17,7 +17,7 @@ STAT_BUCKETS: tuple[StatBucket, ...] = (
     StatBucket(key="waste", scope=3, roots=(EmissionType.waste,), additional=True),
 )
 
-# Declared spelling variants the EPFL factor CSVs carry. An alias is an
+# Declared spelling variants the factor CSVs carry. An alias is an
 # explicit statement that two strings name the same leaf — not a guess. The
 # parenthetical here is an annotation on the collection stream, not a
 # distinct kind of textile.

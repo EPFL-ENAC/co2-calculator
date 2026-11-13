@@ -5,93 +5,87 @@ import { BACKOFFICE_NAV } from '@/constant/navigation';
 import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader.vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
+import { runtimeConfig } from '@/config/runtime';
 
 const { t } = useI18n();
+
+// Source of the texts in the code repository (APP_SOURCE_CODE_URL). An empty
+// value hides the edit links (#3244).
+const { sourceCodeUrl } = runtimeConfig.links;
+const textsSourceUrl = (file: string): string =>
+  sourceCodeUrl && `${sourceCodeUrl}/blob/dev/frontend/src/i18n/${file}.ts`;
 
 const rows = computed(() => [
   {
     topic: t('documentation_editing_rows_common_topic'),
     description: t('documentation_editing_rows_common_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/common.ts',
+    githubUrl: textsSourceUrl('common'),
   },
   {
     topic: t('documentation_editing_rows_headcount_topic'),
     description: t('documentation_editing_rows_headcount_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/headcount.ts',
+    githubUrl: textsSourceUrl('headcount'),
   },
   {
     topic: t('documentation_editing_rows_process_emissions_topic'),
     description: t('documentation_editing_rows_process_emissions_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/process_emissions.ts',
+    githubUrl: textsSourceUrl('process_emissions'),
   },
   {
     topic: t('documentation_editing_rows_buildings_topic'),
     description: t('documentation_editing_rows_buildings_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/buildings.ts',
+    githubUrl: textsSourceUrl('buildings'),
   },
   {
     topic: t('documentation_editing_rows_equipment_topic'),
     description: t('documentation_editing_rows_equipment_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/equipment.ts',
+    githubUrl: textsSourceUrl('equipment'),
   },
   {
     topic: t('documentation_editing_rows_external_cloud_topic'),
     description: t('documentation_editing_rows_external_cloud_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/external_cloud.ts',
+    githubUrl: textsSourceUrl('external_cloud'),
   },
   {
     topic: t('documentation_editing_rows_professional_travel_topic'),
     description: t(
       'documentation_editing_rows_professional_travel_description',
     ),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/professional_travel.ts',
+    githubUrl: textsSourceUrl('professional_travel'),
   },
   {
     topic: t('documentation_editing_rows_purchase_topic'),
     description: t('documentation_editing_rows_purchase_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/purchase.ts',
+    githubUrl: textsSourceUrl('purchase'),
   },
   {
     topic: t('documentation_editing_rows_research_facilities_topic'),
     description: t(
       'documentation_editing_rows_research_facilities_description',
     ),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/research_facilities.ts',
+    githubUrl: textsSourceUrl('research_facilities'),
   },
   {
     topic: t('documentation_editing_rows_tooltips_topic'),
     description: t('documentation_editing_rows_tooltips_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/tooltips.ts',
+    githubUrl: textsSourceUrl('tooltips'),
   },
   {
     topic: t('documentation_editing_rows_backoffice_topic'),
     description: t('documentation_editing_rows_backoffice_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice.ts',
+    githubUrl: textsSourceUrl('backoffice'),
   },
   {
     topic: t('documentation_editing_rows_admin_topic'),
     description: t('documentation_editing_rows_admin_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/admin.ts',
+    githubUrl: textsSourceUrl('admin'),
   },
   {
     topic: t('documentation_editing_rows_backoffice_data_management_topic'),
     description: t(
       'documentation_editing_rows_backoffice_data_management_description',
     ),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice_data_management.ts',
+    githubUrl: textsSourceUrl('backoffice_data_management'),
   },
   {
     topic: t(
@@ -100,60 +94,51 @@ const rows = computed(() => [
     description: t(
       'documentation_editing_rows_backoffice_documentation_editing_description',
     ),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice_documentation_editing.ts',
+    githubUrl: textsSourceUrl('backoffice_documentation_editing'),
   },
   {
     topic: t('documentation_editing_rows_backoffice_reporting_topic'),
     description: t(
       'documentation_editing_rows_backoffice_reporting_description',
     ),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice_reporting.ts',
+    githubUrl: textsSourceUrl('backoffice_reporting'),
   },
   {
     topic: t('documentation_editing_rows_backoffice_user_management_topic'),
     description: t(
       'documentation_editing_rows_backoffice_user_management_description',
     ),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/backoffice_user_management.ts',
+    githubUrl: textsSourceUrl('backoffice_user_management'),
   },
   {
     topic: t('documentation_editing_rows_home_topic'),
     description: t('documentation_editing_rows_home_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/home.ts',
+    githubUrl: textsSourceUrl('home'),
   },
   {
     topic: t('documentation_editing_rows_login_topic'),
     description: t('documentation_editing_rows_login_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/login.ts',
+    githubUrl: textsSourceUrl('login'),
   },
   {
     topic: t('documentation_editing_rows_results_topic'),
     description: t('documentation_editing_rows_results_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/results.ts',
+    githubUrl: textsSourceUrl('results'),
   },
   {
     topic: t('documentation_editing_rows_workspace_setup_topic'),
     description: t('documentation_editing_rows_workspace_setup_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/workspace_setup.ts',
+    githubUrl: textsSourceUrl('workspace_setup'),
   },
   {
     topic: t('documentation_editing_rows_simulation_topic'),
     description: t('documentation_editing_rows_simulation_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/simulation.ts',
+    githubUrl: textsSourceUrl('simulation'),
   },
   {
     topic: t('documentation_editing_rows_calculator_update_topic'),
     description: t('documentation_editing_rows_calculator_update_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/calculator_update.ts',
+    githubUrl: textsSourceUrl('calculator_update'),
   },
 ]);
 
@@ -219,6 +204,7 @@ const columns: QTableColumn[] = [
               </q-td>
               <q-td key="githubUrl" :props="props">
                 <q-btn
+                  v-if="props.row.githubUrl"
                   :icon="outlinedArticle"
                   color="grey-4"
                   text-color="primary"

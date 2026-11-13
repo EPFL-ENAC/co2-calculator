@@ -32,8 +32,6 @@ YEARS = [int(y) for y in os.environ.get("SEED_YEARS", "2023 2024 2025").split()]
 
 async def get_connection():
     settings = get_settings()
-    if settings.DB_URL is None:
-        raise ValueError("DB_URL must be set to run this seed script")
     db_url = settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     return await asyncpg.connect(db_url)
 

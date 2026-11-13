@@ -86,14 +86,14 @@ const reductionObjectives = computed(() => {
   return ro ?? null;
 });
 
-const epflPopulationRows = computed<PopulationRow[]>(() => {
+const institutionPopulationRows = computed<PopulationRow[]>(() => {
   const raw = reductionObjectives.value?.population_projections ?? [];
   return (raw as unknown[]).filter(Boolean) as PopulationRow[];
 });
 
 const yearsStart = computed(() => {
   const candidates: number[] = [];
-  for (const r of epflPopulationRows.value) {
+  for (const r of institutionPopulationRows.value) {
     if (typeof r.year === 'number') candidates.push(r.year);
   }
   const rawMin = candidates.length
@@ -392,7 +392,7 @@ const unitSeriesData = computed(() => {
     baselineByCat[key] = (baselineByCat[key] ?? 0) + sumRowTonnes(row);
   }
 
-  const pop = epflPopulationRows.value;
+  const pop = institutionPopulationRows.value;
   const popByYear = Object.fromEntries(pop.map((r) => [r.year, r.pop]));
   const popBase = popByYear[baselineYear] ?? null;
 

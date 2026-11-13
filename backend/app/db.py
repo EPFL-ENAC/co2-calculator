@@ -253,7 +253,7 @@ def _normalize_url(raw: str) -> tuple[URL, bool]:
     assertable without building a real engine from the ambient environment.
     """
     url = make_url(raw)
-    # Backend name, not drivername: the default DB_URL is already
+    # Backend name, not drivername: a sqlite DB_URL is often already
     # "sqlite+aiosqlite://", which the old ``== "sqlite"`` test missed -- so
     # sqlite silently took the Postgres branch and got handed libpq's
     # connect args (#2566).
@@ -269,8 +269,6 @@ def _normalize_url(raw: str) -> tuple[URL, bool]:
     return url, is_sqlite
 
 
-if settings.DB_URL is None:
-    raise ValueError("DB_URL must be set")
 url, is_sqlite = _normalize_url(settings.DB_URL)
 
 # Use the modified url for the engine

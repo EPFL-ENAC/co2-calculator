@@ -39,8 +39,7 @@ const isSessionCheck = (u: string, m: string) =>
  *
  * ⚠️ **Coupled to infrastructure.** `haproxy.router.openshift.io/timeout: 10m`
  * is set on the backend Route in all three environments
- * (`epfl/co2-calculator/overlays/{dev,stage,prod}/kustomization.yaml` in the
- * ops repo). If that annotation changes, change this with it — nothing
+ * (the dev, stage and prod overlays of the ops repo). If that annotation changes, change this with it — nothing
  * enforces the relationship at build or deploy time.
  *
  * **Applied globally on purpose, not per endpoint.** The first attempt raised
@@ -80,9 +79,9 @@ export const api = ky.create({
           }
           // ⚠️ KNOWN ISSUE: On 401 (expired tokens), this hook used to
           // redirect directly to API_LOGIN_URL (/api/v1/auth/login), which
-          // always initiates the Entra OAuth flow — even when the user was
+          // always initiates the OAuth flow — even when the user was
           // logged in as a test user. Redirect to the frontend /login page
-          // instead so the user can choose test vs Entra login (issue #949).
+          // instead so the user can choose test vs OAuth login (issue #949).
           Notify.create({
             color: 'warning',
             message: i18n.global.t('session_expired_notice'),

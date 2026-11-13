@@ -128,7 +128,7 @@ function onExport(format: 'csv' | 'json') {
   align-items: center;
 
   .search-btn {
-    background: #ff0000;
+    background: var(--q-accent);
     color: #ffffff;
     height: 40px;
     padding: 2px 16px;

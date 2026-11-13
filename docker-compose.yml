@@ -90,8 +90,13 @@ services:
       HOST: "0.0.0.0"
       PORT: "8000"
       WORKERS: "1"
+    # backend/.env serves `make dev`, so its DB_URL names the host localhost.
+    # Inside this container localhost is the backend itself: the command
+    # points DB_URL at the postgres service. The credentials stay those of
+    # backend/.env, which the postgres service reads too.
     command: >
       sh -c '
+        export DB_URL="$$(printf %s "$$DB_URL" | sed "s#@localhost:#@postgres:#")" &&
         alembic upgrade head &&
         exec opentelemetry-instrument uvicorn app.main:app --host $$HOST --port $$PORT --workers $$WORKERS
       '
@@ -139,6 +144,16 @@ services:
       - /tmp
       - /var/cache/nginx
       - /var/run
+    # Institution values and assets (#3244). The app shows a missing-values
+    # page without the required values, and the container stops without
+    # theme.conf in the mounted folder. The other assets of the folder replace
+    # the neutral defaults of the image. institutions/epfl holds the values of
+    # the clusters. Copy frontend.env.example to frontend.env first
+    # (`make install` does it).
+    env_file:
+      - ./institutions/epfl/frontend.env
+    volumes:
+      - ./institutions/epfl/assets:/institution:ro
     environment:
       # Empty by default. Set in your shell (or repo-root .env) to enable
       # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s

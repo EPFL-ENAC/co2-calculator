@@ -5,7 +5,7 @@ See ``docs/src/implementation-plans/89-security-in-depth.md``.
 All authentication in this app is cookie-based (``auth_token``,
 ``SameSite=Lax``, host-only). ``SameSite`` is evaluated
 against the *registrable domain*, so on a shared institutional domain like
-``epfl.ch`` every sibling application is "same-site" to us and ``Lax`` will
+``example.org`` every sibling application is "same-site" to us and ``Lax`` will
 happily attach the auth cookie to their state-changing requests. This
 middleware is the control that actually distinguishes *us* from a sibling.
 

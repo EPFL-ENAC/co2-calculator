@@ -158,8 +158,6 @@ def assert_poller_isolation(settings) -> None:
     """
     if not settings.LOCAL_ENVIRONMENT or not settings.RUN_BACKGROUND_POLLER:
         return
-    if settings.DB_URL is None:
-        return
     host = make_url(settings.DB_URL).host
     if host in _LOCAL_DB_HOSTS:
         return
@@ -404,7 +402,7 @@ app = FastAPI(
     * **Permission-Based Authorization** - Fine-grained access control with
       calculated permissions
     * **OPA Policies** - Policy-based resource filtering and access control
-    * **Multi-tenancy** - Support for multiple EPFL units with scope-based
+    * **Multi-tenancy** - Support for multiple organizational units with scope-based
       data filtering
     * **RESTful API** - Clean and consistent API design
 
@@ -646,8 +644,8 @@ async def ready():
     Used by Kubernetes readinessProbe.
 
     External provider health (Accred) lives in /health/deps (#2050 A1):
-    it must never gate readiness — a blip there is EPFL's incident, not
-    ours.
+    it must never gate readiness — a blip there is the provider's incident,
+    not ours.
     """
     state = _fresh_db_state()
     verdict = _readiness(state)
@@ -696,7 +694,8 @@ async def health_deps():
     """Operator-facing external-dependency health (Accred).
 
     Not a Kubernetes probe target — Accred availability must never gate
-    pod readiness (#2050 A1); a blip there is EPFL's incident, not ours.
+    pod readiness (#2050 A1); a blip there is the provider's incident, not
+    ours.
     This reports the same signal for humans/monitoring instead, via a
     real status code (503 on failure) so alerting can key off it directly
     instead of parsing the body — safe here specifically because nothing

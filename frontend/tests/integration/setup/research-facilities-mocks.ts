@@ -44,7 +44,7 @@ const MOCK_UNIT = {
 };
 
 /**
- * Real EPFL shapes: the id is an opaque unit code, the acronym users know the
+ * Real production shapes: the id is an opaque unit code, the acronym users know the
  * platform by lives in `researchfacility_name`, and `use_unit` differs per
  * platform (a share, machine time, spend, animal housings).
  */

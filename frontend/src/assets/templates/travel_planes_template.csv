@@ -2,7 +2,7 @@
 # Instructions:,,,,,,
 # 1) Enter the 3-letter IATA code for the origin airport (e.g. 'GVA' for Geneva 'CDG' for Paris).,,,,,,
 # 2) Enter the 3-letter IATA code for the destination airport (e.g. 'JFK' for New York 'LHR' for London).,,,,,,
-# 3) Enter the user's institutional ID (SCIPER) if known. This field is optional for external travelers.,,,,,,
+# 3) Enter the user's institutional ID if known. This field is optional for external travelers.,,,,,,
 # 4) Enter the departure date in ISO format (YYYY-MM-DD). If unknown leave blank.,,,,,,
 # 5) Specify the number of trips taken on this route.,,,,,,
 # 6) Specify the cabin class: business or economy.,,,,,,

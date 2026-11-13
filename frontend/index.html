@@ -12,68 +12,46 @@
       content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>"
     />
 
+    <!--
+      Browser icons and theme come from the institution folder that the
+      container builds at startup from its defaults and the mounted folder
+      (#3244). nginx serves it as is, so these URLs stay unhashed. The fonts
+      are not preloaded: theme.conf can point them at another server, so
+      their URLs are only known in theme.css.
+      Without the apple-touch-icon link Safari probes two root icon URLs
+      that 404.
+    -->
     <link
       rel="icon"
       type="image/png"
       sizes="128x128"
-      href="src/assets/icons/favicon-128x128.png"
+      href="/institution/favicon-128x128.png"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="96x96"
-      href="src/assets/icons/favicon-96x96.png"
+      href="/institution/favicon-96x96.png"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="32x32"
-      href="src/assets/icons/favicon-32x32.png"
+      href="/institution/favicon-32x32.png"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="16x16"
-      href="src/assets/icons/favicon-16x16.png"
+      href="/institution/favicon-16x16.png"
     />
-    <link rel="icon" type="image/ico" href="favicon.ico?v=<%= appVersion %>" />
+    <link rel="icon" type="image/ico" href="/institution/favicon.ico" />
+    <link rel="apple-touch-icon" href="/institution/favicon-128x128.png" />
     <!--
-      Without this link Safari probes /apple-touch-icon-precomposed.png and
-      /apple-touch-icon.png at the site root, and both 404 -- that was the
-      entirety of the frontend route's 4xx on stage (2026-09-14). Declaring
-      one stops the probing; 128x128 is upscaled from the largest icon we
-      ship rather than adding a 180x180 asset for an icon nobody has asked for.
+      Colors, corner radii and fonts of the institution, written at
+      container startup from its theme.conf by docker/institution.sh.
     -->
-    <link rel="apple-touch-icon" href="src/assets/icons/favicon-128x128.png" />
-
-    <!--
-      Preload branded text fonts. They're otherwise discovered late via the
-      CSS @font-face chain (CSS -> @font-face -> fetch), delaying LCP text.
-      They come from enac-it-fonts.epfl.ch (see css/00-fonts/_fonts.scss).
-      crossorigin is required: @font-face fetches use CORS mode, so the
-      preload must match or the browser double-fetches.
-    -->
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      href="https://enac-it-fonts.epfl.ch/SuisseIntl-Regular-WebS.woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      href="https://enac-it-fonts.epfl.ch/SuisseIntl-Medium-WebS.woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      href="https://enac-it-fonts.epfl.ch/SuisseIntl-Bold-WebS.woff2"
-      crossorigin
-    />
+    <link rel="stylesheet" href="/theme.css" />
 
     <!--
       Runtime config. In production this file is overwritten by

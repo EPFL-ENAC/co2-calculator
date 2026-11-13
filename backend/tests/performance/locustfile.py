@@ -292,13 +292,6 @@ class ExplorerReadUser(CO2User):
         )
 
     @task(1)
-    def unit_results(self):
-        self.client.get(
-            f"/v1/unit/{self.pick_unit()}/results",
-            name="/v1/unit/[id]/results",
-        )
-
-    @task(1)
     def explore_read(self):
         # #2656: no year in the path any more — one sandbox per unit+user.
         path = f"/v1/carbon-reports/simulator/explore/unit/{self.pick_unit()}/"

@@ -41,6 +41,8 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./frontend
+          # The EPFL institution folder for the Storybook build (#3244).
+          build-contexts: institutions=./institutions
           push: true
           file: ./frontend/Dockerfile.storybook
           tags: ${{ steps.meta.outputs.tags }},ghcr.io/epfl-enac/co2-calculator-storybook:${{ github.sha }}

@@ -75,10 +75,9 @@ testpaths = ["tests/"]
 asyncio_mode = "auto"
 
 env = [
-    # Tests that boot the real app (TestClient) must never reach a developer's
-    # on-disk SQLite: the default DB_URL points at ./co2_calculator.db, whose
-    # tables are created once and never migrated, so a stale file fails the
-    # suite with "no such column" while CI stays green.
+    # DB_URL and FRONTEND_URL are required settings. Tests that boot the real
+    # app (TestClient) use an in-memory SQLite, never an on-disk file whose
+    # tables are created once and never migrated.
     "DB_URL=sqlite+aiosqlite:///:memory:",
     "DB_NAME=test_auth_db",
     "OAUTH_ISSUER_URL=http://fake-issuer",
@@ -100,7 +99,7 @@ env = [
     # that need the fail-closed path monkeypatch these back to "".
     "CREDENTIALS_ENCRYPTION_KEY=test-key-material-please-change",
     "CREDENTIALS_ENCRYPTION_SALT=test-salt-please-change",
-    "CONNECTOR_ALLOWED_HOST_SUFFIXES=epfl.ch",
+    "CONNECTOR_ALLOWED_HOST_SUFFIXES=example.org",
     "JWT_HMAC_KEY=test-jwt-hmac-key-long-enough-for-the-boot-check",
     "SESSION_HMAC_KEY=test-session-hmac-key-please-change",
 

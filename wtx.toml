@@ -25,7 +25,7 @@ main = 4173   # what the main checkout keeps
 
 # Gitignored files a fresh worktree needs. Never overwritten.
 [seed]
-copy = ["backend/.env", "frontend/.env.local"]
+copy = ["backend/.env", "frontend/.env.local", "institutions/epfl/frontend.env"]
 symlink = ["backend/INPUT_DATA"]
 
 [deps]

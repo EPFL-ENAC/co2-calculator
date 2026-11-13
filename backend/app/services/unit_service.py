@@ -57,7 +57,7 @@ class UnitService:
             )
             .where(col(UnitUser.user_id) == user.id)
             # Workspace surfaces only level-4 (leaf labs) per #930;
-            # ancestor levels (EPFL/faculty/institute) have no own data.
+            # ancestor levels (root/faculty/institute) have no own data.
             .where(col(Unit.level) == 4)
         )
 

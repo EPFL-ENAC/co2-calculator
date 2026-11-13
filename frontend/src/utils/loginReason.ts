@@ -4,7 +4,7 @@
  * store/i18n imports so it stays unit-testable without mounting Vue.
  */
 
-/** Accred (api.epfl.ch) failed during the callback; the user can only retry later. */
+/** The roles provider failed during the callback; the user can only retry later. */
 export type LoginReason = 'accred-unavailable';
 
 const LOGIN_REASON_MESSAGE_KEYS: Record<LoginReason, string> = {

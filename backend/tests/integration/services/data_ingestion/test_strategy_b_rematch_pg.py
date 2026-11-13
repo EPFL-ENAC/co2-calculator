@@ -774,7 +774,7 @@ async def test_building_embodied_energy_factor_values_change_propagates(pg_dsn):
             s, module_type=ModuleTypeEnum.buildings
         )
         room = BuildingRoom(
-            building_location="EPFL",
+            building_location="UNIV",
             building_name="BC",
             room_name="BC-150",
             room_type="office",
@@ -859,7 +859,7 @@ async def test_building_room_factor_values_change_propagates_all_5_emissions(
             s, module_type=ModuleTypeEnum.buildings
         )
         room = BuildingRoom(
-            building_location="EPFL",
+            building_location="UNIV",
             building_name="BC",
             room_name="BC-150",
             room_type="office",

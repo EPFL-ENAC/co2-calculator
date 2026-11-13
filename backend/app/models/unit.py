@@ -14,7 +14,7 @@ from app.models.user import UserProvider
 
 
 class UnitBase(SQLModel):
-    """Base model for Units representing EPFL units or organizational units."""
+    """Base model for Units representing the organizational units of the institution."""
 
     # --- Source ---
 
@@ -52,12 +52,12 @@ class UnitBase(SQLModel):
         nullable=True,
         index=True,
         description="Soft reference to parent unit id. No FK constraint "
-        "— API data is trusted. Null only for EPFL root (level 1).",
+        "— API data is trusted. Null only for the root unit (level 1).",
     )
     parent_institutional_id: str | None = Field(
         default=None,
         description="Soft reference to parent unit cf. No FK constraint "
-        "— API data is trusted. Null only for EPFL root (level 1).",
+        "— API data is trusted. Null only for the root unit (level 1).",
     )
 
     # --- Paths ---

@@ -27,15 +27,12 @@ const userType = computed(() =>
   isPrincipalUser.value ? 'principal' : 'standard',
 );
 
-// Access-management portal (name + URL), configurable per deployment via
-// APP_ACCESS_MANAGEMENT_PROVIDER_* — see src/config/runtime.ts. No default: when
-// unset the popover CTA link is hidden. Principals delegate roles here; standard
-// users instead email the principal.
-const accessManagementProviderName = runtimeConfig.accessManagementProviderName;
-const accessManagementProviderUrl = runtimeConfig.accessManagementProviderUrl;
-const accessManagementProviderAboutUrl =
-  runtimeConfig.accessManagementProviderAboutUrl;
-const rolesDocUrl = runtimeConfig.rolesDocUrl;
+// Access management tool, configurable per deployment via
+// APP_ACCESS_MANAGEMENT_* (see src/config/runtime.ts). No default: an unset URL
+// hides its link. Principals delegate roles there; standard users instead
+// email the principal. No value names the tool (#3244).
+const { accessManagementUrl, accessManagementAboutUrl, rolesDocUrl } =
+  runtimeConfig.links;
 
 const principalUserName = computed(
   () => workspaceStore.selectedUnit?.principal_user_name ?? '',
@@ -83,13 +80,7 @@ const requestAccessMailto = computed(() => {
             {{ $t(`co2_calculator_access_${userType}_title`) }}
           </p>
           <p class="text-body2 text-secondary q-mb-none">
-            {{
-              $t(`co2_calculator_access_${userType}_body`, {
-                provider:
-                  accessManagementProviderName ||
-                  $t('co2_calculator_access_provider_generic'),
-              })
-            }}
+            {{ $t(`co2_calculator_access_${userType}_body`) }}
           </p>
         </div>
 
@@ -130,38 +121,26 @@ const requestAccessMailto = computed(() => {
           </a>
 
           <a
-            v-if="accessManagementProviderAboutUrl"
-            :href="accessManagementProviderAboutUrl"
+            v-if="accessManagementAboutUrl"
+            :href="accessManagementAboutUrl"
             target="_blank"
             rel="noopener noreferrer"
             class="link text-body2 text-weight-medium"
           >
-            {{
-              $t('co2_calculator_access_cta_about_provider', {
-                provider:
-                  accessManagementProviderName ||
-                  $t('co2_calculator_access_provider_generic'),
-              })
-            }}
+            {{ $t('co2_calculator_access_cta_about_provider') }}
             <q-icon :name="outlinedArrowOutward" size="xs" />
           </a>
 
           <!-- Principals delegate roles in the access-management portal;
                hidden when no portal URL is configured. -->
           <a
-            v-if="isPrincipalUser && accessManagementProviderUrl"
-            :href="accessManagementProviderUrl"
+            v-if="isPrincipalUser && accessManagementUrl"
+            :href="accessManagementUrl"
             target="_blank"
             rel="noopener noreferrer"
             class="link text-body2 text-weight-medium"
           >
-            {{
-              $t('co2_calculator_access_cta_principal', {
-                provider:
-                  accessManagementProviderName ||
-                  $t('co2_calculator_access_provider_generic'),
-              })
-            }}
+            {{ $t('co2_calculator_access_cta_principal') }}
             <q-icon :name="outlinedArrowOutward" size="xs" />
           </a>
         </div>

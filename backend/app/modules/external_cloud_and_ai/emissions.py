@@ -18,7 +18,7 @@ _CLOUD_SUBKIND_MAP: dict[str, EmissionType] = {
 }
 
 # Keyed on ``canonical_token`` output of the product-name categories the
-# EPFL CSVs carry since #2252 ("Claude (Anthropic)" -> claude_anthropic).
+# factor CSVs carry since #2252 ("Claude (Anthropic)" -> claude_anthropic).
 # The pre-#2252 vendor-slug spellings are gone with the DB re-upload.
 _AI_USE_MAP: dict[str, EmissionType] = {
     "gemini_google": EmissionType.external__ai__provider_google,

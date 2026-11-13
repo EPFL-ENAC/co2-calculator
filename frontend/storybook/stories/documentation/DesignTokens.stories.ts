@@ -34,7 +34,8 @@ const optionsTokens = {
     'lg-border-radius': '0.75rem (12px)',
   },
   typography: {
-    fontFamily: "'SuisseIntl', '-apple-system', sans-serif",
+    fontFamily:
+      "'InstitutionFont', system-ui, -apple-system, 'Segoe UI', 'Roboto', sans-serif",
     fontSizes: {
       '3xl': '1.75rem (28px)',
       '2xl': '1.5rem (24px)',
@@ -153,7 +154,8 @@ const decisionsTokens = {
     pill: '62.4375rem',
   },
   typography: {
-    fontFamily: "'SuisseIntl', '-apple-system', sans-serif",
+    fontFamily:
+      "'InstitutionFont', system-ui, -apple-system, 'Segoe UI', 'Roboto', sans-serif",
     fontSizes: {
       '2xs': '0.625rem (10px)',
       xs: '0.75rem (12px)',
@@ -546,7 +548,8 @@ const DesignTokensDocumentation = defineComponent({
             padding: '2rem',
             maxWidth: '1200px',
             margin: '0 auto',
-            fontFamily: "'SuisseIntl', '-apple-system', sans-serif",
+            fontFamily:
+              "'InstitutionFont', system-ui, -apple-system, 'Segoe UI', 'Roboto', sans-serif",
             lineHeight: '1.6',
             color: '#212121',
           },

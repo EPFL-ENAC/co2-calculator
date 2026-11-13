@@ -589,14 +589,14 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
         s.add_all(
             [
                 BuildingRoom(
-                    building_location="EPFL",
+                    building_location="UNIV",
                     building_name="BC",
                     room_name="BC-150",
                     room_type="office",
                     room_surface_square_meter=50.0,
                 ),
                 BuildingRoom(
-                    building_location="EPFL",
+                    building_location="UNIV",
                     building_name="AAB",
                     room_name="AAB-010",
                     room_type="office",
