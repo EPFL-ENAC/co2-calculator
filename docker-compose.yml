@@ -144,9 +144,12 @@ services:
       - /tmp
       - /var/cache/nginx
       - /var/run
-    # Institution values and assets (#3244). The frontend refuses to start
-    # without them. institutions/epfl holds the values of the clusters. Copy
-    # frontend.env.example to frontend.env first (`make install` does it).
+    # Institution values and assets (#3244). The app shows a missing-values
+    # page without the required values, and the container stops without
+    # theme.conf in the mounted folder. The other assets of the folder replace
+    # the neutral defaults of the image. institutions/epfl holds the values of
+    # the clusters. Copy frontend.env.example to frontend.env first
+    # (`make install` does it).
     env_file:
       - ./institutions/epfl/frontend.env
     volumes:
