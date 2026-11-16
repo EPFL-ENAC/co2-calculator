@@ -41,8 +41,9 @@ jobs:
       helm_chart_render_args: |
         --set backend.existingSecret.name=ci-existing-secret
         --set backend.existingSecret.enabled=false --set backend.secrets.JWT_HMAC_KEY=ci-render-check --set backend.secrets.SESSION_HMAC_KEY=ci-render-check
-      # Scan images in the build job, before push: fixable or not, HIGH/
-      # CRITICAL findings block the rollout instead of alerting after it.
+      # Scan images in the build job: fixable or not, HIGH/CRITICAL findings
+      # block the rollout. The image is already on ghcr under its sha tag, but
+      # it gets no branch tag, no quay copy and no Argo update.
       skip_vulnerability_scan: false
       # GIT_SHA is baked into the frontend bundle as its APP_VERSION (see
       # frontend/quasar.config.js) so GlitchTip events carry the exact deploy
