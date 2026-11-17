@@ -73,9 +73,14 @@ APP_PLANNER_MAX_YEAR=2050
 
 The texts insert the French forms as they are. For example, the French
 tab title is "Calculateur CO₂ de l'UNIV". The texts add page paths after
-the two doc URLs, so each URL must end with `/`. If one does not, the app
-shows the missing-values page with that URL. The ID label replaces
-"SCIPER" in the texts and in the headcount column.
+the two doc URLs, so each URL must end with `/`. If one does not, the
+frontend stops at startup and the log names that URL. The ID label
+replaces "SCIPER" in the texts and in the headcount column.
+
+Every `APP_*` value is public. The frontend sends them to each browser,
+without a login. Do not put a password, a token or a key in an `APP_*`
+value. A value whose name looks like a secret, for example
+`APP_API_TOKEN`, stops the frontend at startup.
 
 The values that change per cluster do not go in this file:
 `APP_ENVIRONMENT`, `APP_SENTRY_DSN`, `APP_MATOMO_*`, `APP_OPS_*`,
@@ -110,8 +115,8 @@ container. At startup, the log gives the source of each
 file:
 
 ```
-[institution] logo.svg: from /institution
-[institution] favicon.ico: from /usr/local/share/institution/default
+[entrypoint] logo.svg: from /institution
+[entrypoint] favicon.ico: from /usr/local/share/institution/default
 ```
 
 The repository is public. Before you commit the logo of an institution,
@@ -151,7 +156,10 @@ accent: #0050a0
 The app mixes the hover and light shades from the accent. The other names
 keep the default look. To change one, remove the `# ` in front of its
 line and set the value. Only `accent` is required.
-`frontend/docker/theme.awk` lists all the names.
+`frontend/docker/entrypoint.sh` lists all the names.
+
+A color is a hex value, for example `#0050a0`. A radius is a number with
+`px`, `rem`, `em` or `%`. Any other value stops the frontend at startup.
 
 ## 5. Run it locally
 
@@ -159,6 +167,9 @@ line and set the value. Only `accent` is required.
 
 1. Set these two lines in `frontend/.env.local`.
 2. Restart the frontend dev server.
+
+After that, a change of the values file or of the assets folder reloads
+the page. You do not restart the dev server again.
 
 ```sh
 INSTITUTION_ENV_FILE=../institutions/univ/frontend.env
@@ -175,7 +186,7 @@ INSTITUTION_ASSETS_DIR=../institutions/univ/assets
 If the check passes, the log shows this line:
 
 ```
-[institution] wrote /tmp/institution and /tmp/theme.css
+[entrypoint] wrote injectEnv.js, institution/ and theme.css in /tmp
 ```
 
 ## 6. Make sure that it works
@@ -193,14 +204,15 @@ Open the app and make sure of these points:
 
 Then test the failures:
 
-| Change                            | Result                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------ |
-| Empty `APP_CONTACT_EMAIL`         | The app shows the missing-values page with `APP_CONTACT_EMAIL`.                |
-| Delete `theme.conf`               | The container stops: `[institution] missing or empty: /institution/theme.conf` |
-| Rename `logo.svg` to `logo.SVG`   | The container stops: `[institution] unknown files in /institution: logo.SVG`   |
-| Add `colour: red` to `theme.conf` | The startup stops with the line number and `unknown name "colour"`.            |
+| Change                            | Result                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| Empty `APP_CONTACT_EMAIL`         | The container stops: `[entrypoint] APP_CONTACT_EMAIL is required and empty`   |
+| Delete `theme.conf`               | The container stops: `[entrypoint] missing or empty: /institution/theme.conf` |
+| Rename `logo.svg` to `logo.SVG`   | The container stops: `[entrypoint] unknown files in /institution: logo.SVG`   |
+| Add `colour: red` to `theme.conf` | The startup stops with the line number and `unknown name "colour"`.           |
+| Set `accent: red` in `theme.conf` | The startup stops with the line number and `"accent" must be a hex color`.    |
 
-The dev server runs the same scripts, so it shows the same messages.
+The dev server runs the same script, so it shows the same messages.
 
 ## 7. Deploy to a cluster
 
@@ -210,7 +222,8 @@ The dev server runs the same scripts, so it shows the same messages.
 3. Mount the ConfigMap with `frontend.institutionAssets.volume`.
 
 Without the volume, the Helm chart does not render, because the volume
-gives `theme.conf`.
+gives `theme.conf`. With an empty required value, the new pods stop at
+startup and the pods of the last version continue to serve.
 
 Put only the files that replace a default in the ConfigMap. The smallest
 ConfigMap holds `theme.conf` alone:
