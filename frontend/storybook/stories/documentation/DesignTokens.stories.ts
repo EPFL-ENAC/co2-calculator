@@ -1013,7 +1013,7 @@ const DesignTokensDocumentation = defineComponent({
 }
 
 @layer quasar-base {
-  @import 'quasar/src/css/index.sass';
+  @import './quasar-base';
 }
 
 @layer quasar-overrides {
@@ -1092,7 +1092,7 @@ const DesignTokensDocumentation = defineComponent({
 
 // Now Quasar can use our token values
 @layer quasar-base {
-  @import 'quasar/src/css/index.sass';
+  @import './quasar-base';
 }`),
               h(
                 'p',

@@ -89,6 +89,7 @@ type-check: ## Run TypeScript type checking
 	@set -e; \
 	node scripts/check-icon-strings.mjs; \
 	node scripts/check-theme-keys.mjs; \
+	node scripts/check-quasar-css.mjs; \
 	npx vue-tsc --noEmit -p tsconfig.typecheck.json
 
 

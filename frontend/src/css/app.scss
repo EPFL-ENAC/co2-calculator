@@ -14,7 +14,7 @@
 
 // Wrap Quasar in a layer
 @layer quasar-base {
-  @import 'quasar/src/css/index.sass';
+  @import './quasar-base';
 }
 
 @layer layout {

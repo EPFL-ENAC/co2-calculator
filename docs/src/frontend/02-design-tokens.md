@@ -905,7 +905,7 @@ $space-base: dec.$spacing-md !default;
 //
 // Step 2: Import Quasar (it will use your overridden variables)
 // ↓
-@import "quasar/src/css/index.sass";
+@import "./quasar-base";
 //   ↑ Quasar reads $button-padding and uses YOUR value
 //   ↑ Why @import here? Quasar uses old syntax, we must too
 //

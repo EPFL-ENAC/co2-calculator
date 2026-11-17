@@ -1,0 +1,80 @@
+// Quasar's stylesheet, without the components the app does not use.
+// It is quasar/src/css/index.sass in the same order; every line left out
+// keeps bytes out of the render-blocking entry CSS. When you use a new
+// Quasar component, scripts/check-quasar-css.mjs (make type-check) names
+// the line to add here.
+@import 'quasar/src/css/helpers/string.sass';
+@import 'quasar/src/css/helpers/math.sass';
+@import 'quasar/src/css/variables.sass';
+@import 'quasar/src/css/normalize.sass';
+@import 'quasar/src/components/icon/QIcon.sass';
+
+// Composables
+@import 'quasar/src/composables/private.use-panel/use-panel.sass';
+
+// Components
+@import 'quasar/src/components/avatar/QAvatar.sass';
+@import 'quasar/src/components/badge/QBadge.sass';
+@import 'quasar/src/components/banner/QBanner.sass';
+@import 'quasar/src/components/breadcrumbs/QBreadcrumbs.sass';
+@import 'quasar/src/components/btn/QBtn.sass';
+@import 'quasar/src/components/btn-dropdown/QBtnDropdown.sass';
+@import 'quasar/src/components/btn-group/QBtnGroup.sass';
+@import 'quasar/src/components/btn-toggle/QBtnToggle.sass';
+@import 'quasar/src/components/card/QCard.sass';
+@import 'quasar/src/components/checkbox/QCheckbox.sass';
+@import 'quasar/src/components/chip/QChip.sass';
+@import 'quasar/src/components/date/QDate.sass';
+@import 'quasar/src/components/dialog/QDialog.sass';
+@import 'quasar/src/components/expansion-item/QExpansionItem.sass';
+@import 'quasar/src/components/field/QField.sass';
+@import 'quasar/src/components/file/QFile.sass';
+@import 'quasar/src/components/form/QForm.sass';
+@import 'quasar/src/components/img/QImg.sass';
+@import 'quasar/src/components/inner-loading/QInnerLoading.sass';
+@import 'quasar/src/components/input/QInput.sass';
+@import 'quasar/src/components/item/QItem.sass';
+@import 'quasar/src/components/layout/QLayout.sass';
+@import 'quasar/src/components/linear-progress/QLinearProgress.sass';
+@import 'quasar/src/components/menu/QMenu.sass';
+@import 'quasar/src/components/option-group/QOptionGroup.sass';
+@import 'quasar/src/components/radio/QRadio.sass';
+@import 'quasar/src/components/select/QSelect.sass';
+@import 'quasar/src/components/separator/QSeparator.sass';
+@import 'quasar/src/components/skeleton/QSkeleton.sass';
+@import 'quasar/src/components/slider/QSlider.sass';
+@import 'quasar/src/components/space/QSpace.sass';
+@import 'quasar/src/components/spinner/QSpinner.sass';
+@import 'quasar/src/components/spinner/QSpinnerDots.sass';
+@import 'quasar/src/components/spinner/QSpinnerRings.sass';
+@import 'quasar/src/components/tab-panels/QTabPanel.sass';
+@import 'quasar/src/components/table/QTable.sass';
+@import 'quasar/src/components/tabs/QTabs.sass';
+@import 'quasar/src/components/toggle/QToggle.sass';
+@import 'quasar/src/components/toolbar/QToolbar.sass';
+@import 'quasar/src/components/tooltip/QTooltip.sass';
+@import 'quasar/src/components/virtual-scroll/QVirtualScroll.sass';
+
+// Directives
+@import 'quasar/src/directives/ripple/Ripple.sass';
+
+// Plugins
+@import 'quasar/src/plugins/dialog/component/DialogPluginComponent.sass';
+@import 'quasar/src/plugins/loading/Loading.sass';
+@import 'quasar/src/plugins/notify/Notify.sass';
+
+// Core
+@import 'quasar/src/css/core/animations.sass';
+@import 'quasar/src/css/core/colors.sass';
+@import 'quasar/src/css/core/elevation.sass';
+@import 'quasar/src/css/core/flex.sass';
+@import 'quasar/src/css/core/helpers.sass';
+@import 'quasar/src/css/core/mouse.sass';
+@import 'quasar/src/css/core/orientation.sass';
+@import 'quasar/src/css/core/positioning.sass';
+@import 'quasar/src/css/core/size.sass';
+@import 'quasar/src/css/core/touch.sass';
+@import 'quasar/src/css/core/transitions.sass';
+@import 'quasar/src/css/core/typography.sass';
+@import 'quasar/src/css/core/visibility.sass';
+@import 'quasar/src/css/core/dark.sass';
