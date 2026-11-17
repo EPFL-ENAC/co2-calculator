@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
 
 // Stories render with the values and assets of institutions/epfl, written by
-// the container scripts (#3244). Paths are relative to frontend/.
+// the container script (#3244). Paths are relative to frontend/.
 process.env.INSTITUTION_ENV_FILE ??=
   '../institutions/epfl/frontend.env.example';
 process.env.INSTITUTION_ASSETS_DIR ??= '../institutions/epfl/assets';

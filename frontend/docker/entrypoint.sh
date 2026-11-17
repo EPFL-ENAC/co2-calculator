@@ -1,59 +1,189 @@
 #!/bin/sh
 #
-# Runtime env injection for the Quasar SPA.
+# Startup of the frontend container: values, institution assets and theme.
 #
-# Why this exists: the same Vite bundle is shipped to dev/stage/prod; per-env
-# values (Sentry DSN, environment label, etc.) can't be baked at build time.
-# This script runs at container startup (via the nginx-unprivileged base
-# image's /docker-entrypoint.d/ hook) and writes APP_*-prefixed env vars into
-# /usr/share/nginx/html/injectEnv.js, which the SPA reads as
-# window.injectedEnvVariable.
+# Why this exists: one image serves every environment and every institution
+# (#3244), so nothing of a deployment is in the bundle. This script runs at
+# container startup, through the /docker-entrypoint.d/ hook of the
+# nginx-unprivileged base image, and writes three things into OUT_DIR:
 #
-# Why a JS file rather than envsubst on index.html: the JS bundle is
-# fingerprinted and cached one year (see nginx.conf). injectEnv.js is the only
-# no-cache surface, so per-env values must live there or they get pinned to
-# the first deploy.
+#   injectEnv.js   the APP_* environment variables, read by the SPA as
+#                  window.injectedEnvVariable
+#   institution/   logo, browser icons, login illustration and fonts: the
+#                  defaults of the image, then the files of the mounted folder
+#   theme.css      colors, corner radii and fonts, from theme.conf of the
+#                  mounted folder
 #
-# Why /tmp and not /usr/share/nginx/html: in our k8s deployment the pod runs
-# with readOnlyRootFilesystem: true (see helm/values.yaml frontend.securityContext)
-# so the html dir is read-only at runtime. /tmp is mounted as an emptyDir
-# (writable) by the deployment template. nginx.conf has a `location =
-# /injectEnv.js` alias that maps the URL to this file.
+# Any error exits 1, and the nginx entrypoint then stops the container.
 #
-# Why POSIX sh + awk, not bash or jq: the alpine-slim base ships neither, and
-# our values are single-line ASCII (DSNs, env names, git SHAs), so awk's
-# gsub-based JSON escaping is sufficient and keeps the image lean.
+# Why a JS file and not envsubst on index.html: the JS bundle is fingerprinted
+# and cached one year (see nginx.conf). injectEnv.js is a no-cache surface, so
+# per-deployment values must live there or they get pinned to the first deploy.
+#
+# Why OUT_DIR is /tmp: the pod runs with readOnlyRootFilesystem (see
+# helm/values.yaml frontend.securityContext), and /tmp is a writable emptyDir.
+# nginx.conf maps /injectEnv.js, /theme.css and /institution/ to it.
+#
+# Why POSIX sh and awk, not node, python, bash or jq: the alpine-slim base
+# ships none of them. The dev server, the tests and Storybook run this same
+# file (see build/institution.mjs), so the checks and the parsers have one
+# implementation. Those runs set INSTITUTION_ENV_FILE, a file of
+# APP_<NAME>=value lines that stands for the pod environment. A variable of
+# the shell wins over the file.
+#
+# The awk program sits inside single quotes: do not write an apostrophe in
+# it, not even in a comment.
 
 # No pipefail: POSIX only added it in the 2024 spec and older /bin/sh
-# implementations lack it. Re-add (as `set -o pipefail`) if a pipeline gains a
-# left-hand command that can actually fail — today both start with printenv.
+# implementations lack it. No pipeline below has a left-hand command that can
+# fail.
 set -eu
 
 OUT_DIR="${OUT_DIR:-/tmp}"
-PREFIX="${FRONTEND_ENV_PREFIX:-APP_}"
-INJECT_FILE="${OUT_DIR}/injectEnv.js"
+ENV_FILE="${INSTITUTION_ENV_FILE:-}"
+INSTITUTION_DIR="${INSTITUTION_DIR:-/institution}"
+DEFAULT_DIR="${INSTITUTION_DEFAULT_DIR:-/usr/local/share/institution/default}"
+THEME_AWK="${THEME_AWK:-$(dirname "$0")/theme.awk}"
 
-count=$(printenv | grep -c "^${PREFIX}") || count=0
+# Keep in sync with the references in index.html and the logo components.
+# Each one has a default in DEFAULT_DIR.
+ASSET_FILES="
+logo.svg
+login-illustration.svg
+favicon.ico
+favicon-16x16.png
+favicon-32x32.png
+favicon-96x96.png
+favicon-128x128.png
+fonts/regular.woff2
+fonts/medium.woff2
+fonts/bold.woff2
+"
 
-# Atomic write: temp file in the same dir, then mv. Prevents nginx from
-# serving a half-written injectEnv.js if this script is killed mid-execution.
+fail() {
+  echo "[entrypoint] $1" >&2
+  exit 1
+}
+
+# ------------------------------------------------------------------------------
+# 1. Values: injectEnv.js
+# ------------------------------------------------------------------------------
+
+if [ -n "${ENV_FILE}" ] && [ ! -f "${ENV_FILE}" ]; then
+  fail "INSTITUTION_ENV_FILE does not exist: ${ENV_FILE}"
+fi
+
+# Atomic write: temp file in the same dir, then mv. nginx never serves a
+# half-written file. awk reads the env file first, when one is set, then the
+# environment on stdin ("-"), so the environment wins.
 tmp=$(mktemp "${OUT_DIR}/injectEnv.js.XXXXXX")
-{
-  printf '%s\n' \
-    "// Generated at container startup by /docker-entrypoint.d/40-inject-env.sh." \
-    "// Do not edit; values come from ${PREFIX}*-prefixed env vars at startup."
-  printenv | awk -v prefix="${PREFIX}" '
-    index($0, prefix) == 1 {
-      eq = index($0, "=")
-      key = substr($0, 1, eq - 1)
-      value = substr($0, eq + 1)
+if ! printenv | awk -v env_file="${ENV_FILE}" '
+  function fail(message) {
+    print "[entrypoint] " message > "/dev/stderr"
+    failed = 1
+  }
+
+  # The env file: APP_<NAME>=value lines, "#" comments, values are literal.
+  env_file != "" && FILENAME == env_file {
+    sub(/\r$/, "")
+    if ($0 ~ /^[ \t]*(#|$)/) next
+    if ($0 !~ /^APP_[A-Z0-9_]+=/) {
+      fail(FILENAME " line " FNR ": expected APP_<NAME>=value")
+      next
+    }
+  }
+  # The environment holds much more than our values.
+  index($0, "APP_") != 1 { next }
+  {
+    eq = index($0, "=")
+    key = substr($0, 1, eq - 1)
+    if (!(key in values)) order[++count] = key
+    values[key] = substr($0, eq + 1)
+  }
+
+  END {
+    if (failed) exit 1
+
+    print "// Generated at container startup by docker/entrypoint.sh."
+    print "// Do not edit: the values are the APP_* environment variables."
+    for (i = 1; i <= count; i++) {
+      value = values[order[i]]
       gsub(/\\/, "\\\\&", value)
       gsub(/"/, "\\\\&", value)
-      pairs = pairs sep "\"" key "\": \"" value "\""
+      pairs = pairs sep "\"" order[i] "\": \"" value "\""
       sep = ", "
     }
-    END { print "window.injectedEnvVariable = { " pairs " };" }'
-} > "${tmp}"
-mv -f "${tmp}" "${INJECT_FILE}"
+    print "window.injectedEnvVariable = { " pairs " };"
+  }' ${ENV_FILE:+"${ENV_FILE}"} - > "${tmp}"; then
+  rm -f "${tmp}"
+  fail "invalid APP_* values, see the lines above"
+fi
+chmod 644 "${tmp}"
+mv -f "${tmp}" "${OUT_DIR}/injectEnv.js"
 
-echo "[entrypoint] wrote ${INJECT_FILE} with ${count} ${PREFIX}* keys"
+# ------------------------------------------------------------------------------
+# 2. Assets: institution/
+# ------------------------------------------------------------------------------
+
+if [ ! -s "${INSTITUTION_DIR}/theme.conf" ]; then
+  fail "missing or empty: ${INSTITUTION_DIR}/theme.conf. It sets the accent color."
+fi
+
+# A file the app does not read is a typo of a file it reads. Names that start
+# with "." are skipped: a Kubernetes ConfigMap mount adds ..data and others.
+# A file of fonts/ that is not a .woff2 is allowed: a free font must keep its
+# license next to it (see institution-default/fonts/README.md).
+known=" theme.conf $(echo ${ASSET_FILES}) "
+print_unknown() {
+  while read -r file; do
+    case "${known}" in
+      *" ${file} "*) continue ;;
+    esac
+    case "${file}" in
+      fonts/*.woff2) printf ' %s' "${file}" ;;
+      fonts/*) ;;
+      *) printf ' %s' "${file}" ;;
+    esac
+  done
+}
+unknown=$(cd "${INSTITUTION_DIR}" && find -L . -mindepth 1 -name '.*' -prune \
+  -o -type f -print | sed 's|^\./||' | print_unknown)
+if [ -n "${unknown}" ]; then
+  fail "unknown files in ${INSTITUTION_DIR}:${unknown}. The names are in the defaults folder of the image."
+fi
+
+# Build the folder next to the old one, then swap: nginx and the dev server
+# never serve a half-copied folder. The log names the source of each file, so
+# a deployment that forgets an override shows it.
+tmp_dir=$(mktemp -d "${OUT_DIR}/institution.XXXXXX")
+mkdir "${tmp_dir}/fonts"
+for file in ${ASSET_FILES}; do
+  source="${DEFAULT_DIR}"
+  if [ -e "${INSTITUTION_DIR}/${file}" ]; then
+    if [ ! -s "${INSTITUTION_DIR}/${file}" ]; then
+      rm -rf "${tmp_dir}"
+      fail "empty file: ${INSTITUTION_DIR}/${file}"
+    fi
+    source="${INSTITUTION_DIR}"
+  fi
+  cp "${source}/${file}" "${tmp_dir}/${file}"
+  echo "[entrypoint] ${file}: from ${source}"
+done
+chmod -R a+rX "${tmp_dir}"
+rm -rf "${OUT_DIR}/institution"
+mv "${tmp_dir}" "${OUT_DIR}/institution"
+
+# ------------------------------------------------------------------------------
+# 3. Theme: theme.css
+# ------------------------------------------------------------------------------
+
+# docker/theme.awk reads theme.conf and prints the CSS.
+tmp=$(mktemp "${OUT_DIR}/theme.css.XXXXXX")
+if ! awk -f "${THEME_AWK}" "${INSTITUTION_DIR}/theme.conf" > "${tmp}"; then
+  rm -f "${tmp}"
+  fail "invalid theme file ${INSTITUTION_DIR}/theme.conf"
+fi
+chmod 644 "${tmp}"
+mv -f "${tmp}" "${OUT_DIR}/theme.css"
+
+echo "[entrypoint] wrote injectEnv.js, institution/ and theme.css in ${OUT_DIR}"
