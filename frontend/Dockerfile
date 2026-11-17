@@ -37,6 +37,11 @@ COPY . .
 # the bundle as APP_VERSION via quasar.config.js build.env.
 RUN npm run build
 
+# Write the .gz and .br files that nginx sends as they are (see nginx.conf),
+# so the pod does not compress each response. Here because the pod root is
+# read-only.
+RUN node build/precompress.mjs dist/spa
+
 # ==============================================================================
 # Production Stage: Serve with unprivileged Nginx
 # ==============================================================================
