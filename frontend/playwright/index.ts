@@ -35,7 +35,8 @@ import {
   QTabs,
 } from 'quasar';
 import svgMaterialIcons from 'quasar/icon-set/svg-material-icons.js';
-import { i18n } from '@/boot/i18n';
+import { i18n, setLocale } from '@/boot/i18n';
+import { LOCALE_MAP } from '@/constant/languages';
 // Pinia stores in this app (e.g. useModuleStore) call useRoute() at setup
 // time, so any CT mount that instantiates a store needs both plugins
 // installed globally, the same way main.ts wires them for the real app.
@@ -56,6 +57,11 @@ beforeMount(async ({ app }) => {
   app.use(Quasar, { iconSet: svgMaterialIcons, plugins: { Notify } });
   app.use(createPinia());
   app.use(router);
+  // The harnesses switch language synchronously, so both are loaded first.
+  const initialLocale = i18n.global.locale.value;
+  await setLocale(LOCALE_MAP.fr);
+  await setLocale(LOCALE_MAP.en);
+  i18n.global.locale.value = initialLocale;
   app.use(i18n);
 
   app.component('QCard', QCard);

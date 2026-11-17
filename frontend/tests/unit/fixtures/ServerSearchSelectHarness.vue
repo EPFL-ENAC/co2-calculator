@@ -2,7 +2,8 @@
 import { ref } from 'vue';
 import VirtualSelectField from '@/components/molecules/VirtualSelectField.vue';
 import { searchDataEntryOptions } from '@/api/taxonomies';
-import { i18n, type MessageLanguages } from '@/boot/i18n';
+import { i18n } from '@/boot/i18n';
+import type { Locale } from '@/constant/languages';
 
 const props = defineProps<{
   moduleType: string;
@@ -10,7 +11,7 @@ const props = defineProps<{
   year?: number;
   initialOption?: { value: string; label: string } | null;
   initialValue?: string | null;
-  locale?: MessageLanguages;
+  locale?: Locale;
 }>();
 
 if (props.locale) {

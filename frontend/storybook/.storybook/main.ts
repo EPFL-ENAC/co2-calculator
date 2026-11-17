@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { mergeConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { institutionPlugin } from '../../build/institution.mjs';
+import { i18nLocalePlugin } from '../../build/i18n-locale.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -40,7 +41,7 @@ const config: StorybookConfig = {
     return mergeConfig(
       { ...config, plugins: filteredPlugins },
       {
-        plugins: [vue(), institutionPlugin()],
+        plugins: [vue(), institutionPlugin(), i18nLocalePlugin()],
         resolve: {
           alias: {
             '@': path.resolve(projectRoot, 'src'),

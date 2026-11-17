@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue';
 import { useModuleStore } from '@/stores/modules';
-import { i18n, type MessageLanguages } from '@/boot/i18n';
+import { i18n } from '@/boot/i18n';
+import type { Locale } from '@/constant/languages';
 import { MODULES } from '@/constant/modules';
 
 const props = defineProps<{
-  locale: MessageLanguages;
+  locale: Locale;
 }>();
 
 watch(

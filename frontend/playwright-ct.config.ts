@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { writeInstitutionFiles } from './build/institution.mjs';
+import { i18nLocalePlugin } from './build/i18n-locale.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -77,6 +78,8 @@ export default defineConfig({
 
     ctViteConfig: {
       publicDir: institutionPublicDir,
+      // The texts load as one chunk per language, as in the app.
+      plugins: [i18nLocalePlugin()],
       resolve: {
         alias: {
           '@': resolve(__dirname, './src'),

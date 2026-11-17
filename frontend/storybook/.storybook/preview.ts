@@ -29,12 +29,18 @@ import {
   QCheckbox,
   QInput,
 } from 'quasar';
-import messages from '../../src/i18n';
+import { loadMessages } from '../../src/i18n';
 import { icons } from '../../src/plugin/module-icon';
 import { useColorblindStore } from '../../src/stores/colorblind';
 
 // Import app styles with CSS Cascade Layers
 import '../../src/css/app.scss';
+
+// The app downloads one language at a time; stories get both up front.
+const messages = {
+  'en-US': await loadMessages('en-US'),
+  'fr-CH': await loadMessages('fr-CH'),
+};
 
 // Setup Vue app with Quasar, Pinia, i18n, and Router
 setup((app) => {

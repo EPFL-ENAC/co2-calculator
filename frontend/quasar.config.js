@@ -13,6 +13,7 @@ import path from 'path';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 import { institutionPlugin, loadEnvLocal } from './build/institution.mjs';
+import { i18nLocalePlugin } from './build/i18n-locale.mjs';
 
 // `quasar dev` reads the INSTITUTION_* paths and the APP_* overrides of
 // .env.local (see build/institution.mjs).
@@ -147,6 +148,16 @@ export default defineConfig(function () {
         // Dev-only: /injectEnv.js, /theme.css and /institution/* the way
         // nginx serves them in the container (#3244).
         viteConf.plugins.push({ ...institutionPlugin(), apply: 'serve' });
+        // One chunk of texts per language (src/i18n/locales).
+        viteConf.plugins.push(i18nLocalePlugin());
+        // Shared chunks stay apart. Merged, the bundler helpers land in the
+        // charts chunk, and the first screen then downloads ECharts.
+        viteConf.build ??= {};
+        viteConf.build.rolldownOptions ??= {};
+        viteConf.build.rolldownOptions.experimental = {
+          ...viteConf.build.rolldownOptions.experimental,
+          chunkOptimization: { mergeCommonChunks: false },
+        };
         viteConf.plugins.push({
           name: 'co2-first-load-dev',
           apply: 'serve',
