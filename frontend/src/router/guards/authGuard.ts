@@ -1,12 +1,16 @@
 import { useAuthStore } from '@/stores/auth';
 import { RouteLocationNormalized } from 'vue-router';
 import { LOGIN_ROUTES, DEFAULT_ROUTE_NAME } from '../routeNames';
+import { preloadAuthenticatedShell } from '../authenticatedShell';
 // Authentication guard for protected routes
 
 export async function authGuard(to: RouteLocationNormalized) {
   // Lighthouse CI injects window.__LIGHTHOUSE_BYPASS__ at runtime to audit
   // protected pages without a backend. All auth checks are skipped.
-  if (window.__LIGHTHOUSE_BYPASS__) return true;
+  if (window.__LIGHTHOUSE_BYPASS__) {
+    if (to.meta.requiresAuth) preloadAuthenticatedShell();
+    return true;
+  }
 
   const auth = useAuthStore();
 
@@ -19,6 +23,7 @@ export async function authGuard(to: RouteLocationNormalized) {
       // No need to do anything else: the guard logic below will redirect if needed
     }
   }
+  if (auth.isAuthenticated) preloadAuthenticatedShell();
   const redirectTo = { params: to.params };
 
   // Requires auth?

@@ -9,6 +9,7 @@ import {
 import routes from './routes';
 import { authGuard } from './guards/authGuard';
 import workspaceGuard from './guards/workspaceGuard';
+import { authenticatedShellReady } from './authenticatedShell';
 import {
   defaultLanguageGuard,
   setLanguageCookieGuard,
@@ -75,6 +76,9 @@ export default defineRouter(function (/* { store, ssrContext } */) {
   Router.beforeEach(setLanguageCookieGuard);
   Router.beforeEach(authGuard);
   Router.beforeEach(workspaceGuard);
+  Router.beforeResolve(async () => {
+    await authenticatedShellReady();
+  });
 
   return Router;
 });

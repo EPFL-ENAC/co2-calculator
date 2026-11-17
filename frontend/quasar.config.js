@@ -59,7 +59,7 @@ export default defineConfig(function () {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['sentry', 'matomo', 'i18n', 'router', 'icons'],
+    boot: ['sentry', 'matomo', 'i18n', 'router'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
