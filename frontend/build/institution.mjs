@@ -3,8 +3,9 @@
 // Why this exists: in the container, docker/entrypoint.sh writes
 // injectEnv.js, theme.css and the institution/ folder at startup, and nginx
 // serves them. `quasar dev`, `vite preview`, the component tests and
-// Storybook run that same script here. This file holds no parser and no
-// check: it starts the script and serves its output.
+// Storybook run that same script here, into a folder that Vite serves as its
+// public folder. This file holds no parser, no check and no file server: it
+// only starts the script.
 //
 // Two environment variables point at the institution:
 //   INSTITUTION_ENV_FILE    the APP_* values (APP_<NAME>=value lines)
@@ -12,9 +13,9 @@
 // Both are required: the values have no default, and the folder gives at
 // least theme.conf. The other assets default to institution-default/.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const FRONTEND_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,62 +67,46 @@ export const writeInstitutionFiles = (outDir) => {
   }
 };
 
-const CONTENT_TYPES = {
-  '.css': 'text/css',
-  '.ico': 'image/x-icon',
-  '.js': 'application/javascript',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-  '.woff2': 'font/woff2',
-};
-
-const send = (res, file) => {
-  res.setHeader(
-    'Content-Type',
-    CONTENT_TYPES[extname(file)] || 'application/octet-stream',
-  );
-  res.setHeader('Cache-Control', 'no-cache');
-  res.end(readFileSync(file));
-};
-
 /**
- * Vite plugin for the dev server, the component tests and Storybook: serves
- * /injectEnv.js, /theme.css and /institution/* the way nginx does. A dev
- * server generates the files on each request of /injectEnv.js or
- * /theme.css, which a reload makes first, so an edit shows on reload. A
- * build (component tests, Storybook) writes them next to its output. The app
- * build never uses it: there the container writes them.
+ * Vite plugin for the dev server and Storybook. A dev server serves the
+ * script output as its public folder, so Vite does what nginx does in the
+ * container, and writes it again when a file of the institution changes. A
+ * build (Storybook) writes the files next to its output. The app build never
+ * uses this plugin: there the container writes them.
  */
-export const institutionPlugin = () => ({
-  name: 'institution-assets',
-  writeBundle(options) {
-    writeInstitutionFiles(options.dir);
-  },
-  configureServer(server) {
-    const outDir = mkdtempSync(join(tmpdir(), 'co2-institution-'));
-    // Fail at startup, not on the first request, when the setup is wrong.
-    writeInstitutionFiles(outDir);
-    server.middlewares.use((req, res, next) => {
-      const path = (req.url || '').split('?')[0];
-      if (path === '/injectEnv.js' || path === '/theme.css') {
-        writeInstitutionFiles(outDir);
-        send(res, join(outDir, path.slice(1)));
-        return;
-      }
-      if (!path.startsWith('/institution/')) {
-        next();
-        return;
-      }
-      const root = join(outDir, 'institution');
-      const relative = decodeURIComponent(path.slice('/institution/'.length));
-      const file = normalize(join(root, relative));
-      // A request path never leaves the assets folder.
-      if (!file.startsWith(root + sep) || !existsSync(file)) {
-        res.statusCode = 404;
-        res.end();
-        return;
-      }
-      send(res, file);
-    });
-  },
-});
+export const institutionPlugin = () => {
+  let outDir;
+  return {
+    name: 'institution-assets',
+    config(_config, { command }) {
+      if (command !== 'serve') return;
+      outDir = mkdtempSync(join(tmpdir(), 'co2-institution-'));
+      // Fail at startup, not on the first request, when the setup is wrong.
+      writeInstitutionFiles(outDir);
+      return { publicDir: outDir };
+    },
+    configureServer(server) {
+      const sources = [
+        requirePath('INSTITUTION_ENV_FILE'),
+        requirePath('INSTITUTION_ASSETS_DIR'),
+      ];
+      server.watcher.add(sources);
+      // 'all': a file that is added or removed changes the folder too.
+      server.watcher.on('all', (_event, file) => {
+        if (!sources.some((source) => file.startsWith(source))) return;
+        try {
+          writeInstitutionFiles(outDir);
+          server.ws.send({ type: 'full-reload' });
+        } catch (e) {
+          // Keep the dev server and the last good files: the edit is wrong.
+          server.config.logger.error(
+            e instanceof Error ? e.message : String(e),
+          );
+        }
+      });
+    },
+    writeBundle(options) {
+      writeInstitutionFiles(options.dir);
+    },
+  };
+};
