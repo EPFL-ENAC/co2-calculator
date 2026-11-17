@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 3244
-last_updated: 2026-11-13
+last_updated: 2026-11-17
 summary: "Institution name, texts, documentation links, logo, fonts and color theme come from the deployment. The image has neutral default assets, so a deployment gives only its values and a theme.conf. The code has no EPFL default and the texts do not name Accred. A CI check finds hard-coded EPFL, Accred or Entra."
 ---
 
@@ -18,11 +18,22 @@ environment values and mounts one folder of files. It changes no code.
   lists the links of the three EPFL clusters on every deployment.
 - The frontend reads every `APP_*` value from `window.injectedEnvVariable`
   only. The `import.meta.env` fallback goes away. `quasar dev`, `vite
-preview`, the component tests and Storybook get `injectEnv.js` and
-  `theme.css` from the same `docker/entrypoint.sh` and
-  `docker/institution.sh` as the container, through
-  `frontend/build/institution.mjs`. `APP_VERSION` and `APP_BUILD_TIME` stay
-  build-time values, because they identify the bundle.
+preview`, the component tests and Storybook get `injectEnv.js`,
+  `theme.css` and the assets from the same `docker/entrypoint.sh` as the
+  container, through `frontend/build/institution.mjs`. `APP_VERSION` and
+  `APP_BUILD_TIME` stay build-time values, because they identify the bundle.
+- One script, `frontend/docker/entrypoint.sh`, writes the values, the
+  assets folder and the theme, and holds every check. It is POSIX sh with
+  awk, because the nginx image has no Node and no Python.
+  `build/institution.mjs` only starts it and gives its output to Vite as the
+  public folder. So the repository has one parser for the values file, one
+  for the theme, and no second file server.
+- A wrong value stops the container, and the app has no page for it. A
+  rollout with a wrong key then keeps the old pods. The browser does not
+  check the values again.
+- Every `APP_*` value is public, because `injectEnv.js` goes to every
+  browser without a login. A key whose name has `SECRET`, `PASSWORD`,
+  `TOKEN`, `CREDENTIAL` or `PRIVATE` stops the container.
 - The tab title is set at runtime from the text `app_document_title`,
   because it names the institution.
 - The theme file sets CSS custom properties. The SCSS tokens read
@@ -40,8 +51,8 @@ preview`, the component tests and Storybook get `injectEnv.js` and
 
 ## Values
 
-Required values. If one is empty, the app shows the missing-values page
-instead of the app, with the names of the empty values.
+Required values. If one is empty, `entrypoint.sh` stops the container
+and the log names each empty value.
 
 | Value                                        | EPFL                          |
 | -------------------------------------------- | ----------------------------- |
@@ -70,11 +81,13 @@ Two values lose their EPFL default. If `APP_MATOMO_SITE_ID` is set,
 and `FRONTEND_URL`. The Helm default of `FRONTEND_URL` is empty, so a
 cluster that does not set it stops at boot. Docker Compose takes `DB_URL`
 from `backend/.env` and changes only its host from `localhost` to
-`postgres`, so the credentials are written in one file.
+`postgres`, so the credentials are written in one file. Compose refuses
+any other host, so a `backend/.env` that names a shared database never gets
+the migrations of a local `docker compose up`.
 
 The texts add page paths after `APP_USER_DOC_URL` and
-`APP_BACKOFFICE_DOC_URL`. If one does not end with `/`, the missing-values
-page lists it with the reason.
+`APP_BACKOFFICE_DOC_URL`. If one does not end with `/`, the container
+stops with the reason.
 
 If `APP_EQUIPMENT_POWER_FEEDBACK_EMAIL` is empty, the equipment dialog has
 no power request tab: a mailto link without a recipient opens an empty
@@ -89,12 +102,22 @@ same values. The clusters get the same values from the ops repository.
 The dev server needs two paths in `frontend/.env.local`:
 `INSTITUTION_ENV_FILE` and `INSTITUTION_ASSETS_DIR`. See
 `frontend/.env.example`. `build/institution.mjs` loads `.env.local` for
-`quasar dev` and for `npm run preview`. If a path does not exist, the error
-names `make install`. `wtx` copies `frontend.env` into a new worktree, as
-it copies `.env.local`.
+`quasar dev` and for `npm run preview`, with `process.loadEnvFile` of Node.
+If a path does not exist, the error names `make install`. `wtx` copies
+`frontend.env` into a new worktree, as it copies `.env.local`.
+
+`entrypoint.sh` reads the values file itself when `INSTITUTION_ENV_FILE`
+names it. The file stands for the pod environment: `APP_<NAME>=value`
+lines, `#` comments, literal values. A variable of the shell wins over the
+file. Any other line stops the script.
+
+The dev server gives the output folder of the script to Vite as its public
+folder, so Vite serves `/injectEnv.js`, `/theme.css` and `/institution/` as
+nginx does. When a file of the institution changes, the dev server runs the
+script again and reloads the page.
 
 Three builds outside the container write the institution files with the
-same scripts. `npm run preview` and the Lighthouse workflow run
+same script. `npm run preview` and the Lighthouse workflow run
 `build/prepare-preview.mjs` on `dist/spa`. The Storybook image gets the
 EPFL folder through the named build context `institutions`, because the
 folder is outside its build context `frontend/`.
@@ -132,11 +155,12 @@ référence de l'EPFL" instead of "de référence pour l'EPFL".
 ## Assets folder
 
 The deployment mounts its folder at `/institution`. At startup,
-`frontend/docker/institution.sh` runs after `entrypoint.sh`. It copies the
-defaults of the image (`frontend/institution-default/`, in the image at
+`frontend/docker/entrypoint.sh` copies the defaults of the image (`frontend/institution-default/`, in the image at
 `/usr/local/share/institution/default`), then the files of the mounted
 folder, to `/tmp/institution`. nginx serves that folder at
-`/institution/` with revalidation. The files:
+`/institution/` with revalidation, and with a second
+`Content-Security-Policy` that stops script in a file opened as a page (an
+SVG of the institution). The files:
 
 ```
 logo.svg
@@ -172,17 +196,20 @@ without it, because the volume gives `theme.conf`.
 ## Theme
 
 `theme.conf` has one `name: value` line per value. A line that starts
-with `#` is a comment. `frontend/docker/theme.awk` writes `theme.css` with
-one `--theme-<name>` property per line. These lines stop the startup: an
-unknown name, a line without `:`, and a value with `;`, `{`, `}` or `<`.
-The message gives the line number. Only `accent` is required. The names are
-listed in `theme.awk`, and `frontend/institution-default/theme.conf.example`
-documents each one. `scripts/check-theme-keys.mjs` makes sure that the
-SCSS uses the same names.
+with `#` is a comment. `frontend/docker/entrypoint.sh` writes `theme.css`
+with one `--theme-<name>` property per line. A value is pasted into CSS, so
+each kind of name accepts one shape, and every other value stops the
+startup. A color is a hex value (`#rgb` or `#rrggbb`, with or without
+alpha). A radius is a number with `px`, `rem`, `em` or `%`. An unknown name
+and a line without `:` also stop the startup. The message gives the line
+number. Only `accent` is required. The names are listed in `entrypoint.sh`,
+and `frontend/institution-default/theme.conf.example` documents each one.
+`scripts/check-theme-keys.mjs` makes sure that the SCSS uses the same
+names.
 
 `font-regular`, `font-medium` and `font-bold` take the URL of a woff2 file:
-an `https://` URL or a path that starts with `/`. `theme.awk` writes one
-`@font-face` rule per weight for the family `InstitutionFont`, because
+an `https://` URL or a path that starts with one `/`. `entrypoint.sh`
+writes one `@font-face` rule per weight for the family `InstitutionFont`, because
 `@font-face` cannot read a custom property. Without a value, the rule loads
 `/institution/fonts/<weight>.woff2`. The bundle has no `@font-face` rule,
 and `index.html` preloads no font, because the URLs are known only at
@@ -204,6 +231,8 @@ set them, and the EPFL theme does, so EPFL keeps its exact colors.
   `header_dev_documentation_link`.
 - `src/constant/institutionalId.ts`. The label is a value now.
 - `frontend/public/injectEnv.js`. nginx and the dev server serve it.
+- The missing-values page and its checks in `src/config/runtime.ts`. The
+  container checks the values at startup.
 
 ## Renamed
 
@@ -234,6 +263,12 @@ a reason:
 
 ## EPFL deployment (ops repository)
 
+The ops repository changes first, and this branch lands after it. The new
+image stops without the nine required values and the assets volume. The
+image of today ignores a value that it does not know, so the new values are
+safe to add early. The three old `APP_ACCESS_MANAGEMENT_PROVIDER_*` values
+stay until the new image runs, then a second change deletes them.
+
 Before the next deployment, a human changes the ops repository:
 
 - Rename `APP_ACCESS_MANAGEMENT_PROVIDER_URL` to
@@ -258,12 +293,23 @@ A developer also adds `FRONTEND_URL` to `backend/.env`, and the two
 - The first-load badge counts only the bundle. The fonts of the
   deployment are not known at build time.
 - Without the font preloads, the browser finds the fonts later, when it
-  applies `theme.css`. The first text can show the fallback font a little
-  longer.
+  applies `theme.css`: about 155 ms after the page request, against 36 ms
+  with the preloads (login page, local build, real font server). The first
+  text can show the fallback font a little longer. The first paint does not
+  wait for the fonts, and Lighthouse gives it 1.50 s against 1.96 s before.
+- The logo is now a file of the deployment, not a part of the bundle, so
+  the browser asks for it only when the app starts. The logo of the login
+  page loads eagerly and without a fade, and it paints with the first text
+  (149 ms against 148 ms before this change, 294 ms without these settings).
+  The mobile simulation of Lighthouse still counts the logo as the largest
+  paint and gives 4.2 s against 1.96 s, score 86 against 98. With the
+  desktop preset of the nightly job, the score is 99 against 100 (0.94 s
+  against 0.49 s). Three other changes did not move the mobile number, so
+  the branch has none of them: a preload of the logo, a high fetch priority,
+  and the logo in the static page.
 - The `institution-words` job is a required check only after an admin adds
   it to the branch protection of `dev` and `main`.
-- Only the browser checks the required values. A rollout with a wrong key
-  starts its pods, and they show the missing-values page to every user.
-  `entrypoint.sh` could check the keys at startup and stop the rollout, as
-  `institution.sh` does for `theme.conf`. That needs the list of required
-  keys in the shell script too. Open question, not decided.
+- A change of `theme.conf` or of the values file reloads the dev server
+  page. A change of `.env.local` needs a restart of the dev server.
+- The check of secret names reads the key, not the value. It stops a key
+  such as `APP_API_TOKEN`. It cannot see a secret under a neutral name.
