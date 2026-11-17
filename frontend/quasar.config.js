@@ -192,6 +192,22 @@ export default defineConfig(function () {
         viteConf.optimizeDeps ??= {};
         viteConf.optimizeDeps.exclude ??= [];
         viteConf.optimizeDeps.exclude.push('maplibre-gl');
+
+        // Merge the ~40 small chunks the entry needs into `vendor` and the
+        // entry. `$initial` keeps page-only libraries (echarts, maplibre) lazy.
+        viteConf.build.rolldownOptions ??= {};
+        viteConf.build.rolldownOptions.output ??= {};
+        viteConf.build.rolldownOptions.output.codeSplitting = {
+          groups: [
+            {
+              name: 'vendor',
+              test: /node_modules/,
+              tags: ['$initial'],
+              priority: 2,
+            },
+            { name: 'app', tags: ['$initial'], priority: 1 },
+          ],
+        };
       },
     },
 
