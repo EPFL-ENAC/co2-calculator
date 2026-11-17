@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 /**
  * #3244 — docker/entrypoint.sh writes the values, builds the institution
  * folder from the neutral defaults of the image and the files of the mounted
- * folder, and writes the theme. A wrong file or theme line stops the
+ * folder, and writes the theme. A wrong value, file or theme line stops the
  * container. The script runs here without a browser.
  */
 
@@ -152,6 +152,22 @@ test('the values reach the browser, and the environment wins over the file', () 
   // From the file, with its apostrophe as it is.
   expect(values.APP_INSTITUTION_NAME_FR_DE).toMatch(/^de l'/);
 });
+
+// A wrong value stops the container, so a rollout keeps the old pods.
+for (const [env, message] of [
+  [{ APP_CONTACT_EMAIL: '' }, 'APP_CONTACT_EMAIL is required and empty'],
+  [{ APP_USER_DOC_URL: 'https://doc.example.org' }, 'must end with /'],
+  [{ APP_MATOMO_SITE_ID: '3' }, 'APP_MATOMO_URL is required'],
+  [{ APP_DEMO_MODE: 'true' }, 'APP_PRODUCTION_URL is required'],
+  [{ APP_API_TOKEN: 'abc' }, 'APP_API_TOKEN: every APP_* value is public'],
+] as const) {
+  test(`${Object.keys(env)[0]} stops the startup: ${message}`, () => {
+    theme('accent: #0050a0\n');
+    const result = run(env);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(message);
+  });
+}
 
 test('an env file line that is not APP_<NAME>=value stops the startup', () => {
   theme('accent: #0050a0\n');

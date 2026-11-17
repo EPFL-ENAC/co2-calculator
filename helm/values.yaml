@@ -361,8 +361,9 @@ frontend:
     # Environment label attached to every Sentry event. Override per-cluster
     # in the ops repo (e.g. "stage", "production").
     APP_ENVIRONMENT: "production"
-    # Institution values (#3244). Required: an empty one makes the app show
-    # the missing-values page. Example values are in
+    # Institution values (#3244). Required: an empty one stops the
+    # container at startup. Every APP_* value is public, sent to each browser
+    # without a login: never put a secret here. Example values are in
     # institutions/epfl/frontend.env.example and set in the ops repo.
     APP_INSTITUTION_NAME: ""
     APP_INSTITUTION_NAME_FR_DE: ""
