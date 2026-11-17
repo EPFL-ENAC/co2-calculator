@@ -14,7 +14,13 @@
 #   theme.css      colors, corner radii and fonts, from theme.conf of the
 #                  mounted folder
 #
-# Any error exits 1, and the nginx entrypoint then stops the container.
+# Any error exits 1, and the nginx entrypoint then stops the container: a
+# rollout with a wrong value keeps the old pods instead of serving a broken
+# app.
+#
+# Every APP_* value is PUBLIC: injectEnv.js goes to every browser, without a
+# login. Never put a secret in an APP_* variable. A key whose name looks like
+# a secret stops the startup.
 #
 # Why a JS file and not envsubst on index.html: the JS bundle is fingerprinted
 # and cached one year (see nginx.conf). injectEnv.js is a no-cache surface, so
@@ -82,6 +88,7 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
     print "[entrypoint] " message > "/dev/stderr"
     failed = 1
   }
+  function empty(key) { return !(key in values) || values[key] == "" }
 
   # The env file: APP_<NAME>=value lines, "#" comments, values are literal.
   env_file != "" && FILENAME == env_file {
@@ -102,6 +109,36 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
   }
 
   END {
+    for (i = 1; i <= count; i++) {
+      if (order[i] ~ /SECRET|PASSWORD|TOKEN|CREDENTIAL|PRIVATE/) {
+        fail(order[i] ": every APP_* value is public, a secret cannot be one")
+      }
+    }
+    # The texts and the links of the app use these: no default exists.
+    split("APP_INSTITUTION_NAME APP_INSTITUTION_NAME_FR_DE " \
+          "APP_INSTITUTION_NAME_FR_A APP_INSTITUTIONAL_ID_LABEL " \
+          "APP_CONTACT_EMAIL APP_USER_DOC_URL APP_BACKOFFICE_DOC_URL " \
+          "APP_STRATEGY_URL_EN APP_STRATEGY_URL_FR", required, " ")
+    for (i = 1; i in required; i++) {
+      if (empty(required[i])) fail(required[i] " is required and empty")
+    }
+    # A switch that is on makes its value required.
+    if (!empty("APP_MATOMO_SITE_ID") && empty("APP_MATOMO_URL")) {
+      fail("APP_MATOMO_URL is required with APP_MATOMO_SITE_ID")
+    }
+    # Same test as isDemoMode in src/utils/demoMode.ts.
+    demo = empty("APP_DEMO_MODE") ? "" : tolower(values["APP_DEMO_MODE"])
+    gsub(/^[ \t]+|[ \t]+$/, "", demo)
+    if (demo == "true" && empty("APP_PRODUCTION_URL")) {
+      fail("APP_PRODUCTION_URL is required with APP_DEMO_MODE=true")
+    }
+    # The texts add a page path after these URLs.
+    split("APP_USER_DOC_URL APP_BACKOFFICE_DOC_URL", slash, " ")
+    for (i = 1; i in slash; i++) {
+      if (!empty(slash[i]) && values[slash[i]] !~ /\/$/) {
+        fail(slash[i] " must end with /")
+      }
+    }
     if (failed) exit 1
 
     print "// Generated at container startup by docker/entrypoint.sh."
