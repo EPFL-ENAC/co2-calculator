@@ -44,7 +44,8 @@ const APP_VERSION = (() => {
 const APP_BUILD_TIME = new Date().toISOString();
 
 // Run in this order; error reporting must start before the router.
-const BOOT_FILES = ['sentry', 'matomo', 'i18n', 'router'];
+// first-frame is last: it waits for the static first frame, just before mount.
+const BOOT_FILES = ['sentry', 'matomo', 'i18n', 'router', 'first-frame'];
 
 // Quasar import()s each boot file only after the entry has run, which costs
 // one more round trip. A modulepreload per boot chunk fetches it with the entry.

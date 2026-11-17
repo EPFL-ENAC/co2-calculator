@@ -53,6 +53,33 @@ test.describe('static first frame of index.html', () => {
     await expect(page.locator('#shell')).toBeHidden();
   });
 
+  // Catches the app mounting before the browser showed the first frame
+  // (src/boot/first-frame.ts): the largest paint is then an element that the
+  // app draws, not the shell. Chromium reports the id of the painted element.
+  test('reaches the screen before the app mounts', async ({ page }) => {
+    await page.route(/\/api\/v1\/session$/, (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: '{}',
+      }),
+    );
+    await page.goto('/en/login');
+    await expect(page.locator('.login__logo img')).toBeVisible();
+    const largestPaintId = await page.evaluate(
+      () =>
+        new Promise<string>((resolve) => {
+          new PerformanceObserver((list) => {
+            const entries = list.getEntries() as (PerformanceEntry & {
+              id: string;
+            })[];
+            resolve(entries[entries.length - 1].id);
+          }).observe({ type: 'largest-contentful-paint', buffered: true });
+        }),
+    );
+    expect(largestPaintId).toBe('shell');
+  });
+
   // Catches screen readers announcing the title twice (shell + login card).
   test('is hidden from assistive technology', async ({ page }) => {
     await holdBackScripts(page);
