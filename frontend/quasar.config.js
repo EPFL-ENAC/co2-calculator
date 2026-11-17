@@ -13,6 +13,7 @@ import path from 'path';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 import { institutionPlugin, loadEnvLocal } from './build/institution.mjs';
+import loginMessages from './src/i18n/login.ts';
 
 // `quasar dev` reads the INSTITUTION_* paths and the APP_* overrides of
 // .env.local (see build/institution.mjs).
@@ -68,6 +69,16 @@ export default defineConfig(function () {
     // from @quasar/extras, so only the icons in use are bundled.
     // https://github.com/quasarframework/quasar/tree/dev/extras
     extras: [],
+
+    // The static first frame of index.html shows the login title before the
+    // bundle loads. It reads the text from i18n, so the string has one home.
+    // JSON is a JavaScript literal; "<" is escaped so no text ends the script.
+    htmlVariables: {
+      loginTitleJson: JSON.stringify(loginMessages.login_title).replace(
+        /</g,
+        '\\u003c',
+      ),
+    },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
 
