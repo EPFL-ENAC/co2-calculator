@@ -43,6 +43,33 @@ const APP_VERSION = (() => {
 })();
 const APP_BUILD_TIME = new Date().toISOString();
 
+// Run in this order; error reporting must start before the router.
+const BOOT_FILES = ['sentry', 'matomo', 'i18n', 'router'];
+
+// Quasar import()s each boot file only after the entry has run, which costs
+// one more round trip. A modulepreload per boot chunk fetches it with the entry.
+const bootPreloadPlugin = {
+  name: 'boot-modulepreload',
+  apply: 'build',
+  // `post`: Vite has injected the entry tags, so loaded chunks are visible.
+  transformIndexHtml: { order: 'post', handler: bootPreloadLinks },
+};
+
+function bootPreloadLinks(html, { bundle }) {
+  const chunks = Object.values(bundle).filter((c) => c.type === 'chunk');
+  const links = BOOT_FILES.map((name) => {
+    const re = new RegExp(`[\\\\/]src[\\\\/]boot[\\\\/]${name}\\.[jt]s$`);
+    const chunk = chunks.find((c) => c.moduleIds.some((id) => re.test(id)));
+    if (!chunk)
+      throw new Error(`boot-modulepreload: no chunk for boot/${name}`);
+    return chunk.fileName;
+  })
+    // A boot file inside a chunk index.html already loads needs no link.
+    .filter((file) => !html.includes(`/${file}"`))
+    .map((file) => `<link rel="modulepreload" crossorigin href="/${file}">`);
+  return html.replace('</head>', `${[...new Set(links)].join('')}</head>`);
+}
+
 export default defineConfig(function () {
   return {
     eslint: {
@@ -60,7 +87,7 @@ export default defineConfig(function () {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['sentry', 'matomo', 'i18n', 'router'],
+    boot: BOOT_FILES,
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
@@ -158,6 +185,7 @@ export default defineConfig(function () {
         // Dev-only: /injectEnv.js, /theme.css and /institution/* the way
         // nginx serves them in the container (#3244).
         viteConf.plugins.push({ ...institutionPlugin(), apply: 'serve' });
+        viteConf.plugins.push(bootPreloadPlugin);
         viteConf.plugins.push({
           name: 'co2-first-load-dev',
           apply: 'serve',
