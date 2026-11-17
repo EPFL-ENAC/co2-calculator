@@ -101,6 +101,8 @@
       Only the login route shows it, in the language of the URL: this file
       cannot know the cookie rules of the app, and the product name on a
       page of a logged-in user would be a flash. Other pages start blank.
+      On the login route the script also preloads the two images of the
+      login card, so they download with the entry instead of after it.
     -->
     <div id="shell" aria-hidden="true"></div>
     <script>
@@ -111,6 +113,14 @@
         );
         if (match) {
           document.getElementById('shell').textContent = titles[match[1]];
+          ['logo', 'login-illustration'].forEach(function (name, i) {
+            var link = document.createElement('link');
+            link.rel = 'preload';
+            link.as = 'image';
+            link.href = '/institution/' + name + '.svg';
+            if (i === 0) link.setAttribute('fetchpriority', 'high');
+            document.head.appendChild(link);
+          });
         }
       })(<%= loginTitleJson %>);
     </script>

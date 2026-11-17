@@ -1,7 +1,12 @@
 import { useAuthStore } from '@/stores/auth';
 import { RouteLocationNormalized } from 'vue-router';
-import { LOGIN_ROUTES, DEFAULT_ROUTE_NAME } from '../routeNames';
+import {
+  LOGIN_ROUTES,
+  LOGIN_ROUTE_NAME,
+  DEFAULT_ROUTE_NAME,
+} from '../routeNames';
 import { preloadAuthenticatedShell } from '../authenticatedShell';
+import { preloadLoginPage } from '../loginPage';
 // Authentication guard for protected routes
 
 export async function authGuard(to: RouteLocationNormalized) {
@@ -16,6 +21,8 @@ export async function authGuard(to: RouteLocationNormalized) {
 
   // Load user (+ units + configured years) if needed, in a single bootstrap call.
   if (!auth.hasChecked && !auth.loading) {
+    // The session is not known yet, so this is the first navigation.
+    if (to.name === LOGIN_ROUTE_NAME) preloadLoginPage();
     try {
       await auth.bootstrap();
     } catch (e) {

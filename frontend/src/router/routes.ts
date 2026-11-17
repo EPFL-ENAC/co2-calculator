@@ -13,6 +13,7 @@ import { isDevEnvironment } from './routeNames';
 import MainLayout from '@/layouts/MainLayout.vue';
 import WorkspacePage from '@/pages/app/WorkspacePage.vue';
 import { loadHomePage } from './authenticatedShell';
+import { loadLoginPage } from './loginPage';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -184,7 +185,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'login',
             name: LOGIN_ROUTE_NAME,
-            component: () => import('@/pages/app/LoginPage.vue'),
+            component: loadLoginPage,
             meta: {
               note: 'User authentication - Login page',
               breadcrumb: false,
