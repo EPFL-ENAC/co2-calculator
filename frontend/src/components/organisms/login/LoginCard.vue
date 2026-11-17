@@ -80,6 +80,10 @@ const buttonLabel = computed(() => {
           :alt="$t('login_logo_alt')"
           class="login__logo"
           width="125px"
+          loading="eager"
+          fetchpriority="high"
+          no-transition
+          no-spinner
         />
         <h2 class="text-weight-medium">{{ $t('login_title') }}</h2>
       </div>
