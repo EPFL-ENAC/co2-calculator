@@ -12,10 +12,10 @@ import { test, expect } from 'playwright/test';
  * This dispatches a real unhandled rejection with a stale-chunk message (the
  * webServer here runs `npm run preview` against the production build, so
  * `import.meta.env.DEV`-gated `window.__gtTest` doesn't exist) and asserts
- * the app shows a blocking, non-dismissible reload prompt instead of the
- * generic error toast.
+ * the app shows a sticky reload notification (a Notify, not a Dialog, so the
+ * Dialog plugin stays off the first load) instead of the generic error toast.
  */
-test('a stale-chunk failure shows a non-dismissible reload prompt, not an error toast', async ({
+test('a stale-chunk failure shows a sticky reload prompt, not an error toast', async ({
   page,
 }) => {
   // No backend runs against this webServer. Left unmocked, the session
@@ -36,26 +36,33 @@ test('a stale-chunk failure shows a non-dismissible reload prompt, not an error 
     page.getByRole('button', { name: /log ?in/i }).first(),
   ).toBeVisible();
 
-  await page.evaluate(() => {
-    void Promise.reject(
-      new Error('Unable to preload CSS for /assets/ResultsPage-abc123.css'),
-    );
-  });
+  const fireStaleChunk = () =>
+    page.evaluate(() => {
+      void Promise.reject(
+        new Error('Unable to preload CSS for /assets/ResultsPage-abc123.css'),
+      );
+    });
 
-  const dialog = page.locator('.reload-prompt-dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Reload' })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Later' })).toBeVisible();
+  await fireStaleChunk();
 
-  // Persistent: neither Escape nor a backdrop click may dismiss it.
+  const prompt = page.locator('.reload-prompt-notify');
+  await expect(prompt).toBeVisible();
+  await expect(prompt.getByRole('button', { name: 'Reload' })).toBeVisible();
+  await expect(prompt.getByRole('button', { name: 'Later' })).toBeVisible();
+
+  // A second stale-chunk error while the prompt is open must not stack.
+  await fireStaleChunk();
+  await expect(prompt).toHaveCount(1);
+
+  // Sticky: Escape, a click elsewhere, and time do not dismiss it.
   await page.keyboard.press('Escape');
-  await expect(dialog).toBeVisible();
   await page.mouse.click(5, 5);
-  await expect(dialog).toBeVisible();
+  await page.waitForTimeout(6000);
+  await expect(prompt).toBeVisible();
 
   // Never the generic red error toast for this error class.
-  await expect(page.locator('.q-notification')).toHaveCount(0);
+  await expect(page.locator('.q-notification.bg-negative')).toHaveCount(0);
 
-  await dialog.getByRole('button', { name: 'Later' }).click();
-  await expect(dialog).not.toBeVisible();
+  await prompt.getByRole('button', { name: 'Later' }).click();
+  await expect(prompt).toHaveCount(0);
 });
