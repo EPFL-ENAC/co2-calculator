@@ -32,13 +32,13 @@
 #
 # Why POSIX sh and awk, not node, python, bash or jq: the alpine-slim base
 # ships none of them. The dev server, the tests and Storybook run this same
-# file (see build/institution.mjs), so the checks and the parsers have one
-# implementation. Those runs set INSTITUTION_ENV_FILE, a file of
+# file (see build/institution.mjs), so the checks and the two parsers below
+# have one implementation. Those runs set INSTITUTION_ENV_FILE, a file of
 # APP_<NAME>=value lines that stands for the pod environment. A variable of
 # the shell wins over the file.
 #
-# The awk program sits inside single quotes: do not write an apostrophe in
-# it, not even in a comment.
+# The awk programs sit inside single quotes: do not write an apostrophe in
+# them, not even in a comment.
 
 # No pipefail: POSIX only added it in the 2024 spec and older /bin/sh
 # implementations lack it. No pipeline below has a left-hand command that can
@@ -49,7 +49,6 @@ OUT_DIR="${OUT_DIR:-/tmp}"
 ENV_FILE="${INSTITUTION_ENV_FILE:-}"
 INSTITUTION_DIR="${INSTITUTION_DIR:-/institution}"
 DEFAULT_DIR="${INSTITUTION_DEFAULT_DIR:-/usr/local/share/institution/default}"
-THEME_AWK="${THEME_AWK:-$(dirname "$0")/theme.awk}"
 
 # Keep in sync with the references in index.html and the logo components.
 # Each one has a default in DEFAULT_DIR.
@@ -214,9 +213,101 @@ mv "${tmp_dir}" "${OUT_DIR}/institution"
 # 3. Theme: theme.css
 # ------------------------------------------------------------------------------
 
-# docker/theme.awk reads theme.conf and prints the CSS.
+# Input: one "name: value" line per value, "#" starts a comment line.
+# Output: ":root { --theme-<name>: <value>; ... }" and one @font-face rule per
+# font weight. The names in the three lists are the whole contract:
+# institution-default/theme.conf.example documents each one, and
+# scripts/check-theme-keys.mjs fails `make type-check` when the colors and
+# lengths lists and the --theme-* names of the SCSS differ.
+#
+# A value is pasted into CSS, so each kind accepts one shape only and
+# everything else is refused: a hex color, a length, a font URL.
 tmp=$(mktemp "${OUT_DIR}/theme.css.XXXXXX")
-if ! awk -f "${THEME_AWK}" "${INSTITUTION_DIR}/theme.conf" > "${tmp}"; then
+if ! awk '
+  BEGIN {
+    split("accent accent-hover accent-light accent-lighter " \
+          "text text-muted surface border link highlight " \
+          "validated validated-light success warning error", colors, " ")
+    split("radius radius-lg", lengths, " ")
+    # Font names are not CSS properties: @font-face cannot read var().
+    split("font-regular font-medium font-bold", fonts, " ")
+    for (i in colors) kind[colors[i]] = "color"
+    for (i in lengths) kind[lengths[i]] = "length"
+    weight["font-regular"] = 400
+    weight["font-medium"] = 500
+    weight["font-bold"] = 700
+    for (i in fonts) {
+      kind[fonts[i]] = "font"
+      # Without a URL, the font comes from the fonts/ folder of the assets.
+      font[fonts[i]] = "/institution/fonts/" substr(fonts[i], 6) ".woff2"
+    }
+  }
+
+  function fail(message) {
+    printf "[entrypoint] %s line %d: %s\n", FILENAME, FNR, message > "/dev/stderr"
+    failed = 1
+  }
+  # No {n,m} interval: not every awk has it. Class test, then the length.
+  function is_color(value,    digits) {
+    digits = length(value) - 1
+    return value ~ /^#[0-9a-fA-F]+$/ && \
+      (digits == 3 || digits == 4 || digits == 6 || digits == 8)
+  }
+  function is_length(value) {
+    return value == "0" || value ~ /^[0-9]+(\.[0-9]+)?(px|rem|em|%)$/
+  }
+  # https://host/... or /path, never //host. Only the characters of a plain
+  # URL, so nothing can end the url("...") string.
+  function is_font_url(value) {
+    return value ~ /^(https:\/\/|\/)[A-Za-z0-9._~%\/?=&+:-]+$/ && \
+      value !~ /^\/\//
+  }
+
+  # \r: a theme.conf saved with Windows line endings.
+  /^[ \t\r]*(#|$)/ { next }
+
+  {
+    colon = index($0, ":")
+    if (colon == 0) { fail("expected \"name: value\""); next }
+    name = substr($0, 1, colon - 1)
+    value = substr($0, colon + 1)
+    gsub(/^[ \t]+|[ \t\r]+$/, "", name)
+    gsub(/^[ \t]+|[ \t\r]+$/, "", value)
+    if (!(name in kind)) { fail("unknown name \"" name "\""); next }
+    if (name in seen) { fail("\"" name "\" is set twice"); next }
+    seen[name] = 1
+    if (kind[name] == "color" && !is_color(value)) {
+      fail("\"" name "\" must be a hex color, for example #0050a0"); next
+    }
+    if (kind[name] == "length" && !is_length(value)) {
+      fail("\"" name "\" must be a length in px, rem, em or %"); next
+    }
+    if (kind[name] == "font") {
+      if (!is_font_url(value)) {
+        fail("\"" name "\" must be an https:// URL or a path that starts with /")
+        next
+      }
+      font[name] = value
+      next
+    }
+    order[++count] = name
+    values[name] = value
+  }
+
+  END {
+    if (!("accent" in seen)) {
+      printf "[entrypoint] %s: \"accent\" is required\n", FILENAME > "/dev/stderr"
+      failed = 1
+    }
+    if (failed) exit 1
+    print ":root {"
+    for (i = 1; i <= count; i++) printf "  --theme-%s: %s;\n", order[i], values[order[i]]
+    print "}"
+    for (i = 1; i <= 3; i++) {
+      name = fonts[i]
+      printf "@font-face {\n  font-family: InstitutionFont;\n  src: url(\"%s\") format(\"woff2\");\n  font-weight: %d;\n  font-style: normal;\n  font-display: swap;\n}\n", font[name], weight[name]
+    }
+  }' "${INSTITUTION_DIR}/theme.conf" > "${tmp}"; then
   rm -f "${tmp}"
   fail "invalid theme file ${INSTITUTION_DIR}/theme.conf"
 fi

@@ -9,7 +9,7 @@ The three files in this folder are the default fonts of the image (#3244).
 The files are Geist 1.3.1 (npm package `geist`), a free font with a Swiss
 design. They are subset to Latin-1, the usual punctuation, `€`, `−` and
 `₂`. The app loads them as the font family `InstitutionFont`, from the
-`@font-face` rules that `docker/theme.awk` writes into `theme.css`.
+`@font-face` rules that `docker/entrypoint.sh` writes into `theme.css`.
 
 An institution replaces them in one of two ways:
 
