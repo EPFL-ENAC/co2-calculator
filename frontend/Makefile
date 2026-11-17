@@ -161,5 +161,5 @@ storybook-install: ## Install Storybook dependencies (separate from frontend)
 
 .PHONY: storybook-docker
 storybook-docker: ## Build and run Storybook in Docker
-	docker build -f Dockerfile.storybook -t storybook .
+	docker build -f Dockerfile.storybook --build-context institutions=../institutions -t storybook .
 	docker run -p 8080:8080 storybook
