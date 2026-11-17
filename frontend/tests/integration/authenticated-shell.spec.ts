@@ -86,4 +86,48 @@ test.describe('signed-in shell', () => {
       'true',
     );
   });
+
+  // Catches the header or sidebars mounting a frame after the page content
+  // (defineAsyncComponent in MainLayout), which moved main.content-wrapper.
+  // Home route: the results page needs API mocks this file does not have.
+  test('a slow layout chunk does not shift the page content', async ({
+    page,
+  }) => {
+    await mockHomeBackend(page);
+    await page.route(/\/assets\/Co2Header-[\w-]+\.js$/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await route.continue();
+    });
+    await page.goto(HOME_URL);
+    await expect(page.locator('.home-workspace-bar')).toBeVisible({
+      timeout: 15000,
+    });
+    const shiftedContent = await page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          let count = 0;
+          new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              const shift = entry as PerformanceEntry & {
+                hadRecentInput: boolean;
+                sources: { node: Node | null }[];
+              };
+              if (shift.hadRecentInput) continue;
+              const moved = shift.sources.some(
+                (source) =>
+                  source.node instanceof Element &&
+                  source.node.matches('main.content-wrapper'),
+              );
+              if (moved) count += 1;
+            }
+          }).observe({ type: 'layout-shift', buffered: true });
+          // The buffered entries arrive in the first callback; one frame later
+          // all shifts up to now have been counted.
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => resolve(count)),
+          );
+        }),
+    );
+    expect(shiftedContent).toBe(0);
+  });
 });
