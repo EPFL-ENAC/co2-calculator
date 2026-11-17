@@ -62,8 +62,57 @@
       src/boot/sentry.ts runs.
     -->
     <script src="/injectEnv.js" defer></script>
+
+    <!--
+      First frame of the login page: its title as text, painted from this
+      file before the JavaScript runs. Shown only while #q-app is empty, so
+      the mounted app removes it without a script; fixed, so it moves nothing.
+      One step larger than the title of the login card (1.5rem): the largest
+      paint must stay this text, not the logo that the app draws later.
+      The font stack is $tokens-typography-font-family-base.
+    -->
+    <style>
+      #shell {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 0;
+        right: 0;
+        transform: translateY(-50%);
+        text-align: center;
+        font:
+          500 1.75rem InstitutionFont,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      #q-app:empty ~ #shell {
+        display: block;
+      }
+    </style>
   </head>
   <body>
     <!-- quasar:entry-point -->
+    <!--
+      aria-hidden: the login card says the same title a moment later. The
+      text is login_title of src/i18n/login.ts, given by quasar.config.js.
+      Only the login route shows it, in the language of the URL: this file
+      cannot know the cookie rules of the app, and the product name on a
+      page of a logged-in user would be a flash. Other pages start blank.
+    -->
+    <div id="shell" aria-hidden="true"></div>
+    <script>
+      (function (titles) {
+        var languages = Object.keys(titles).join('|');
+        var match = new RegExp('^/(' + languages + ')/login$').exec(
+          location.pathname,
+        );
+        if (match) {
+          document.getElementById('shell').textContent = titles[match[1]];
+        }
+      })(<%= loginTitleJson %>);
+    </script>
   </body>
 </html>
