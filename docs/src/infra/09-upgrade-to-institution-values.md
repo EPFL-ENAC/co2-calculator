@@ -73,11 +73,16 @@ browser. A variable whose name contains `SECRET`, `PASSWORD`, `TOKEN`,
 
 ## Update a developer checkout
 
+A new clone needs only `make install`. The command makes each env file
+that does not exist, from its example. A checkout that already has a
+`frontend/.env.local` keeps that file, so you add the two lines by hand.
+
 1. Pull the branch.
 2. Run `make install` at the repository root. It copies
    `institutions/epfl/frontend.env.example` to
    `institutions/epfl/frontend.env`.
-3. Add these two lines to `frontend/.env.local`.
+3. If `frontend/.env.local` is older than this version, add these two
+   lines to it.
 4. Delete each `APP_ACCESS_MANAGEMENT_PROVIDER_*` line from
    `frontend/.env.local`.
 5. Start the frontend dev server again.
