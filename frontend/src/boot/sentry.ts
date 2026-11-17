@@ -1,6 +1,6 @@
 import { matClose } from '@quasar/extras/material-icons';
 import { defineBoot } from '#q-app';
-import { Dialog, Notify } from 'quasar';
+import { Notify } from 'quasar';
 import { HTTPError } from 'ky';
 import type { ComponentPublicInstance } from 'vue';
 import { runtimeConfig } from '@/config/runtime';
@@ -93,28 +93,39 @@ function notifyError(message: string, caption?: string) {
   });
 }
 
-// Blocking "reload to get the new version" prompt. `persistent` blocks
-// Escape/backdrop-click so it can't be swiped away unnoticed; "Later" is the
-// deliberate escape hatch — we prompt rather than auto-reload, and this
-// dialog is reachable from generic error paths too (not just post-deploy
-// chunk failures), so a Reload-only trap could force a mid-form user to lose
-// unsaved work on an ordinary network blip. Guarded so a burst of chunk
-// errors (one per failed prefetch) shows a single dialog.
+// "Reload to get the new version" prompt. A Notify, not a Dialog: the Dialog
+// plugin cost every first load ~12 KB gzip for this rare prompt. timeout 0
+// keeps it until the user acts; "Later" is the escape hatch, since we prompt
+// rather than auto-reload (a mid-form user must not lose unsaved work on a
+// network blip). Guarded so a burst of chunk errors shows a single prompt.
 let reloadPromptShown = false;
 function notifyReloadOnce() {
   if (reloadPromptShown) return;
   reloadPromptShown = true;
-  Dialog.create({
-    class: 'reload-prompt-dialog',
+  Notify.create({
+    classes: 'reload-prompt-notify',
+    color: 'primary',
     message: i18n.global.t('new_version_available'),
-    persistent: true,
-    ok: { label: i18n.global.t('reload'), color: 'primary', noCaps: true },
-    cancel: { label: i18n.global.t('later'), flat: true, noCaps: true },
-  })
-    .onOk(() => window.location.reload())
-    .onCancel(() => {
-      reloadPromptShown = false;
-    });
+    position: 'top',
+    timeout: 0,
+    actions: [
+      {
+        label: i18n.global.t('reload'),
+        color: 'white',
+        noCaps: true,
+        handler: () => window.location.reload(),
+      },
+      {
+        label: i18n.global.t('later'),
+        color: 'white',
+        flat: true,
+        noCaps: true,
+        handler: () => {
+          reloadPromptShown = false;
+        },
+      },
+    ],
+  });
 }
 
 // Route a stale-chunk failure to the reload prompt instead of the generic

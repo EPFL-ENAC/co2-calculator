@@ -243,14 +243,7 @@ export default defineConfig(function () {
       // Quasar's own component icons (dropdown arrows, sort carets, close
       // buttons) as inline SVG — they default to webfont ligature names.
       iconSet: 'svg-material-icons',
-      plugins: [
-        'Dialog',
-        'Loading',
-        'Notify',
-        'LocalStorage',
-        'SessionStorage',
-        'Meta',
-      ],
+      plugins: ['Loading', 'Notify', 'LocalStorage', 'SessionStorage', 'Meta'],
       cssAddon: false,
       // override css!
       // config: {
