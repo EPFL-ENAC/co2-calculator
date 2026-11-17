@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import Co2Header from '@/components/layout/Co2Header.vue';
+import { computed, defineAsyncComponent } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import { isBackOfficeRoute } from '@/router/routes';
-import Co2Sidebar from '@/components/layout/Co2Sidebar.vue';
-import Co2ModuleSidebar from '@/components/organisms/layout/Co2ModuleSidebar.vue';
+import {
+  loadCo2Header,
+  loadCo2Sidebar,
+  loadCo2ModuleSidebar,
+} from '@/router/authenticatedShell';
 import { BACKOFFICE_NAV } from '@/constant/navigation';
+
+// The login page draws this layout without them; the router has them loaded
+// before any signed-in page is shown (see authenticatedShell.ts).
+const Co2Header = defineAsyncComponent(loadCo2Header);
+const Co2Sidebar = defineAsyncComponent(loadCo2Sidebar);
+const Co2ModuleSidebar = defineAsyncComponent(loadCo2ModuleSidebar);
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
