@@ -48,19 +48,15 @@
     <link rel="icon" type="image/ico" href="/institution/favicon.ico" />
     <link rel="apple-touch-icon" href="/institution/favicon-128x128.png" />
     <!--
-      Colors, corner radii and fonts of the institution, written at
-      container startup from its theme.conf by docker/entrypoint.sh.
+      Colors, corner radii and fonts of the institution, then the APP_*
+      values (window.injectedEnvVariable). The dev server serves both as
+      files. On the built page, docker/entrypoint.sh finds these two tags by
+      their URL at container startup and puts a style and a script element
+      with the content in their place: keep one tag per URL.
+      defer keeps the dev file off the render-blocking path and still runs
+      it before the module bundle, so src/boot/sentry.ts finds the values.
     -->
     <link rel="stylesheet" href="/theme.css" />
-
-    <!--
-      Runtime config. In production this file is overwritten by
-      docker/entrypoint.sh on container startup with the per-env values
-      (Sentry DSN, environment, etc.). defer (not sync) keeps it off the
-      render-blocking path while still running before the app's module
-      bundle, so window.injectedEnvVariable is populated before
-      src/boot/sentry.ts runs.
-    -->
     <script src="/injectEnv.js" defer></script>
   </head>
   <body>

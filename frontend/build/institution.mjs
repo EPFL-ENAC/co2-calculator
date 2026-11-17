@@ -1,8 +1,8 @@
 // Institution values and assets outside the container (#3244).
 //
-// Why this exists: in the container, docker/entrypoint.sh writes
-// injectEnv.js, theme.css and the institution/ folder at startup, and nginx
-// serves them. `quasar dev`, `vite preview`, the component tests and
+// Why this exists: in the container, docker/entrypoint.sh writes the values,
+// the theme and the institution/ folder at startup, and nginx serves them.
+// `quasar dev`, `vite preview`, the component tests and
 // Storybook run that same script here, into a folder that Vite serves as its
 // public folder. This file holds no parser, no check and no file server: it
 // only starts the script.
@@ -50,12 +50,16 @@ export const loadEnvLocal = () => {
 /**
  * Write injectEnv.js, theme.css and the institution/ folder into outDir with
  * the container script. A wrong value or file throws with the script's error.
+ * With indexHtml, the built page, the script puts the values and the theme
+ * into outDir/index.html instead, as in the container. The dev server, the
+ * component tests and Storybook build their own page, so they pass none.
  */
-export const writeInstitutionFiles = (outDir) => {
+export const writeInstitutionFiles = (outDir, indexHtml = '') => {
   const result = spawnSync('sh', [join(FRONTEND_DIR, 'docker/entrypoint.sh')], {
     env: {
       ...process.env,
       OUT_DIR: outDir,
+      INDEX_HTML: indexHtml,
       INSTITUTION_ENV_FILE: requirePath('INSTITUTION_ENV_FILE'),
       INSTITUTION_DIR: requirePath('INSTITUTION_ASSETS_DIR'),
       INSTITUTION_DEFAULT_DIR: join(FRONTEND_DIR, 'institution-default'),

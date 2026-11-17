@@ -186,7 +186,7 @@ INSTITUTION_ASSETS_DIR=../institutions/univ/assets
 If the check passes, the log shows this line:
 
 ```
-[entrypoint] wrote injectEnv.js, institution/ and theme.css in /tmp
+[entrypoint] wrote institution/ and index.html, with the values and the theme, in /tmp
 ```
 
 ## 6. Make sure that it works

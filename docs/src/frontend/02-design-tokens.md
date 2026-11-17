@@ -22,8 +22,8 @@ frontend/src/css/
 ```
 
 The bundle declares no font. The `@font-face` rules of the family
-`InstitutionFont` are in `/theme.css`, which the container writes at startup
-from the `theme.conf` of the institution (#3244). See
+`InstitutionFont` are in the theme, which the container writes into the page
+at startup from the `theme.conf` of the institution (#3244). See
 [Set up a new institution](../infra/08-new-institution.md).
 
 There is **no shared component CSS folder**. Rules of thumb:

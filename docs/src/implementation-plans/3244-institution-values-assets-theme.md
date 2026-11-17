@@ -28,6 +28,21 @@ preview`, the component tests and Storybook get `injectEnv.js`,
   `build/institution.mjs` only starts it and gives its output to Vite as the
   public folder. So the repository has one parser for the values file, one
   for the theme, and no second file server.
+- In the container and under `vite preview`, the same script puts the
+  values and the theme into `index.html`, in place of the two tags that
+  load them, and removes the two files. The container writes the page to
+  `/tmp/index.html` and nginx serves it for every route. The first response
+  then carries them: two requests less, one of them render-blocking. The
+  page grows from 4.5 KB to 6.4 KB (1.2 KB to 1.8 KB gzipped) for the EPFL
+  values. Rejected: nginx SSI or `sub_filter`, because only nginx would run
+  them, so the e2e tests and Lighthouse would not. The dev server, the
+  component tests and Storybook have no built page and keep the two files.
+- A `<` in a value is written as the JS escape `<`, so no value can
+  close the `<script>` element. No theme shape accepts `<`. If the CSP gets
+  a `script-src`, the element needs a hash that the script writes at
+  startup into an nginx include, or a nonce per request.
+- The logo is not put into the page. Vue renders it as an image, and an
+  SVG inside the page can run script in the origin of the app.
 - A wrong value stops the container, and the app has no page for it. A
   rollout with a wrong key then keeps the old pods. The browser does not
   check the values again.

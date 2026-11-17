@@ -72,16 +72,16 @@ Set them per context:
   `docker compose up`.
 
 Under the pod's `readOnlyRootFilesystem`, these values are injected
-at startup into `/tmp/injectEnv.js` and read from
+at startup into `/tmp/index.html` and read from
 `window.injectedEnvVariable` — see the
 [implementation plan](../implementation-plans/344-frontend-error-monitoring.md)
 for the runtime-injection design.
 
 ## Troubleshooting
 
-- **No events in GlitchTip:** open the deployed app, load
-  `/injectEnv.js` in the browser, and confirm `APP_SENTRY_DSN` is a
-  non-empty value. Empty → ops repo override is missing.
+- **No events in GlitchTip:** open the deployed app, type
+  `window.injectedEnvVariable` in the browser console, and confirm
+  `APP_SENTRY_DSN` is a non-empty value. Empty → ops repo override is missing.
 - **Stack traces are minified:** known limitation. Source maps are
   disabled (`sourcemap: false`) to keep the bundle small; traces show
   line:column only. Reading minified frames is the current tradeoff.

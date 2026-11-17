@@ -14,21 +14,28 @@
 #   theme.css      colors, corner radii and fonts, from theme.conf of the
 #                  mounted folder
 #
+# When INDEX_HTML names the built page (the container, `vite preview`), the
+# values and the theme go into a copy of it, OUT_DIR/index.html, in place of
+# the two tags that load them, and the two files are removed. The first
+# response then carries them: two requests less, one of them render-blocking.
+# A run without a built page (`quasar dev`, component tests, Storybook) sets
+# INDEX_HTML empty and keeps the two files.
+#
 # Any error exits 1, and the nginx entrypoint then stops the container: a
 # rollout with a wrong value keeps the old pods instead of serving a broken
 # app.
 #
-# Every APP_* value is PUBLIC: injectEnv.js goes to every browser, without a
+# Every APP_* value is PUBLIC: the page goes to every browser, without a
 # login. Never put a secret in an APP_* variable. A key whose name looks like
 # a secret stops the startup.
 #
-# Why a JS file and not envsubst on index.html: the JS bundle is fingerprinted
-# and cached one year (see nginx.conf). injectEnv.js is a no-cache surface, so
+# Why the page and not the bundle: the JS bundle is fingerprinted and cached
+# one year (see nginx.conf). index.html is a no-cache surface, so
 # per-deployment values must live there or they get pinned to the first deploy.
 #
 # Why OUT_DIR is /tmp: the pod runs with readOnlyRootFilesystem (see
 # helm/values.yaml frontend.securityContext), and /tmp is a writable emptyDir.
-# nginx.conf maps /injectEnv.js, /theme.css and /institution/ to it.
+# nginx.conf maps /index.html and /institution/ to it.
 #
 # Why POSIX sh and awk, not node, python, bash or jq: the alpine-slim base
 # ships none of them. The dev server, the tests and Storybook run this same
@@ -49,6 +56,8 @@ OUT_DIR="${OUT_DIR:-/tmp}"
 ENV_FILE="${INSTITUTION_ENV_FILE:-}"
 INSTITUTION_DIR="${INSTITUTION_DIR:-/institution}"
 DEFAULT_DIR="${INSTITUTION_DEFAULT_DIR:-/usr/local/share/institution/default}"
+# "-", not ":-": an empty value means a run without a built page, see above.
+INDEX_HTML="${INDEX_HTML-/usr/share/nginx/html/index.html}"
 
 # Keep in sync with the references in index.html and the logo components.
 # Each one has a default in DEFAULT_DIR.
@@ -140,8 +149,6 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
     }
     if (failed) exit 1
 
-    print "// Generated at container startup by docker/entrypoint.sh."
-    print "// Do not edit: the values are the APP_* environment variables."
     for (i = 1; i <= count; i++) {
       value = values[order[i]]
       gsub(/\\/, "\\\\&", value)
@@ -149,6 +156,12 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
       pairs = pairs sep "\"" order[i] "\": \"" value "\""
       sep = ", "
     }
+    # This line goes into a <script> element of the page. "<" as a JS escape:
+    # no key or value can then close the element or open an HTML comment.
+    # split and join, not gsub: awks differ on a backslash in a replacement.
+    parts = split(pairs, piece, "<")
+    pairs = piece[1]
+    for (i = 2; i <= parts; i++) pairs = pairs "\\u003c" piece[i]
     print "window.injectedEnvVariable = { " pairs " };"
   }' ${ENV_FILE:+"${ENV_FILE}"} - > "${tmp}"; then
   rm -f "${tmp}"
@@ -221,7 +234,8 @@ mv "${tmp_dir}" "${OUT_DIR}/institution"
 # lengths lists and the --theme-* names of the SCSS differ.
 #
 # A value is pasted into CSS, so each kind accepts one shape only and
-# everything else is refused: a hex color, a length, a font URL.
+# everything else is refused: a hex color, a length, a font URL. No shape
+# accepts "<", so the CSS cannot close the <style> element of the page.
 tmp=$(mktemp "${OUT_DIR}/theme.css.XXXXXX")
 if ! awk '
   BEGIN {
@@ -314,4 +328,70 @@ fi
 chmod 644 "${tmp}"
 mv -f "${tmp}" "${OUT_DIR}/theme.css"
 
-echo "[entrypoint] wrote injectEnv.js, institution/ and theme.css in ${OUT_DIR}"
+if [ -z "${INDEX_HTML}" ]; then
+  echo "[entrypoint] wrote injectEnv.js, institution/ and theme.css in ${OUT_DIR}"
+  exit 0
+fi
+
+# ------------------------------------------------------------------------------
+# 4. Page: index.html with the values and the theme inside
+# ------------------------------------------------------------------------------
+
+# Why: as files, the browser finds the values and the theme only after it
+# reads the page, and theme.css blocks the first paint. The logo stays a
+# file: an SVG inside the page can run script in the origin of the app.
+if [ ! -s "${INDEX_HTML}" ]; then
+  fail "missing or empty: ${INDEX_HTML}. Set INDEX_HTML to the built index.html, or to nothing for a run without one."
+fi
+
+# awk reads the two files, then the page, and splices with index and substr:
+# sub() would read "&" and "\" of a value as its own syntax. The page can be
+# OUT_DIR/index.html itself (`vite preview` starts again on the same build):
+# awk reads all of it before the mv, and finds the elements of the last run.
+tmp=$(mktemp "${OUT_DIR}/index.html.XXXXXX")
+if ! awk '
+  FNR == 1 { part++ }
+  part == 1 { css = css $0 "\n"; next }
+  part == 2 { js = js $0 "\n"; next }
+  { page = page (FNR == 1 ? "" : "\n") $0 }
+
+  # Puts element in place of the tag that holds token, up to closing.
+  # Returns "" when the page has no such tag.
+  function splice(token, closing, element,    at, start, to_close) {
+    at = index(page, token)
+    if (at == 0) return ""
+    start = at
+    while (start > 1 && substr(page, start, 1) != "<") start--
+    to_close = index(substr(page, at), closing)
+    if (to_close == 0) return ""
+    return substr(page, 1, start - 1) element \
+      substr(page, at + to_close + length(closing) - 1)
+  }
+  # The element of an earlier run first, then the tag of the build. The
+  # build writes its attributes with or without quotes: match the URL only.
+  function inline(id, name, url, tag_close, content,    open, closing, result) {
+    open = "<" name " id=\"" id "\">"
+    closing = "</" name ">"
+    result = splice(open, closing, open content closing)
+    if (result == "") result = splice(url, tag_close, open content closing)
+    if (result == "") {
+      print "[entrypoint] " FILENAME ": no tag loads " url > "/dev/stderr"
+      exit 1
+    }
+    page = result
+  }
+
+  END {
+    inline("institution-theme", "style", "/theme.css", ">", css)
+    inline("institution-values", "script", "/injectEnv.js", "</script>", js)
+    print page
+  }' "${OUT_DIR}/theme.css" "${OUT_DIR}/injectEnv.js" "${INDEX_HTML}" > "${tmp}"; then
+  rm -f "${tmp}"
+  fail "cannot put the values and the theme into ${INDEX_HTML}"
+fi
+chmod 644 "${tmp}"
+mv -f "${tmp}" "${OUT_DIR}/index.html"
+# The page holds them now: a leftover file would hide a page that lost them.
+rm -f "${OUT_DIR}/theme.css" "${OUT_DIR}/injectEnv.js"
+
+echo "[entrypoint] wrote institution/ and index.html, with the values and the theme, in ${OUT_DIR}"

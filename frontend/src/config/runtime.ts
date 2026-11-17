@@ -1,11 +1,11 @@
 // Runtime configuration values.
 //
 // The same bundle ships to every deployment and every institution. The values
-// come from window.injectedEnvVariable, which /injectEnv.js sets. In the
-// container docker/entrypoint.sh writes that file from the APP_* environment
-// variables at startup. `quasar dev`, `vite preview` and the component tests
-// get it from the same script through build/institution.mjs, so every run
-// reads its values the same way (#3244).
+// come from window.injectedEnvVariable. In the container
+// docker/entrypoint.sh writes the script that sets it into index.html, from
+// the APP_* environment variables at startup. `quasar dev` and the component
+// tests get it as /injectEnv.js from the same script through
+// build/institution.mjs, so every run reads its values the same way (#3244).
 //
 // APP_VERSION and APP_BUILD_TIME identify the bundle itself, so they stay
 // build-time values. `hasViteEnv &&` guards them because Playwright's

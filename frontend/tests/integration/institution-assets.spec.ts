@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 
 /**
- * #3244 — the institution comes from the deployment: values from
- * /injectEnv.js, files from /institution/, colors from /theme.css. The run
+ * #3244 — the institution comes from the deployment: values and colors
+ * inside the page, files from /institution/. The run
  * uses the institution of playwright.config.js, prepared by build/prepare-preview.mjs with the
  * container script.
  */
@@ -46,17 +46,20 @@ test('fonts, logo and icons load from the institution folder', async ({
 
 test('the theme accent colors the buttons', async ({ page }) => {
   await stubSession(page);
-  await page.route('/theme.css', (route) =>
-    route.fulfill({
-      contentType: 'text/css',
-      body: ':root { --theme-accent: #0000ff; }',
-    }),
-  );
+  // The theme is inside the page, as in the container: no request loads it.
+  const themeRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/(theme\.css|injectEnv\.js)$/.test(request.url())) {
+      themeRequests.push(request.url());
+    }
+  });
   await page.goto('/');
   const accent = await page.evaluate(() =>
     getComputedStyle(document.documentElement)
       .getPropertyValue('--q-accent')
       .trim(),
   );
-  expect(accent).toBe('#0000ff');
+  // The accent of tests/institution/theme.conf (see playwright.config.js).
+  expect(accent).toBe('#424242');
+  expect(themeRequests).toEqual([]);
 });
