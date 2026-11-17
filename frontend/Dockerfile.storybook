@@ -18,7 +18,7 @@ COPY src/ ./src/
 COPY storybook/ ./storybook/
 COPY index.html tsconfig.json quasar.config.js quasar.extensions.json ./
 # The Storybook build writes injectEnv.js, theme.css and the institution
-# folder with the container scripts (#3244). storybook/.storybook/main.ts
+# folder with the container script (#3244). storybook/.storybook/main.ts
 # reads institutions/epfl, which is outside this build context: the workflow
 # passes the institutions folder as the named context "institutions", and it
 # lands at ../institutions from /app.

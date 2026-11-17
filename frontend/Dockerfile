@@ -58,14 +58,11 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Runtime env injection. The base image's stock entrypoint runs every
-# /docker-entrypoint.d/*.sh before exec'ing nginx. Numbered 40 to land after
-# the base image's own 10–30 init scripts. See docker/entrypoint.sh for what
-# it writes and why.
-COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-inject-env.sh
-# Institution assets check and theme (see docker/institution.sh). Numbered
-# 41 so it runs after the env injection. A failure stops the container.
-COPY --chmod=755 docker/institution.sh /docker-entrypoint.d/41-institution.sh
+# Values, institution assets and theme, written at startup. The base image's
+# stock entrypoint runs every /docker-entrypoint.d/*.sh before exec'ing nginx.
+# Numbered 40 to land after the base image's own 10–30 init scripts. A failure
+# stops the container. See docker/entrypoint.sh for what it writes and why.
+COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-entrypoint.sh
 COPY --chmod=755 docker/theme.awk /usr/local/share/institution/theme.awk
 ENV THEME_AWK=/usr/local/share/institution/theme.awk
 # Neutral logo, icons, illustration and Geist fonts. The mounted folder

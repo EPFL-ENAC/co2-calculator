@@ -1,13 +1,13 @@
 // Institution values and assets outside the container (#3244).
 //
-// Why this exists: the container gets /injectEnv.js and /theme.css from
-// docker/entrypoint.sh and docker/institution.sh at startup. `quasar dev`,
-// `vite preview` and the component tests run the same two scripts here, so
-// every run reads the institution the same way and the scripts have no
-// second implementation in JavaScript.
+// Why this exists: in the container, docker/entrypoint.sh writes
+// injectEnv.js, theme.css and the institution/ folder at startup, and nginx
+// serves them. `quasar dev`, `vite preview`, the component tests and
+// Storybook run that same script here. This file holds no parser and no
+// check: it starts the script and serves its output.
 //
 // Two environment variables point at the institution:
-//   INSTITUTION_ENV_FILE    the APP_* values (KEY=value lines)
+//   INSTITUTION_ENV_FILE    the APP_* values (APP_<NAME>=value lines)
 //   INSTITUTION_ASSETS_DIR  the assets folder the container mounts
 // Both are required: the values have no default, and the folder gives at
 // least theme.conf. The other assets default to institution-default/.
@@ -18,10 +18,8 @@ import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const FRONTEND_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DOCKER_DIR = join(FRONTEND_DIR, 'docker');
-const DEFAULT_DIR = join(FRONTEND_DIR, 'institution-default');
 
-const requireEnv = (name) => {
+const requirePath = (name) => {
   const value = process.env[name];
   if (!value) {
     throw new Error(
@@ -40,69 +38,32 @@ const requireEnv = (name) => {
 
 /**
  * Load frontend/.env.local into process.env, for `quasar dev` and `npm run
- * preview`. Neither Quasar nor this script reads .env files by itself. Lines
- * are KEY=value, with optional quotes, and `#` starts a comment. A variable
- * already set in the shell wins, as with Vite.
+ * preview`: neither reads .env files by itself. Node parses the file, and a
+ * variable already set in the shell wins.
  */
 export const loadEnvLocal = () => {
   const envLocal = join(FRONTEND_DIR, '.env.local');
-  if (!existsSync(envLocal)) return;
-  for (const raw of readFileSync(envLocal, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
-    if (!m) continue;
-    let v = m[2].trim();
-    if (
-      (v.startsWith('"') && v.endsWith('"')) ||
-      (v.startsWith("'") && v.endsWith("'"))
-    ) {
-      v = v.slice(1, -1);
-    }
-    if (process.env[m[1]] === undefined) process.env[m[1]] = v;
-  }
-};
-
-/** KEY=value lines, `#` comments. Values are literal, like a compose env_file. */
-export const readEnvFile = (file) => {
-  const values = {};
-  readFileSync(file, 'utf8')
-    .split('\n')
-    .forEach((raw, index) => {
-      const line = raw.trim();
-      if (!line || line.startsWith('#')) return;
-      const match = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-      if (!match)
-        throw new Error(`${file} line ${index + 1}: expected KEY=value`);
-      values[match[1]] = match[2];
-    });
-  return values;
-};
-
-const run = (script, env) => {
-  const result = spawnSync('sh', [join(DOCKER_DIR, script)], {
-    env,
-    encoding: 'utf8',
-  });
-  if (result.status !== 0) {
-    throw new Error(`${script} failed:\n${result.stderr || result.stdout}`);
-  }
+  if (existsSync(envLocal)) process.loadEnvFile(envLocal);
 };
 
 /**
  * Write injectEnv.js, theme.css and the institution/ folder into outDir with
- * the container scripts. The shell environment wins over the env file, as in
- * the container.
+ * the container script. A wrong value or file throws with the script's error.
  */
 export const writeInstitutionFiles = (outDir) => {
-  const values = readEnvFile(requireEnv('INSTITUTION_ENV_FILE'));
-  const env = { ...values, ...process.env, OUT_DIR: outDir };
-  run('entrypoint.sh', env);
-  run('institution.sh', {
-    ...env,
-    INSTITUTION_DIR: requireEnv('INSTITUTION_ASSETS_DIR'),
-    INSTITUTION_DEFAULT_DIR: DEFAULT_DIR,
+  const result = spawnSync('sh', [join(FRONTEND_DIR, 'docker/entrypoint.sh')], {
+    env: {
+      ...process.env,
+      OUT_DIR: outDir,
+      INSTITUTION_ENV_FILE: requirePath('INSTITUTION_ENV_FILE'),
+      INSTITUTION_DIR: requirePath('INSTITUTION_ASSETS_DIR'),
+      INSTITUTION_DEFAULT_DIR: join(FRONTEND_DIR, 'institution-default'),
+    },
+    encoding: 'utf8',
   });
+  if (result.status !== 0) {
+    throw new Error(`docker/entrypoint.sh failed:\n${result.stderr}`);
+  }
 };
 
 const CONTENT_TYPES = {

@@ -1,10 +1,12 @@
 import { test, expect } from 'playwright/test';
-import { readEnvFile } from '../../build/institution.mjs';
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 
 // The title names the institution of the run (playwright.config.js, #3244).
-const institution = readEnvFile(
-  process.env.INSTITUTION_ENV_FILE ?? '',
-).APP_INSTITUTION_NAME;
+const values = parseEnv(
+  readFileSync(process.env.INSTITUTION_ENV_FILE ?? '', 'utf8'),
+);
+const institution = values.APP_INSTITUTION_NAME;
 
 test('homepage loads', async ({ page }) => {
   await page.goto('/'); // Uses baseURL automatically
@@ -12,9 +14,7 @@ test('homepage loads', async ({ page }) => {
 });
 
 test('the tab title follows a change of language', async ({ page }) => {
-  const nameFrDe = readEnvFile(
-    process.env.INSTITUTION_ENV_FILE ?? '',
-  ).APP_INSTITUTION_NAME_FR_DE;
+  const nameFrDe = values.APP_INSTITUTION_NAME_FR_DE;
   // No backend runs against this webServer (see chunk-load-reload.spec.ts).
   await page.route(/\/api\/v1\/session$/, (route) =>
     route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
