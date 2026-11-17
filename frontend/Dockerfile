@@ -63,8 +63,6 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Numbered 40 to land after the base image's own 10–30 init scripts. A failure
 # stops the container. See docker/entrypoint.sh for what it writes and why.
 COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-entrypoint.sh
-COPY --chmod=755 docker/theme.awk /usr/local/share/institution/theme.awk
-ENV THEME_AWK=/usr/local/share/institution/theme.awk
 # Neutral logo, icons, illustration and Geist fonts. The mounted folder
 # replaces any of them, so a deployment works without its own files.
 COPY institution-default /usr/local/share/institution/default

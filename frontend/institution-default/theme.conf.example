@@ -4,9 +4,10 @@
 # folder must give theme.conf: the image has no default for it.
 #
 # One "name: value" line per value. A line that starts with "#" is a
-# comment. A value is a CSS color or length, without ";", "{", "}" or "<".
+# comment. A color is a hex value (#rgb or #rrggbb, with or without alpha).
+# A length is a number with px, rem, em or %. Any other value is refused.
 # An unknown name stops the frontend at startup, and the log gives the line.
-# The list of names is in frontend/docker/theme.awk.
+# The list of names is in frontend/docker/entrypoint.sh.
 #
 # Only accent is required. Every other name keeps the default of the base
 # design, shown in its line below. To change one, remove the "# " in front
@@ -59,7 +60,7 @@ accent: #424242
 # radius-lg: 0.75rem
 
 # Fonts. Each value is the URL of a woff2 file: an https:// URL, or a path
-# that starts with /. Without them, the app loads fonts/regular.woff2,
+# that starts with one /. Without them, the app loads fonts/regular.woff2,
 # fonts/medium.woff2 and fonts/bold.woff2 of the assets folder. If the folder
 # does not give them, the image gives Geist (see fonts/README.md).
 # A font server of another host must allow this site in its CORS headers.

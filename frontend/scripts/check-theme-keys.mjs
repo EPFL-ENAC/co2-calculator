@@ -1,29 +1,31 @@
 // Fails the type check when the theme names drift (#3244).
 //
-// docker/theme.awk lists the names a theme.conf may set, and the SCSS reads
-// them as var(--theme-<name>). A name only in the SCSS can never be set; a
-// name only in theme.awk is accepted but changes nothing. Neither errors at
-// runtime, so this check is the only place the drift shows.
+// docker/entrypoint.sh lists the names a theme.conf may set, and the SCSS
+// reads them as var(--theme-<name>). A name only in the SCSS can never be
+// set; a name only in the script is accepted but changes nothing. Neither
+// errors at runtime, so this check is the only place the drift shows.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const FRONTEND = new URL('../', import.meta.url).pathname;
 
-const awk = readFileSync(join(FRONTEND, 'docker/theme.awk'), 'utf8');
-// String search, not one regex over the call: the list spans quoted,
+const script = readFileSync(join(FRONTEND, 'docker/entrypoint.sh'), 'utf8');
+// String search, not one regex over the call: a list spans quoted,
 // backslash-continued lines, and a regex for that backtracks badly.
-const start = awk.indexOf('split(');
-const end = awk.indexOf(', names', start);
-if (start === -1 || end === -1) {
-  throw new Error('docker/theme.awk: no split("...", names) list');
-}
-const known = new Set(
-  [...awk.slice(start, end).matchAll(/"([^"]*)"/g)]
+const list = (array) => {
+  const end = script.indexOf(`, ${array}, " ")`);
+  const start = script.lastIndexOf('split(', end);
+  if (start === -1 || end === -1) {
+    throw new Error(`docker/entrypoint.sh: no split("...", ${array}) list`);
+  }
+  return [...script.slice(start, end).matchAll(/"([^"]*)"/g)]
     .map((m) => m[1])
     .join('')
     .split(/\s+/)
-    .filter(Boolean),
-);
+    .filter(Boolean);
+};
+// The font names are not here: they become @font-face rules, not variables.
+const known = new Set([...list('colors'), ...list('lengths')]);
 
 const files = readdirSync(join(FRONTEND, 'src'), { recursive: true })
   .filter((file) => /\.(scss|vue)$/.test(file))
@@ -42,12 +44,12 @@ const unused = [...known].filter((name) => !used.has(name));
 if (unknown.length || unused.length) {
   console.error(
     [
-      unknown.length && `SCSS reads names theme.awk refuses: ${unknown}`,
-      unused.length && `theme.awk accepts names no SCSS reads: ${unused}`,
+      unknown.length && `SCSS reads names entrypoint.sh refuses: ${unknown}`,
+      unused.length && `entrypoint.sh accepts names no SCSS reads: ${unused}`,
     ]
       .filter(Boolean)
       .join('\n'),
   );
   process.exit(1);
 }
-console.log(`theme keys: ${known.size} names, SCSS and theme.awk agree`);
+console.log(`theme keys: ${known.size} names, SCSS and entrypoint.sh agree`);

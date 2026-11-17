@@ -99,12 +99,24 @@ test('theme.conf points the fonts at a font server', () => {
   expect(css).toContain('url("/institution/fonts/medium.woff2")');
 });
 
-test('a font value that is not a URL stops the startup', () => {
-  theme('accent: #0050a0\nfont-bold: javascript:alert(1)\n');
-  const result = run();
-  expect(result.status).toBe(1);
-  expect(result.stderr).toContain('"font-bold" must be an https:// URL');
-});
+// Each value is pasted into CSS, so only one shape per kind passes.
+for (const [line, message] of [
+  ['font-bold: javascript:alert(1)', '"font-bold" must be an https:// URL'],
+  ['font-bold: //fonts.example.org/b.woff2', '"font-bold" must be an https://'],
+  ['font-bold: https://f.example.org/a").woff2', '"font-bold" must be an'],
+  ['accent-hover: red', '"accent-hover" must be a hex color'],
+  ['accent-hover: #12345', '"accent-hover" must be a hex color'],
+  ['accent-hover: url(https://x.example.org)', '"accent-hover" must be a hex'],
+  ['radius: 1px; } body { color: red', '"radius" must be a length'],
+  ['shadow: 1px', 'unknown name "shadow"'],
+]) {
+  test(`the theme line "${line}" stops the startup`, () => {
+    theme(`accent: #0050a0\n${line}\n`);
+    const result = run();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(message);
+  });
+}
 
 test('a folder without theme.conf stops the startup', () => {
   write('logo.svg', '<svg/>');

@@ -13,7 +13,7 @@ $tokens-spacing-64: 4rem !default;
 
 // Border Radius
 // Theme values (#3244): --theme-* comes from the theme.conf of the
-// institution (docker/theme.awk). The fallback is the base design.
+// institution (docker/entrypoint.sh). The fallback is the base design.
 $tokens-border-radius-generic-border-radius: var(
   --theme-radius,
   0.1875rem
