@@ -141,7 +141,7 @@ no description has only a comment in `values.yaml`. The chart
 | worker.autoscaling.maxReplicas | int | `4` |  |
 | worker.autoscaling.targetCPUUtilizationPercentage | int | `60` |  |
 | worker.autoscaling.targetMemoryUtilizationPercentage | int | `80` |  |
-| worker.env | object | `{}` | Worker env vars, merged over backend.env: a key set here wins. Set only what differs from the backend. |
+| worker.env | object | `{}` | Worker env vars, merged over backend.env: a key set here wins. Set only what differs from the backend. The worker does not inherit RUN_PIPELINE_RECONCILER, so it runs the reconciler unless set here. A null value does not remove an inherited key: set "" instead. |
 | worker.podAnnotations | object | `{}` |  |
 | worker.resources.limits.memory | string | `"1Gi"` |  |
 | worker.resources.requests.cpu | int | `2` |  |
