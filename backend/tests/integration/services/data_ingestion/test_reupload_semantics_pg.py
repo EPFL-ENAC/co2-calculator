@@ -40,6 +40,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from enacit4r_files.services.local import LocalFilesStore
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, select
@@ -135,8 +136,8 @@ def _csv_with_unit_column(
 # --------------------------------------------------------------------------- #
 # tmp_path / files-store wiring — the base provider's _validate_file_path    #
 # rejects absolute paths and requires a ``tmp/`` prefix; LocalFilesStore is  #
-# rooted at ``settings.FILES_STORAGE_PATH``.  Each test sets that to its     #
-# pytest tmp_path so a CSV written to ``<tmp_path>/tmp/<sub>/data.csv`` is   #
+# patched over ``app.api.v1.files.files_store``, rooted at the test's      #
+# pytest tmp_path, so a CSV written to ``<tmp_path>/tmp/<sub>/data.csv`` is   #
 # readable as the relative ``tmp/<sub>/data.csv``.  Mirrors the rig in       #
 # ``test_plan_310b_factor_reupload_endpoint_pg.py``.                         #
 # --------------------------------------------------------------------------- #
@@ -146,12 +147,14 @@ def _redirect_files_storage(monkeypatch, tmp_path: Path) -> None:
     """Redirect ``LocalFilesStore`` to ``tmp_path`` and disable encryption.
 
     Both the request-handler-side provider (if any) and the runner-side
-    provider see the new path because we patch the cached settings
-    instance — both code paths re-read ``settings.FILES_STORAGE_PATH``
-    via ``make_files_store`` lazily.
+    provider see the new path because both read the patched
+    ``app.api.v1.files.files_store`` at call time.
     """
     settings = get_settings()
     monkeypatch.setattr(settings, "FILES_STORAGE_PATH", str(tmp_path))
+    # Providers read the process-wide store, built at import time from the
+    # old path; swap it for one rooted at tmp_path (restored on teardown).
+    monkeypatch.setattr("app.api.v1.files.files_store", LocalFilesStore(str(tmp_path)))
     # Plain-text CSVs in tests — production uses Fernet, but exercising
     # the encryption round-trip is out of scope here.
     monkeypatch.setattr(settings, "FILES_ENCRYPTION_KEY", "")

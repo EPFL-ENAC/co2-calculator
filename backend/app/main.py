@@ -6,6 +6,7 @@ import os
 from contextlib import asynccontextmanager
 
 import httpx
+from enacit4r_files.services.s3 import S3FilesStore
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
@@ -18,6 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.internal import router as internal_router
 from app.api.router import api_router
+from app.api.v1 import files
 from app.core.config import RoleProviderType, UnitProviderType, get_settings
 from app.core.exception_handlers import (
     db_unavailable_handler,
@@ -318,6 +320,10 @@ async def lifespan(app: FastAPI):
     in_flight = await cancel_background_tasks()
     if in_flight:
         logger.info("Handed back %s in-flight job(s)", in_flight)
+    # The shared S3 client lives for the process; close it so aiohttp
+    # does not report an unclosed session at exit.
+    if isinstance(files.files_store, S3FilesStore):
+        await files.files_store.s3_service.close()
     reconciler_task = getattr(app.state, "pipeline_reconciler_task", None)
     if reconciler_task:
         logger.info("Cancelling pipeline reconciler")

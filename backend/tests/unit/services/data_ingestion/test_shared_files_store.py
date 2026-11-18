@@ -39,3 +39,21 @@ def test_files_store_is_the_shared_singleton(provider_cls: type) -> None:
 
     assert store_a is files.files_store
     assert store_b is files.files_store
+
+
+@pytest.mark.parametrize(
+    "provider_cls",
+    [
+        BaseCSVProvider,
+        BaseReductionObjectiveCSVProvider,
+        BaseFactorCSVProvider,
+        ReferenceDataCSVProvider,
+    ],
+)
+def test_patching_the_shared_store_reaches_providers(
+    provider_cls: type, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = object()
+    monkeypatch.setattr(files, "files_store", fake)
+
+    assert provider_cls.files_store.fget(SimpleNamespace(_files_store=None)) is fake

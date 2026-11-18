@@ -28,7 +28,7 @@ import psycopg
 from sqlalchemy.engine.url import make_url
 from sqlmodel import col, delete
 
-from app.api.v1.files import files_store as shared_files_store
+from app.api.v1 import files
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
@@ -137,7 +137,7 @@ class ReferenceDataCSVProvider(CSVIngestionProvider):
     @property
     def files_store(self) -> Any:
         if self._files_store is None:
-            self._files_store = shared_files_store
+            self._files_store = files.files_store
         return self._files_store
 
     async def validate_connection(self) -> bool:
