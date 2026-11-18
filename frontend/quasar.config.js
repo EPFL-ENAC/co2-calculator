@@ -99,13 +99,14 @@ export default defineConfig(function () {
     extras: [],
 
     // The static first frame of index.html shows the login title before the
-    // bundle loads. It reads the text from i18n, so the string has one home.
+    // bundle loads, or a message when /injectEnv.js did not load. It reads
+    // the texts from i18n, so each string has one home.
     // JSON is a JavaScript literal; "<" is escaped so no text ends the script.
     htmlVariables: {
-      loginTitleJson: JSON.stringify(loginMessages.login_title).replace(
-        /</g,
-        '\\u003c',
-      ),
+      shellTextJson: JSON.stringify({
+        title: loginMessages.login_title,
+        configMissing: loginMessages.config_missing,
+      }).replace(/</g, '\\u003c'),
     },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build

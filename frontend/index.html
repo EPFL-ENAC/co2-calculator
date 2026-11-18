@@ -103,16 +103,31 @@
       page of a logged-in user would be a flash. Other pages start blank.
       On the login route the script also preloads the two images of the
       login card, so they download with the entry instead of after it.
+      Without /injectEnv.js the app does not start (src/config/runtime.ts
+      throws), so the frame says so on every page instead of a blank page.
     -->
     <div id="shell" aria-hidden="true"></div>
     <script>
-      (function (titles) {
-        var languages = Object.keys(titles).join('|');
+      (function (texts) {
+        var shell = document.getElementById('shell');
+        var languages = Object.keys(texts.title).join('|');
         var match = new RegExp('^/(' + languages + ')/login$').exec(
           location.pathname,
         );
+        // Deferred scripts and the app run before DOMContentLoaded.
+        document.addEventListener('DOMContentLoaded', function () {
+          if (window.injectedEnvVariable) return;
+          var language = 'en';
+          var prefix = new RegExp('^/(' + languages + ')(/|$)').exec(
+            location.pathname,
+          );
+          if (prefix) language = prefix[1];
+          shell.textContent = texts.configMissing[language];
+          shell.removeAttribute('aria-hidden');
+          shell.setAttribute('role', 'alert');
+        });
         if (match) {
-          document.getElementById('shell').textContent = titles[match[1]];
+          shell.textContent = texts.title[match[1]];
           ['logo', 'login-illustration'].forEach(function (name, i) {
             var link = document.createElement('link');
             link.rel = 'preload';
@@ -122,7 +137,7 @@
             document.head.appendChild(link);
           });
         }
-      })(<%= loginTitleJson %>);
+      })(<%= shellTextJson %>);
     </script>
   </body>
 </html>

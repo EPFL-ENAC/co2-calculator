@@ -7,6 +7,11 @@ export default {
     en: 'CO₂ Calculator',
     fr: 'Calculateur de CO₂',
   },
+  // Shown by index.html, without the app, when /injectEnv.js did not load.
+  config_missing: {
+    en: 'The application could not load its configuration. Reload the page.',
+    fr: "L'application n'a pas pu charger sa configuration. Rechargez la page.",
+  },
   login_button_submit: {
     en: 'Login',
     fr: 'Se connecter',

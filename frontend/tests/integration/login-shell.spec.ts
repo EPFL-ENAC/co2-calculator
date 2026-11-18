@@ -33,6 +33,22 @@ test.describe('static first frame of index.html', () => {
     }
   });
 
+  // Catches a blank page, or an app that starts with empty values, when
+  // /injectEnv.js does not load (blocked request, static host fallback).
+  test('says so when the configuration did not load', async ({ page }) => {
+    await page.route(/\/injectEnv\.js$/, (route) => route.abort());
+    for (const [path, language] of [
+      ['/en/login', 'en'],
+      ['/fr/some/page', 'fr'],
+      ['/', 'en'],
+    ] as const) {
+      await page.goto(path);
+      const shell = page.getByRole('alert');
+      await expect(shell).toBeVisible();
+      await expect(shell).toHaveText(loginMessages.config_missing[language]);
+    }
+  });
+
   // Catches a title left on screen under the mounted app (#q-app:empty rule).
   test('hides once the app has mounted', async ({ page }) => {
     // No backend runs against this webServer (see chunk-load-reload.spec.ts).

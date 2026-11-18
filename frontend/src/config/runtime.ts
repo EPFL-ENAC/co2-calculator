@@ -12,9 +12,9 @@
 // component-test collection loads this module in Node, where
 // `import.meta.env` is undefined.
 //
-// No value has an institution default, and this file checks nothing: an
-// empty required value stops docker/entrypoint.sh, so the app never starts
-// with one.
+// No value has an institution default: an empty required value stops
+// docker/entrypoint.sh. A missing /injectEnv.js stops the app here, and
+// index.html shows a message for it.
 
 import { isDemoMode } from '@/utils/demoMode';
 
@@ -24,8 +24,16 @@ declare global {
   }
 }
 
-const injected: Record<string, string | undefined> =
-  (typeof window !== 'undefined' && window.injectedEnvVariable) || {};
+function readInjected(): Record<string, string | undefined> {
+  // Playwright collects the component tests in Node, without a window.
+  if (typeof window === 'undefined') return {};
+  if (!window.injectedEnvVariable) {
+    throw new Error('/injectEnv.js did not load: the app has no values');
+  }
+  return window.injectedEnvVariable;
+}
+
+const injected = readInjected();
 
 const hasViteEnv = typeof import.meta.env !== 'undefined';
 
