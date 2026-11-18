@@ -27,11 +27,13 @@ test('fonts, logo and icons load from the institution folder', async ({
   page,
 }) => {
   await stubSession(page);
-  const assetUrls: string[] = [];
-  page.on('request', (request) => {
-    if (/\.(woff2?|svg|png|ico)(\?|$)/.test(request.url())) {
-      assetUrls.push(new URL(request.url()).pathname);
-    }
+  // Status and size of each asset response: a 404 or an empty file fails.
+  const assets = new Map<string, { status: number; size: number }>();
+  page.on('response', async (response) => {
+    const path = new URL(response.url()).pathname;
+    if (!/\.(woff2?|svg|png|ico)$/.test(path)) return;
+    const body = await response.body().catch(() => Buffer.alloc(0));
+    assets.set(path, { status: response.status(), size: body.length });
   });
 
   await page.goto('/');
@@ -43,9 +45,22 @@ test('fonts, logo and icons load from the institution folder', async ({
     /^\/institution\/favicon/,
   );
 
-  const fonts = assetUrls.filter((path) => /\.woff2?$/.test(path));
+  // The logo is drawn, not only referenced.
+  await expect
+    .poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBeGreaterThan(0);
+  await page.evaluate(() => document.fonts.ready);
+
+  const fonts = [...assets.keys()].filter((path) => /\.woff2?$/.test(path));
   expect(fonts.length).toBeGreaterThan(0);
   expect(fonts.filter((path) => !path.startsWith('/institution/'))).toEqual([]);
+  for (const path of [...fonts, '/institution/logo.svg']) {
+    expect(assets.get(path), path).toEqual({
+      status: 200,
+      size: expect.any(Number),
+    });
+    expect(assets.get(path)?.size, path).toBeGreaterThan(0);
+  }
 });
 
 test('the theme accent colors the buttons', async ({ page }) => {
@@ -57,10 +72,9 @@ test('the theme accent colors the buttons', async ({ page }) => {
     }),
   );
   await page.goto('/');
-  const accent = await page.evaluate(() =>
-    getComputedStyle(document.documentElement)
-      .getPropertyValue('--q-accent')
-      .trim(),
+  // The submit button of the login card has color="accent".
+  await expect(page.locator('.login__button .q-btn')).toHaveCSS(
+    'background-color',
+    'rgb(0, 0, 255)',
   );
-  expect(accent).toBe('#0000ff');
 });
