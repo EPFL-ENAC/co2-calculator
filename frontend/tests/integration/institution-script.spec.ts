@@ -1,6 +1,7 @@
 import { test, expect } from 'playwright/test';
 import { spawnSync } from 'node:child_process';
 import {
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -19,7 +20,10 @@ import { join, resolve } from 'node:path';
 
 const FRONTEND = resolve(import.meta.dirname, '../..');
 const DEFAULT_DIR = join(FRONTEND, 'institution-default');
-const ENV_FILE = resolve(FRONTEND, '../institutions/epfl/frontend.env.example');
+const EXAMPLE_VALUES = readFileSync(
+  join(FRONTEND, 'institution-example/values.env'),
+  'utf8',
+);
 
 let mounted: string;
 let out: string;
@@ -27,6 +31,8 @@ let out: string;
 test.beforeEach(() => {
   mounted = mkdtempSync(join(tmpdir(), 'co2-mounted-'));
   out = mkdtempSync(join(tmpdir(), 'co2-out-'));
+  // The mounted folder gives the values, as a deployment folder does.
+  writeFileSync(join(mounted, 'values.env'), EXAMPLE_VALUES);
 });
 
 test.afterEach(() => {
@@ -34,12 +40,11 @@ test.afterEach(() => {
   rmSync(out, { recursive: true, force: true });
 });
 
-// `env` stands for the pod environment, on top of the tracked values.
+// `env` stands for the pod environment, on top of values.env.
 const run = (env: Record<string, string> = {}) =>
   spawnSync('sh', [join(FRONTEND, 'docker/entrypoint.sh')], {
     env: {
       PATH: process.env.PATH,
-      INSTITUTION_ENV_FILE: ENV_FILE,
       INSTITUTION_DIR: mounted,
       INSTITUTION_DEFAULT_DIR: DEFAULT_DIR,
       OUT_DIR: out,
@@ -181,11 +186,41 @@ for (const [env, message] of [
   });
 }
 
-test('an env file line that is not APP_<NAME>=value stops the startup', () => {
+test('a values.env line that is not APP_<NAME>=value stops the startup', () => {
   theme('accent: #0050a0\n');
-  const file = join(out, 'bad.env');
-  writeFileSync(file, 'APP_INSTITUTION_NAME\n');
-  const result = run({ INSTITUTION_ENV_FILE: file });
+  write('values.env', 'APP_INSTITUTION_NAME\n');
+  const result = run();
   expect(result.status).toBe(1);
   expect(result.stderr).toContain('line 1: expected APP_<NAME>=value');
+});
+
+// A deployment can give every value through the environment.
+test('a folder without values.env starts on the environment alone', () => {
+  theme('accent: #0050a0\n');
+  rmSync(join(mounted, 'values.env'));
+  const env = Object.fromEntries(
+    EXAMPLE_VALUES.split('\n')
+      .filter((line) => line.startsWith('APP_'))
+      .map((line) => [
+        line.slice(0, line.indexOf('=')),
+        line.slice(line.indexOf('=') + 1),
+      ]),
+  );
+  const result = run(env);
+  expect(result.status, result.stderr).toBe(0);
+  expect(injected().APP_INSTITUTION_NAME).toBe('Example University');
+});
+
+test('values.env is never served in the institution folder', () => {
+  theme('accent: #0050a0\n');
+  const result = run();
+  expect(result.status, result.stderr).toBe(0);
+  expect(existsSync(join(out, 'institution/values.env'))).toBe(false);
+});
+
+test('an environment variable wins over values.env', () => {
+  theme('accent: #0050a0\n');
+  const result = run({ APP_CONTACT_EMAIL: 'other@example.org' });
+  expect(result.status, result.stderr).toBe(0);
+  expect(injected().APP_CONTACT_EMAIL).toBe('other@example.org');
 });

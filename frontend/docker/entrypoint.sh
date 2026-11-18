@@ -14,6 +14,11 @@
 #   theme.css      colors, corner radii and fonts, from theme.conf of the
 #                  mounted folder
 #
+# One folder is one institution, mounted at INSTITUTION_DIR: theme.conf
+# (required), values.env (optional, APP_<NAME>=value lines) and the assets.
+# A variable of the environment wins over values.env, so a deployment can
+# give every value through the environment and have no values.env.
+#
 # Any error exits 1, and the nginx entrypoint then stops the container: a
 # rollout with a wrong value keeps the old pods instead of serving a broken
 # app.
@@ -33,9 +38,7 @@
 # Why POSIX sh and awk, not node, python, bash or jq: the alpine-slim base
 # ships none of them. The dev server, the tests and Storybook run this same
 # file (see build/institution.mjs), so the checks and the two parsers below
-# have one implementation. Those runs set INSTITUTION_ENV_FILE, a file of
-# APP_<NAME>=value lines that stands for the pod environment. A variable of
-# the shell wins over the file.
+# have one implementation.
 #
 # The awk programs sit inside single quotes: do not write an apostrophe in
 # them, not even in a comment.
@@ -46,8 +49,12 @@
 set -eu
 
 OUT_DIR="${OUT_DIR:-/tmp}"
-ENV_FILE="${INSTITUTION_ENV_FILE:-}"
 INSTITUTION_DIR="${INSTITUTION_DIR:-/institution}"
+# Optional: without it, every value comes from the environment.
+ENV_FILE=""
+if [ -f "${INSTITUTION_DIR}/values.env" ]; then
+  ENV_FILE="${INSTITUTION_DIR}/values.env"
+fi
 DEFAULT_DIR="${INSTITUTION_DEFAULT_DIR:-/usr/local/share/institution/default}"
 
 # Keep in sync with the references in index.html and the logo components.
@@ -74,13 +81,9 @@ fail() {
 # 1. Values: injectEnv.js
 # ------------------------------------------------------------------------------
 
-if [ -n "${ENV_FILE}" ] && [ ! -f "${ENV_FILE}" ]; then
-  fail "INSTITUTION_ENV_FILE does not exist: ${ENV_FILE}"
-fi
-
 # Atomic write: temp file in the same dir, then mv. nginx never serves a
-# half-written file. awk reads the env file first, when one is set, then the
-# environment on stdin ("-"), so the environment wins.
+# half-written file. awk reads values.env first, when the folder has one, then
+# the environment on stdin ("-"), so the environment wins.
 tmp=$(mktemp "${OUT_DIR}/injectEnv.js.XXXXXX")
 if ! printenv | awk -v env_file="${ENV_FILE}" '
   function fail(message) {
@@ -89,7 +92,7 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
   }
   function empty(key) { return !(key in values) || values[key] == "" }
 
-  # The env file: APP_<NAME>=value lines, "#" comments, values are literal.
+  # values.env: APP_<NAME>=value lines, "#" comments, values are literal.
   env_file != "" && FILENAME == env_file {
     sub(/\r$/, "")
     if ($0 ~ /^[ \t]*(#|$)/) next
@@ -169,7 +172,8 @@ fi
 # with "." are skipped: a Kubernetes ConfigMap mount adds ..data and others.
 # A file of fonts/ that is not a .woff2 is allowed: a free font must keep its
 # license next to it (see institution-default/fonts/README.md).
-known=" theme.conf $(echo ${ASSET_FILES}) "
+# values.env is known but not an asset: the loop below copies only ASSET_FILES.
+known=" theme.conf values.env $(echo ${ASSET_FILES}) "
 print_unknown() {
   while read -r file; do
     case "${known}" in

@@ -7,11 +7,9 @@
 // public folder. This file holds no parser, no check and no file server: it
 // only starts the script.
 //
-// Two environment variables point at the institution:
-//   INSTITUTION_ENV_FILE    the APP_* values (APP_<NAME>=value lines)
-//   INSTITUTION_ASSETS_DIR  the assets folder the container mounts
-// Both are required: the values have no default, and the folder gives at
-// least theme.conf. The other assets default to institution-default/.
+// INSTITUTION_DIR points at the institution folder, the one the container
+// mounts: values.env, theme.conf and the assets. A relative path starts at
+// frontend/. Without it, the neutral example folder institution-example/ runs.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,18 +18,12 @@ import { fileURLToPath } from 'node:url';
 
 const FRONTEND_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-const requirePath = (name) => {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(
-      `${name} is not set. Point it at an institution, see frontend/.env.example.`,
-    );
-  }
+const institutionDir = () => {
+  const value = process.env.INSTITUTION_DIR ?? 'institution-example';
   const path = resolve(FRONTEND_DIR, value);
   if (!existsSync(path)) {
     throw new Error(
-      `${name}=${value} does not exist (${path}). The root \`make install\` ` +
-        'copies institutions/epfl/frontend.env.example to frontend.env.',
+      `INSTITUTION_DIR=${value} does not exist (${path}). See frontend/.env.example.`,
     );
   }
   return path;
@@ -56,8 +48,7 @@ export const writeInstitutionFiles = (outDir) => {
     env: {
       ...process.env,
       OUT_DIR: outDir,
-      INSTITUTION_ENV_FILE: requirePath('INSTITUTION_ENV_FILE'),
-      INSTITUTION_DIR: requirePath('INSTITUTION_ASSETS_DIR'),
+      INSTITUTION_DIR: institutionDir(),
       INSTITUTION_DEFAULT_DIR: join(FRONTEND_DIR, 'institution-default'),
     },
     encoding: 'utf8',
@@ -86,14 +77,11 @@ export const institutionPlugin = () => {
       return { publicDir: outDir };
     },
     configureServer(server) {
-      const sources = [
-        requirePath('INSTITUTION_ENV_FILE'),
-        requirePath('INSTITUTION_ASSETS_DIR'),
-      ];
-      server.watcher.add(sources);
+      const source = institutionDir();
+      server.watcher.add(source);
       // 'all': a file that is added or removed changes the folder too.
       server.watcher.on('all', (_event, file) => {
-        if (!sources.some((source) => file.startsWith(source))) return;
+        if (!file.startsWith(source)) return;
         try {
           writeInstitutionFiles(outDir);
           server.ws.send({ type: 'full-reload' });
