@@ -32,7 +32,7 @@ frontend:
       configMap:
         name: co2-institution
   env:
-    # Chart 1.0.1797 (examples/kustomization.yaml) predates the institution
+    # Chart 1.4.23 (examples/kustomization.yaml) predates the institution
     # folder: the defaults of these four values belong to one institution
     # there. Remove the four lines once kustomization.yaml pins a chart
     # built after #3244, and give the values in values.env of your folder.
