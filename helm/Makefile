@@ -27,6 +27,7 @@ lint-helm: ## Run helm lint on all Helm charts
 			echo "🔧 Linting Helm chart: $$chart_dir"; \
 			helm lint "$$chart_dir" -f "$$chart_dir/examples/values.yaml" || exit 1; \
 			helm template "$$chart_dir" -f "$$chart_dir/examples/values.yaml" >/dev/null || exit 1; \
+			helm template "$$chart_dir" -f "$$chart_dir/skaffold/values-app.yaml" >/dev/null || exit 1; \
 		done; \
 	else \
 		echo "⚠️  Warning: helm not found. Skipping helm lint."; \
@@ -52,7 +53,9 @@ lint-examples: ## Fail if an example Secret lacks a key the pods read
 # strips the API_DOCS_PREFIX root path before it routes.
 .PHONY: check-api-version
 check-api-version: ## Fail unless the backend renders API_VERSION=/v1
-	@helm template . -f examples/values.yaml -s templates/backend-deployment.yaml \
+	@# Chart defaults, not examples/values.yaml: the example sets API_VERSION
+	@# itself for the older published chart, and would hide a reverted default.
+	@helm template . --set backend.existingSecret.name=x -s templates/backend-deployment.yaml \
 		| grep -A1 'name: API_VERSION' | grep -q 'value: "/v1"' \
 		|| { echo "❌ API_VERSION is not /v1: every /api/v1 call would 404"; exit 1; }
 	@echo "✅ API_VERSION renders as /v1"

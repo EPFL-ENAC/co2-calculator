@@ -31,8 +31,8 @@ docs:
 # Same split as the OpenShift Routes: /api to the backend, unchanged.
 ingress:
   className: traefik
-  # null, not {}: Helm merges maps, and {} keeps the nginx annotations.
-  annotations: null
+  # The chart's nginx annotations stay: Traefik ignores them. null breaks
+  # the render, because the template calls hasKey on this map.
   hosts:
     - host: localhost
       paths:
