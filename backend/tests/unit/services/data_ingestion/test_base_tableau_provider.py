@@ -55,6 +55,12 @@ def _crypto_env(monkeypatch):
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
     monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "example.org")
+    # Stub DNS: validate_external_url resolves the host; tests stay offline.
+    monkeypatch.setattr(
+        url_safety.socket,
+        "getaddrinfo",
+        lambda *a, **k: [(0, 0, 0, "", ("128.178.1.1", 0))],
+    )
     crypto.get_settings.cache_clear()
     url_safety.get_settings.cache_clear()
     get_settings.cache_clear()
