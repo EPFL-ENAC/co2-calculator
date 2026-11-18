@@ -48,7 +48,7 @@ kubectl apply --namespace co2 -f my-secrets.yaml
 1. Copy [`examples/values.yaml`](examples/values.yaml).
 2. Replace each `example.org` value in the copy.
 3. Set `backend.image.tag` and `frontend.image.tag` to one release tag,
-   for example `v1.4.21`.
+   for example `v1.4.23`.
 4. Install the chart from the root of the repository.
 
 ```bash

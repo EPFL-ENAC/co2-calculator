@@ -75,10 +75,9 @@ pull request. If `values.yaml` is staged, the pre-commit hook runs
 Under `CI`, a missing `helm` or `helm-docs` fails the check. The
 `helm-quality` job installs both, pinned and checked with SHA-256.
 
-`examples/kustomization.yaml` pins chart 1.0.1797, built before this
-PR. `examples/values.yaml` therefore sets `API_VERSION` and the three
-exporters itself. When the example pins a newer chart, remove the four
-lines.
+`examples/kustomization.yaml` pins chart 1.4.23 and images `v1.4.23`.
+Since release 1.4.23, a release tag publishes the chart under the app
+version, so the chart version and the image tag name the same release.
 
 ## Hardening after the review
 
