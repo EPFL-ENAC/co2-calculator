@@ -21,6 +21,11 @@ The three consumers take the same folder:
 - Docker Compose, through a volume at `/institution`
 - a cluster, through a ConfigMap mounted at `/institution`
 
+EPFL does this. The repository
+[co2-institution-epfl](https://github.com/EPFL-ENAC/co2-institution-epfl)
+holds the folder and a small Helm chart that makes the ConfigMap. Use it
+as a model for a new institution.
+
 ## 1. Make the folder
 
 1. Make the folder outside the app repository.
@@ -231,6 +236,11 @@ The dev server runs the same script, so it shows the same messages.
 
 You can also set the institution values under `frontend.env` instead of
 `values.env`. A variable of the environment wins over the file.
+
+The frontend reads the folder only at startup, and a change of a
+ConfigMap does not restart a pod. Put a version in the name of the
+ConfigMap, and change the name each time you change the content. The
+chart of the EPFL repository does this.
 
 Without the volume, the Helm chart does not render, because the volume
 gives `theme.conf`. With an empty required value, the new pods stop at

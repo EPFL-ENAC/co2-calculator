@@ -289,16 +289,20 @@ Before the next deployment, a human changes the ops repository:
 - Rename `APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL` to
   `APP_ACCESS_MANAGEMENT_ABOUT_URL`.
 - Delete `APP_ACCESS_MANAGEMENT_PROVIDER_NAME`.
-- Keep the EPFL folder at `epfl/co2-calculator/base/institution/`: the
-  logo, the icons, the login illustration and `theme.conf`. The folder
-  can also hold a `values.env` with the institution values.
+- Take the EPFL folder from its own repository,
+  `EPFL-ENAC/co2-institution-epfl`. It holds `values.env`, `theme.conf`,
+  the logo and the icons, and it publishes them as a Helm chart. The ops
+  repository holds no copy of these files.
+- Install that chart in each overlay, next to the `co2-calculator` chart.
 - Keep the per-cluster values (`APP_ENVIRONMENT`, `APP_SENTRY_DSN`,
   `APP_MATOMO_*`, `APP_OPS_*`) in the overlays, under `frontend.env`.
 - Set `APP_MATOMO_URL` and `APP_PRODUCTION_URL` where they are used.
-- Give the volume as a ConfigMap made from that folder with
-  `binaryData`. The folder has no font files: its `theme.conf` points the
-  fonts at the ENAC font server. Without font keys, the ConfigMap needs no
-  `items` list.
+- Give the ConfigMap of the chart to `frontend.institutionAssets.volume`.
+  The chart version is part of the ConfigMap name, because the frontend
+  reads the folder only at startup. Change the chart version and the name
+  together: the new name restarts the pods.
+- Keep in the overlay each value that the image of today reads, until the
+  new image runs. That image cannot read `values.env`.
 - Set `FRONTEND_URL` and `DB_URL` for the backend. They have no default.
 
 A developer also adds `FRONTEND_URL` to `backend/.env`. To see EPFL
