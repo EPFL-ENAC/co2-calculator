@@ -38,7 +38,7 @@ FROM python:3.14-alpine AS runtime
 # fixed CVEs out whenever the base digest did not move (frontend and docs,
 # musl 1.2.6-r2).
 #
-# CI also passes GIT_SHA on every build (deploy.yml's build_args); the ENV
+# CI also passes GIT_SHA on every build (the build_args of .gitlab-ci.yml); the ENV
 # below hands it to Settings.GIT_SHA so the workers view can tell pods on
 # different revisions apart (#2436).
 ARG GIT_SHA=""
@@ -64,7 +64,7 @@ COPY --from=builder /app/otel_sampler /app/otel_sampler
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 
-# The version the app reports, from root package.json via deploy.yml (#2437).
+# The version the app reports, from root package.json via .gitlab-ci.yml (#2437).
 # It used to be typed by hand into each gitops overlay, where nothing checked
 # it and every environment drifted. Default names what a local build is rather
 # than pretending to be a release: an empty value would override

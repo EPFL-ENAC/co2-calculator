@@ -29,7 +29,7 @@ Cuts the versioned GitHub release. The custom workflow `release-please.yml` ("Ta
    ```bash
    gh pr create --base main --head stage --title "chore(release): vX.Y.Z"
    ```
-3. **Merge the PR.** "Tag and Release" creates the git tag + GitHub release; the `v*.*.*` tag also triggers `deploy` to **prod**. Verify: GitHub → Releases shows `vX.Y.Z`; Actions → "Tag and Release" and "deploy" green.
+3. **Merge the PR.** "Tag and Release" creates the git tag + GitHub release; the `vX.Y.Z` tag is mirrored to gitlab.epfl.ch, which deploys **prod**. Verify: GitHub → Releases shows `vX.Y.Z`; Actions → "Tag and Release" and "mirror-to-gitlab" green; the GitLab tag pipeline green.
 4. **Re-sync branches** so they don't diverge (no PR needed; use the GitHub UI if not comfortable on the CLI). Verify convergence with `git log --graph --oneline -15`:
    ```bash
    git checkout stage && git pull && git merge origin/main && git push
@@ -47,7 +47,7 @@ Ships the sprint to stage. No workflow writes the changelog: it is written by ha
    ```bash
    gh pr create --base stage --head dev --title "chore: promote dev to stage (end of sprint N)"
    ```
-2. **Merge the PR.** `deploy.yml` deploys to **stage**. Verify: Actions → "deploy" green.
+2. **Merge the PR.** gitlab.epfl.ch deploys **stage**. Verify: Actions → "mirror-to-gitlab" green; the GitLab `stage` pipeline green.
 3. **Verify in ArgoCD** that stage is healthy; fix any issues — see [Troubleshooting](#troubleshooting-deployment).
 4. **Re-sync:** merge `stage` back into `dev` (brings back any stage fixes):
    ```bash
