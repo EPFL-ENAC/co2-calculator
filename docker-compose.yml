@@ -155,18 +155,18 @@ services:
     volumes:
       - ./frontend/institution-example:/institution:ro
     environment:
-      # Empty by default. Set in your shell to enable
-      # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s
-      # pod receives via helm/values.yaml frontend.env.
-      APP_SENTRY_DSN: "${APP_SENTRY_DSN:-}"
+      # No value: Compose passes a variable of your shell, and leaves it out
+      # when your shell has none. An empty variable would replace the value
+      # of values.env. Same vars the k8s pod receives via frontend.env.
+      APP_SENTRY_DSN:
       # "development" adds the /login-test page, the only login without an
       # OIDC provider, and is the GlitchTip label of local runs, apart from
       # the deployed "dev". Same as DEBUG above: local compose only.
       APP_ENVIRONMENT: "${APP_ENVIRONMENT:-development}"
-      # Matomo analytics. Empty site id keeps tracking off, so a compose run
-      # never sends hits to a real Matomo site by accident.
-      APP_MATOMO_URL: "${APP_MATOMO_URL:-}"
-      APP_MATOMO_SITE_ID: "${APP_MATOMO_SITE_ID:-}"
+      # Matomo analytics. Without a site id, tracking stays off, so a compose
+      # run never sends hits to a real Matomo site by accident.
+      APP_MATOMO_URL:
+      APP_MATOMO_SITE_ID:
     labels:
       - "traefik.enable=true"
       # match everything else

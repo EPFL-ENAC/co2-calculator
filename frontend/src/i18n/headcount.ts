@@ -77,7 +77,7 @@ export default {
     fr: 'Entrez de manière agrégée les EPT des étudiant·es qui ont travaillé dans votre unité sur l’année.',
   },
   'headcount-member-error-duplicate-uid': {
-    en: "This user's {label} already exists.",
-    fr: 'Le {label} de cet·te utilisateur·rice existe déjà.',
+    en: "This user's %institutional_id% already exists.",
+    fr: 'Le %institutional_id% de cet·te utilisateur·rice existe déjà.',
   },
 } as const;

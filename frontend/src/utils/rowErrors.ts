@@ -2,7 +2,6 @@ import type {
   JobRowError,
   JobUpdatePayload,
 } from '@/stores/backofficeDataManagement';
-import { runtimeConfig } from '@/config/runtime';
 
 /**
  * Cap on how many individual row-error lines a CSV upload result renders.
@@ -88,9 +87,7 @@ export function formatRowErrorLines(
     // Special handling for headcount duplicate institutional ID error to
     // provide a more user-friendly message.
     if (reason === 'DUPLICATE_INSTITUTIONAL_ID') {
-      reason = t('headcount-member-error-duplicate-uid', {
-        label: runtimeConfig.institution.institutionalIdLabel,
-      });
+      reason = t('headcount-member-error-duplicate-uid');
     }
     return t('csv_sync_row_error', { row: e.row, reason });
   });

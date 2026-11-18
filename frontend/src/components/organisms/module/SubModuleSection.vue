@@ -446,9 +446,7 @@ async function submitForm(payload: Record<string, FieldValue>) {
           const raw = err instanceof Error ? err.message : 'Unexpected error';
           const message =
             raw === 'DUPLICATE_INSTITUTIONAL_ID'
-              ? t('headcount-member-error-duplicate-uid', {
-                  label: runtimeConfig.institution.institutionalIdLabel,
-                })
+              ? t('headcount-member-error-duplicate-uid')
               : raw.replace(
                   /user institutional id/gi,
                   runtimeConfig.institution.institutionalIdLabel,

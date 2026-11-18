@@ -84,7 +84,9 @@ APP_DEVELOPER_DOC_URL=
 The texts insert the French forms as they are. For example, the French
 tab title is "Calculateur CO₂ de l'UNIV". The texts add page paths after
 the two doc URLs, so each URL must end with `/`. If one does not, the
-frontend stops at startup and the log names that URL. The ID label
+frontend stops at startup and the log names that URL. The French
+header link adds `fr/` after `APP_USER_DOC_URL`, so the user
+documentation must have its French pages under `fr/`. The ID label
 replaces "SCIPER" in the texts and in the headcount column.
 
 Every `APP_*` value is public. The frontend sends them to each browser,

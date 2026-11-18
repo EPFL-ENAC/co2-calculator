@@ -55,9 +55,6 @@ async def seed_locations() -> None:
         return
 
     settings = get_settings()
-    if not settings.DB_URL:
-        logger.error("DB_URL not set")
-        return
     url = make_url(settings.DB_URL)
 
     logger.info("Connecting to database...")
