@@ -75,7 +75,7 @@ testpaths = ["tests/"]
 asyncio_mode = "auto"
 
 env = [
-    # DB_URL and FRONTEND_URL are required settings. Tests that boot the real
+    # DB_URL is required, and the app checks FRONTEND_URL at boot. Tests that boot the real
     # app (TestClient) use an in-memory SQLite, never an on-disk file whose
     # tables are created once and never migrated.
     "DB_URL=sqlite+aiosqlite:///:memory:",

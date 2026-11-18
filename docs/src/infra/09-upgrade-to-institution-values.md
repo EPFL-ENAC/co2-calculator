@@ -13,12 +13,13 @@ and in a cluster. The design is in the
 ## Backend variables
 
 No backend variable has a new name. Two variables lose their default.
-If one of them is empty, the backend stops at boot.
 
-| Variable       | Before                           | Now      |
-| -------------- | -------------------------------- | -------- |
-| `DB_URL`       | default: a local SQLite file     | required |
-| `FRONTEND_URL` | default: `http://localhost:9000` | required |
+| Variable       | Before                           | Now                                                   |
+| -------------- | -------------------------------- | ----------------------------------------------------- |
+| `DB_URL`       | default: a local SQLite file     | required by each command that builds the settings     |
+| `FRONTEND_URL` | default: `http://localhost:9000` | required by the app at boot, an `http` or `https` URL |
+
+Alembic and the scripts do not need `FRONTEND_URL`.
 
 If your `backend/.env` is older than this version, make sure that it
 sets the two variables. Compare it with `backend/.env.example`.

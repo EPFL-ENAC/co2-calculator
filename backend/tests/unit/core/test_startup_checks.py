@@ -15,6 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
 from app.main import (
+    assert_frontend_url,
     assert_poller_isolation,
     assert_proxy_trust_settings,
     assert_security_settings,
@@ -270,3 +271,18 @@ def test_sql_ratio_without_the_sdk_refuses_to_boot(monkeypatch):
 def test_other_samplers_skip_the_trace_sampler_check(monkeypatch):
     monkeypatch.setenv("OTEL_TRACES_SAMPLER", "always_on")
     assert_trace_sampler()  # must not raise
+
+
+@pytest.mark.parametrize(
+    "url", ["", " ", "co2.example.org", "//co2.example.org", "ftp://co2.example.org"]
+)
+def test_frontend_url_without_http_scheme_refuses_to_boot(url):
+    with pytest.raises(RuntimeError, match="FRONTEND_URL must be an absolute"):
+        assert_frontend_url(SimpleNamespace(FRONTEND_URL=url))
+
+
+@pytest.mark.parametrize(
+    "url", ["http://localhost:9000", "https://co2.example.org", "http://localhost"]
+)
+def test_absolute_frontend_url_boots(url):
+    assert_frontend_url(SimpleNamespace(FRONTEND_URL=url))

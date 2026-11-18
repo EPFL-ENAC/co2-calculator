@@ -365,13 +365,14 @@ class Settings(BaseSettings):
     # 401. Also the base unit for the two-strikes deprovisioning window
     # (2x this) in RoleSyncService._handle_suspicious_empty.
     ROLE_SYNC_TTL_MINUTES: int = 60
-    # Frontend URL for redirects. Required: an empty value (a Helm value
-    # rendered as "") stops the boot like a missing one.
+    # Frontend URL for redirects and the allowed origin. Only the app needs
+    # it: main.assert_frontend_url stops the boot without an absolute URL,
+    # so alembic and the scripts build Settings without it.
     FRONTEND_URL: str = Field(
-        min_length=1,
+        default="",
         description=(
-            "Frontend application URL for OAuth redirects (required). "
-            "Example: http://localhost:9000"
+            "Frontend application URL for OAuth redirects (required by the "
+            "app). Example: http://localhost:9000"
         ),
     )
     CSRF_ADDITIONAL_ORIGINS: str = Field(

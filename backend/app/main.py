@@ -4,6 +4,7 @@ import asyncio
 import ipaddress
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 import httpx
 from enacit4r_files.services.s3 import S3FilesStore
@@ -132,6 +133,21 @@ def _trusts_every_address(entry: str) -> bool:
         return False
 
 
+def assert_frontend_url(settings) -> None:
+    """Require an absolute http(s) FRONTEND_URL at boot.
+
+    The OAuth redirects and the allowed origin of the CSRF check read it. A
+    value without a scheme boots, then every write returns 403. Checked here,
+    not in Settings, so alembic and the scripts do not need it.
+    """
+    url = urlsplit(settings.FRONTEND_URL)
+    if url.scheme in ("http", "https") and url.netloc:
+        return
+    raise RuntimeError(
+        f"FRONTEND_URL must be an absolute http(s) URL, got {settings.FRONTEND_URL!r}"
+    )
+
+
 def assert_accred_settings(settings) -> None:
     """Require Accred credentials at boot whenever a provider selects Accred.
 
@@ -208,6 +224,7 @@ def assert_trace_sampler() -> None:
 async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_security_settings(settings)
+    assert_frontend_url(settings)
     assert_proxy_trust_settings()
     assert_accred_settings(settings)
     assert_poller_isolation(settings)
