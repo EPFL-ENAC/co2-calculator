@@ -397,9 +397,9 @@ frontend:
     APP_MATOMO_URL: ""
     APP_MATOMO_SITE_ID: ""
     # Project-planner horizon: bounds for the plan start/end year selects.
-    # No code default — unset leaves the year selects empty.
-    APP_PLANNER_MIN_YEAR: "2016"
-    APP_PLANNER_MAX_YEAR: "2050"
+    # Required, usually in values.env of the institution folder.
+    APP_PLANNER_MIN_YEAR: ""
+    APP_PLANNER_MAX_YEAR: ""
     # Demo instance: "true" replaces the whole app with a notice linking to
     # APP_PRODUCTION_URL, which is then required. Enabled per-cluster in the
     # ops repo only for the demo.

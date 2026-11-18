@@ -100,6 +100,13 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
       fail(FILENAME " line " FNR ": expected APP_<NAME>=value")
       next
     }
+    # The chart gives these two a default for each cluster, and the
+    # environment wins: a value here would be lost without a word.
+    if ($0 ~ /^APP_(ENVIRONMENT|DEMO_MODE)=/) {
+      fail(FILENAME " line " FNR ": " substr($0, 1, index($0, "=") - 1) \
+        " belongs to the cluster, set it in the environment")
+      next
+    }
   }
   # The environment holds much more than our values.
   index($0, "APP_") != 1 { next }
@@ -141,9 +148,20 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
     split("APP_INSTITUTION_NAME APP_INSTITUTION_NAME_FR_DE " \
           "APP_INSTITUTION_NAME_FR_A APP_INSTITUTIONAL_ID_LABEL " \
           "APP_CONTACT_EMAIL APP_USER_DOC_URL APP_BACKOFFICE_DOC_URL " \
-          "APP_STRATEGY_URL_EN APP_STRATEGY_URL_FR", required, " ")
+          "APP_STRATEGY_URL_EN APP_STRATEGY_URL_FR " \
+          "APP_PLANNER_MIN_YEAR APP_PLANNER_MAX_YEAR", required, " ")
     for (i = 1; i in required; i++) {
       if (empty(required[i])) fail(required[i] " is required and empty")
+    }
+    # The planner year selects list each year from the first to the last.
+    split("APP_PLANNER_MIN_YEAR APP_PLANNER_MAX_YEAR", years, " ")
+    for (i = 1; i in years; i++) {
+      if (!empty(years[i]) && values[years[i]] !~ /^[12][0-9][0-9][0-9]$/) {
+        fail(years[i] " must be a year, for example 2050")
+      }
+    }
+    if (values["APP_PLANNER_MIN_YEAR"] + 0 > values["APP_PLANNER_MAX_YEAR"] + 0) {
+      fail("APP_PLANNER_MIN_YEAR must not be after APP_PLANNER_MAX_YEAR")
     }
     # A switch that is on makes its value required.
     if (!empty("APP_MATOMO_SITE_ID") && empty("APP_MATOMO_URL")) {

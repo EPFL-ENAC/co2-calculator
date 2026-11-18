@@ -87,7 +87,12 @@ Optional values. An empty value hides the link that uses it.
 
 Two values lose their EPFL default. If `APP_MATOMO_SITE_ID` is set,
 `APP_MATOMO_URL` is required. If `APP_DEMO_MODE` is `true`,
-`APP_PRODUCTION_URL` is required. The backend loses its defaults for `DB_URL`
+`APP_PRODUCTION_URL` is required. The planner years
+`APP_PLANNER_MIN_YEAR` and `APP_PLANNER_MAX_YEAR` lose their chart default
+and are required, because an institution gives them in `values.env` and a
+chart default in the environment would replace them. For the same reason,
+`APP_ENVIRONMENT` and `APP_DEMO_MODE` keep their chart default and are
+refused in `values.env`. The backend loses its defaults for `DB_URL`
 and `FRONTEND_URL`. The Helm default of `FRONTEND_URL` is empty, so a
 cluster that does not set it stops at boot. Docker Compose does not read
 `backend/.env`: it reads `backend/.env.example` and gives the backend a

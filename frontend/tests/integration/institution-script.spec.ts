@@ -188,12 +188,27 @@ for (const [env, message] of [
   [{ APP_MATOMO_SITE_ID: '3' }, 'APP_MATOMO_URL is required'],
   [{ APP_DEMO_MODE: 'true' }, 'APP_PRODUCTION_URL is required'],
   [{ APP_API_TOKEN: 'abc' }, 'APP_API_TOKEN: every APP_* value is public'],
+  [{ APP_PLANNER_MAX_YEAR: '' }, 'APP_PLANNER_MAX_YEAR is required and empty'],
+  [{ APP_PLANNER_MIN_YEAR: '20x6' }, 'APP_PLANNER_MIN_YEAR must be a year'],
+  [{ APP_PLANNER_MIN_YEAR: '2051' }, 'must not be after APP_PLANNER_MAX_YEAR'],
 ] as const) {
   test(`${Object.keys(env)[0]} stops the startup: ${message}`, () => {
     theme('accent: #0050a0\n');
     const result = run(env);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(message);
+  });
+}
+
+for (const name of ['APP_ENVIRONMENT', 'APP_DEMO_MODE']) {
+  test(`${name} in values.env stops the startup`, () => {
+    theme('accent: #0050a0\n');
+    write('values.env', `${EXAMPLE_VALUES}${name}=x\n`);
+    const result = run();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `${name} belongs to the cluster, set it in the environment`,
+    );
   });
 }
 

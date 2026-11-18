@@ -82,9 +82,10 @@ export const runtimeConfig = {
   // src/boot/matomo.ts loads no tracker. With a site id the URL is required.
   matomoUrl: read('APP_MATOMO_URL'),
   matomoSiteId: read('APP_MATOMO_SITE_ID'),
-  // Project-planner horizon. Unset resolves to NaN and the selects stay empty.
-  plannerMinYear: Number(read('APP_PLANNER_MIN_YEAR') || NaN),
-  plannerMaxYear: Number(read('APP_PLANNER_MAX_YEAR') || NaN),
+  // Project-planner horizon. Required years: docker/entrypoint.sh stops on
+  // an empty or invalid one.
+  plannerMinYear: Number(read('APP_PLANNER_MIN_YEAR')),
+  plannerMaxYear: Number(read('APP_PLANNER_MAX_YEAR')),
   // Demo instance: APP_DEMO_MODE=true makes App.vue render only a notice
   // that links to APP_PRODUCTION_URL, so the demo is not used by mistake.
   demoMode: isDemoMode(read('APP_DEMO_MODE')),

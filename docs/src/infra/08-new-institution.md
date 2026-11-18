@@ -56,6 +56,8 @@ APP_USER_DOC_URL=https://docs.example.org/co2-user/
 APP_BACKOFFICE_DOC_URL=https://docs.example.org/co2-backoffice/
 APP_STRATEGY_URL_EN=https://www.example.org/climate-strategy/
 APP_STRATEGY_URL_FR=https://www.example.org/fr/strategie-climat/
+APP_PLANNER_MIN_YEAR=2016
+APP_PLANNER_MAX_YEAR=2050
 
 # Optional. An empty value hides the link.
 APP_ACCESS_MANAGEMENT_URL=
@@ -65,20 +67,19 @@ APP_SOURCE_CODE_URL=
 APP_USER_DOC_SOURCE_URL=
 APP_BACKOFFICE_DOC_SOURCE_URL=
 APP_DEVELOPER_DOC_URL=
-APP_PLANNER_MIN_YEAR=2016
-APP_PLANNER_MAX_YEAR=2050
 ```
 
-| Value                                        | Content                                                  |
-| -------------------------------------------- | -------------------------------------------------------- |
-| `APP_INSTITUTION_NAME`                       | the short name, as the texts show it                     |
-| `APP_INSTITUTION_NAME_FR_DE`                 | the French "of" form, for example `de l'UNIV`            |
-| `APP_INSTITUTION_NAME_FR_A`                  | the French "at" form, for example `à l'UNIV`             |
-| `APP_INSTITUTIONAL_ID_LABEL`                 | the word for the person ID, for example `SCIPER` at EPFL |
-| `APP_CONTACT_EMAIL`                          | the support address of the calculator                    |
-| `APP_USER_DOC_URL`                           | the user documentation, with a `/` at the end            |
-| `APP_BACKOFFICE_DOC_URL`                     | the back-office documentation, with a `/` at the end     |
-| `APP_STRATEGY_URL_EN`, `APP_STRATEGY_URL_FR` | the English and French pages of the climate strategy     |
+| Value                                          | Content                                                  |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `APP_INSTITUTION_NAME`                         | the short name, as the texts show it                     |
+| `APP_INSTITUTION_NAME_FR_DE`                   | the French "of" form, for example `de l'UNIV`            |
+| `APP_INSTITUTION_NAME_FR_A`                    | the French "at" form, for example `à l'UNIV`             |
+| `APP_INSTITUTIONAL_ID_LABEL`                   | the word for the person ID, for example `SCIPER` at EPFL |
+| `APP_CONTACT_EMAIL`                            | the support address of the calculator                    |
+| `APP_USER_DOC_URL`                             | the user documentation, with a `/` at the end            |
+| `APP_BACKOFFICE_DOC_URL`                       | the back-office documentation, with a `/` at the end     |
+| `APP_STRATEGY_URL_EN`, `APP_STRATEGY_URL_FR`   | the English and French pages of the climate strategy     |
+| `APP_PLANNER_MIN_YEAR`, `APP_PLANNER_MAX_YEAR` | the first and the last year of the project planner       |
 
 The texts insert the French forms as they are. For example, the French
 tab title is "Calculateur CO₂ de l'UNIV". The texts add page paths after
@@ -94,7 +95,9 @@ value. A value whose name looks like a secret, for example
 The container reads `/institution/values.env`, then the environment of
 the pod. A variable of the environment wins over the file, also if it
 is empty. The Helm chart does not send an empty `frontend.env` value to
-the pod, so the value of the file stays. Put the values
+the pod, so the value of the file stays. `APP_ENVIRONMENT` and
+`APP_DEMO_MODE` in `values.env` stop the frontend, because the chart gives
+them a value. Put the values
 that change per cluster in the environment: `APP_ENVIRONMENT`,
 `APP_SENTRY_DSN`, `APP_MATOMO_*`, `APP_OPS_*`, `APP_DEMO_MODE` and
 `APP_PRODUCTION_URL`. If you set `APP_MATOMO_SITE_ID`,

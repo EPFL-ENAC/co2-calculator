@@ -43,6 +43,12 @@ APP_STRATEGY_URL_EN=
 APP_STRATEGY_URL_FR=
 ```
 
+Two variables lose their chart default and are now required:
+`APP_PLANNER_MIN_YEAR` and `APP_PLANNER_MAX_YEAR`. Each must be a year,
+and the first must not be after the last. `APP_ENVIRONMENT` and
+`APP_DEMO_MODE` stay in the environment. In `values.env`, they stop the
+container.
+
 Three variables have a new name or are deleted.
 
 | Before                                     | Now                               |
@@ -107,8 +113,8 @@ Docker Compose does not read `backend/.env`. It reads
 
 ## Update a cluster
 
-1. Add the nine required variables under `frontend.env`, or in
-   `values.env` of the institution folder.
+1. Add the nine required variables and the two planner years under
+   `frontend.env`, or in `values.env` of the institution folder.
 2. Rename the two access management variables and delete the third.
 3. Set `APP_MATOMO_URL` and `APP_PRODUCTION_URL` where you use them.
 4. Make a ConfigMap from the institution folder. The folder must contain
