@@ -1,12 +1,9 @@
 name: deploy-storybook
 
+# Manual only, until a decision on the hosted Storybook: the push build
+# broke often on dependency issues and its CD_TOKEN dispatch returns 401.
 on:
-  push:
-    branches:
-      - dev
-      - main
-      - stage
-      - feat/74-storybook-implementation
+  workflow_dispatch:
 
 jobs:
   build-and-push:
