@@ -13,11 +13,10 @@ trap 'docker rm -f "$NAME" >/dev/null 2>&1; rm -rf "$TMP"' EXIT
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" -p 127.0.0.1:9466:8080 --read-only \
   --tmpfs /tmp:uid=101,gid=101 --tmpfs /var/cache/nginx --tmpfs /var/run \
-  --env-file ../institutions/epfl/frontend.env.example \
   -v "$PWD/nginx.conf:/etc/nginx/nginx.conf:ro" \
   -v "$PWD/docker/entrypoint.sh:/docker-entrypoint.d/40-entrypoint.sh:ro" \
   -v "$PWD/institution-default:/usr/local/share/institution/default:ro" \
-  -v "$PWD/tests/institution:/institution:ro" \
+  -v "$PWD/institution-example:/institution:ro" \
   -v "$DIST:/usr/share/nginx/html:ro" \
   nginxinc/nginx-unprivileged:stable-alpine-slim >/dev/null
 i=0
