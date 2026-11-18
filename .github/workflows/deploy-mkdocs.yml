@@ -1,30 +1,14 @@
 name: deploy-mkdocs
 
-# =============================================================================
-# IMPORTANT: DEPRECATED - FOR MAIN BRANCH FALLBACK ONLY (GITHUB PAGES)
-# =============================================================================
-#
-# ⚠️  THIS WORKFLOW IS DEPRECATED AND ONLY USED FOR MAIN BRANCH FALLBACK
-#
-# For ALL other branches (dev, stage, ci-test/*, tags):
-#   Documentation is deployed by .gitlab-ci.yml on gitlab.epfl.ch
-#   Access docs at: https://co2-calculator-*.epfl.ch/docs
-#
-# Branch-to-URL mapping:
-#   - dev branch    → https://co2-calculator-dev.epfl.ch/docs
-#   - stage branch  → https://co2-calculator-stage.epfl.ch/docs
-#   - tags (v*)     → https://co2-calculator.epfl.ch/docs
-#
-# This workflow ONLY deploys to GitHub Pages for the main branch.
-# Consider removing this workflow once GitHub Pages is no longer needed.
-# =============================================================================
+# Publishes the docs of main to GitHub Pages
+# (https://epfl-enac.github.io/co2-calculator/). A pull request into main
+# only builds the site, as a strict check. dev, stage and prod also serve
+# the docs at /docs, from the docs image that .gitlab-ci.yml deploys.
 
 on:
   push:
     branches:
       - main
-      - stage
-      - 'ci-test/**'
   pull_request:
     branches:
       - main
