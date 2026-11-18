@@ -31,7 +31,8 @@ tells you how to make each value.
 > the backend stops at startup.
 
 1. Copy `examples/secrets.yaml` to a location outside the repository.
-2. Replace each `<change-me>` in the copy.
+2. Replace each `<change-me>` in the copy, and fill the six empty
+   signing and encryption values.
 3. Apply the copy to the namespace.
 
 ```bash
