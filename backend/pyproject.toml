@@ -13,7 +13,7 @@ dependencies = [
     "sqlalchemy[asyncio]==2.1.8",
     "psycopg[binary,pool]==3.3.9",
     "alembic==1.20.1",
-    "authlib==1.9.5",
+    "authlib==1.9.6",
     # to remove once, we use entra or keycloak
     # "python-dotenv==1.0.0",
     "pydantic==2.14.3",
@@ -150,7 +150,7 @@ dev = [
     "httpx>=0.28",
     "locust>=2.47.0",
     "pytest-env>=1.8.5",
-    "faker>=40.44.0",
+    "faker>=40.54.0",
     "docker>=7.2.0",
     "asyncpg>=0.32.0",
     "types-pyyaml>=6.0.12.20261030",

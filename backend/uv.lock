@@ -215,15 +215,15 @@ wheels = [
 
 [[package]]
 name = "authlib"
-version = "1.9.5"
+version = "1.9.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "joserfc" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/04/96/6e7ed72bb49762a9b65d51c4cb235d793f0485cd8d6f7e9404ce955a4808/authlib-1.9.5.tar.gz", hash = "sha256:3f031d5e9b6486089e91e8f7f1b68f36275f3151c66460d650fc90d420545fd7", size = 183564, upload-time = "2026-11-05T16:13:18.409Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/49/d174a1bcd2b62c261d68cd6dce10ef5f50a2bd4f8144bedeb5b6fa119ac2/authlib-1.9.6.tar.gz", hash = "sha256:1caa0791c0ea6bde6b4ef91b1731f720a97a0f00d3955878d4a493b4ce673247", size = 183687, upload-time = "2026-11-14T19:47:45.858Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/d7/d384e7a639dd1d018767ba0fe39601b61cded066bb7af38db31ec998252d/authlib-1.9.5-py2.py3-none-any.whl", hash = "sha256:e32a63e3d869196b61816b2602231862179a2ffc29358c009d1f022c8b86a8b2", size = 267074, upload-time = "2026-11-05T16:13:16.766Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/76/3c4315d5e0e64a5e7676a88e4ed4c55b365142581501dd8f5af9b3c09f80/authlib-1.9.6-py2.py3-none-any.whl", hash = "sha256:96564699a43281b9e3473717a135407a1170bdc850ebe21313539d672c2a6682", size = 267181, upload-time = "2026-11-14T19:47:44.074Z" },
 ]
 
 [[package]]
@@ -469,7 +469,7 @@ dev = [
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "alembic", specifier = "==1.20.1" },
-    { name = "authlib", specifier = "==1.9.5" },
+    { name = "authlib", specifier = "==1.9.6" },
     { name = "cryptography", specifier = ">=50.0.2" },
     { name = "elasticsearch", specifier = ">=8.0.0,<9.0.0" },
     { name = "email-validator", specifier = "==2.3.0" },
@@ -520,7 +520,7 @@ requires-dist = [
 dev = [
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "docker", specifier = ">=7.2.0" },
-    { name = "faker", specifier = ">=40.44.0" },
+    { name = "faker", specifier = ">=40.54.0" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "locust", specifier = ">=2.47.0" },
     { name = "pytest", specifier = ">=9.2.0" },
@@ -739,14 +739,14 @@ dependencies = [
 
 [[package]]
 name = "faker"
-version = "40.52.0"
+version = "40.54.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/25/39/08d27f19a9e8e849d702fc58a7e4c6c0e57d30f4a47ad15d0230ac7267c4/faker-40.52.0.tar.gz", hash = "sha256:a57e48f8e9430917a75d7b53a1568dd10cf4f442058c1fab8a4253c81b2a745a", size = 2037131, upload-time = "2026-11-09T18:28:59.518Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/64/eace8e5941eaf51b62d56a54e3ab8380934b0ab2deef2c640ed1153ea47f/faker-40.54.0.tar.gz", hash = "sha256:38fba73e32699a9f1071724d67e5a66a84bf057987cffb27c9d0c979fda3f135", size = 2037669, upload-time = "2026-11-10T22:05:54.089Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b8/94/2ac151962ca2df0d6fbb7414e05cb0ba84329e5e8f08818d30e3725de3b4/faker-40.52.0-py3-none-any.whl", hash = "sha256:73f3f9c0a82cfc5ca341972ef4282e7ec2fffe340d2fabe018238ae0da062ec1", size = 2070879, upload-time = "2026-11-09T18:28:57.642Z" },
+    { url = "https://files.pythonhosted.org/packages/85/2d/031405437c6ccdc5fb24fc8cc715fbe5fbf9af492749ad070d9cc85f69dc/faker-40.54.0-py3-none-any.whl", hash = "sha256:2dd88ee8cb63a9149e19ef48bdd73879bc3854d8ba2d6c1535e902a762e603f7", size = 2071041, upload-time = "2026-11-10T22:05:51.787Z" },
 ]
 
 [[package]]
