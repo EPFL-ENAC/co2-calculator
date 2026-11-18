@@ -5,9 +5,9 @@
  * Scope: the single #1403 checklist item this slice covers —
  * "View correctly tracks upload progress for all modules."  Reuses
  * the mocking conventions from ``pipeline-diagnostic-tooltip.spec.ts``
- * (Plan 310 / Unit 11): HTTP boundary via ``page.route``, SSE boundary
- * via the in-page ``EventSource`` shim installed by
- * ``installPlaywrightTestShims`` (see ``setup/pipeline-tooltip-mocks.ts``).
+ * (Plan 310 / Unit 11): HTTP boundary via ``page.route``.  The page
+ * polls the list endpoint while a row runs, so tests drive time with
+ * ``page.clock``.
  *
  * Out of scope (see the master plan,
  * docs/src/implementation-plans/1403-backoffice-integration-tests-master.md):
@@ -16,7 +16,7 @@
  * phase-label bugs tracked by #1523/#1591 (different components).
  */
 
-import { test, expect, type Page } from 'playwright/test';
+import { test, expect } from 'playwright/test';
 import {
   PIPELINE_OPERATIONS_URL,
   buildPipelineItem,
@@ -30,45 +30,6 @@ const MODULE_B_PIPELINE_ID = 'bbbbbbbb-1111-2222-3333-444444444444';
 /** Mirrors ``pipeops_phase_prefix`` + ``pipeops_phase_data`` / etc. */
 const PHASE_1_LABEL = 'Phase 1/3 · Data inserted';
 const PHASE_2_LABEL = 'Phase 2/3 · Emissions recalculating';
-
-/**
- * Drive an SSE event into the in-page shim — same helper shape as
- * ``pipeline-diagnostic-tooltip.spec.ts``.
- */
-async function dispatchPipelineUpdate(
-  page: Page,
-  pipelineId: string,
-  payload: Record<string, unknown>,
-): Promise<boolean> {
-  return await page.evaluate(
-    ({ pipelineId, payload }) => {
-      const map = (window as Window & { __ssePipes?: Map<string, unknown> })
-        .__ssePipes;
-      if (!map) return false;
-      const url = `/api/v1/sync/pipelines/${pipelineId}/stream`;
-      const pipe = map.get(url) as
-        { dispatch(eventName: string, payload: unknown): void } | undefined;
-      if (!pipe) return false;
-      pipe.dispatch('pipeline-update', payload);
-      return true;
-    },
-    { pipelineId, payload },
-  );
-}
-
-/** Waits until ``usePipelineStream.subscribe`` has opened the SSE pipe. */
-async function waitForSsePipe(page: Page, pipelineId: string): Promise<void> {
-  await page.waitForFunction(
-    (pipelineId) => {
-      const map = (window as Window & { __ssePipes?: Map<string, unknown> })
-        .__ssePipes;
-      if (!map) return false;
-      return map.has(`/api/v1/sync/pipelines/${pipelineId}/stream`);
-    },
-    pipelineId,
-    { timeout: 5000 },
-  );
-}
 
 test.describe('pipeline operations console — upload progress tracking (#1403d)', () => {
   let pipelines: PipelineListController;
@@ -124,15 +85,12 @@ test.describe('pipeline operations console — upload progress tracking (#1403d)
       }),
     ]);
 
+    await page.clock.install();
     await page.goto(PIPELINE_OPERATIONS_URL);
     await expect(page.getByText(PHASE_1_LABEL)).toBeVisible();
 
-    // The console subscribes to the SSE stream for every visible
-    // non-done pipeline (see ``syncSubscriptions`` in the page);
-    // any update debounce-refetches the list — which is where the
-    // mocked backend's new phase actually comes from.
-    await waitForSsePipe(page, MODULE_A_PIPELINE_ID);
-
+    // The page refetches the list every 5 s while a row is not done;
+    // the mocked backend's new phase comes from that refetch.
     pipelines.set([
       buildPipelineItem({
         pipeline_id: MODULE_A_PIPELINE_ID,
@@ -149,17 +107,7 @@ test.describe('pipeline operations console — upload progress tracking (#1403d)
         },
       }),
     ]);
-    await dispatchPipelineUpdate(page, MODULE_A_PIPELINE_ID, {
-      pipeline_id: MODULE_A_PIPELINE_ID,
-      jobs: [],
-      progress: {
-        phase: 2,
-        phases_total: 3,
-        phase_label: 'emissions',
-        done: false,
-        has_error: false,
-      },
-    });
+    await page.clock.runFor(6000);
 
     await expect(page.getByText(PHASE_2_LABEL)).toBeVisible();
     await expect(page.getByText(PHASE_1_LABEL)).toHaveCount(0);
@@ -217,5 +165,63 @@ test.describe('pipeline operations console — upload progress tracking (#1403d)
     await expect(page.locator('.text-negative', { hasText: '✗' })).toHaveCount(
       1,
     );
+  });
+
+  test('polls the list while a pipeline runs, with no per-pipeline stream', async ({
+    page,
+  }) => {
+    const perPipelineUrls: string[] = [];
+    page.on('request', (req) => {
+      if (/\/api\/v1\/sync\/pipelines\/[^/?]+/.test(req.url())) {
+        perPipelineUrls.push(req.url());
+      }
+    });
+    pipelines.set([
+      buildPipelineItem({
+        pipeline_id: MODULE_A_PIPELINE_ID,
+        module_label: 'Headcount',
+      }),
+    ]);
+    await page.clock.install();
+    await page.goto(PIPELINE_OPERATIONS_URL);
+    await expect(page.getByText(PHASE_1_LABEL)).toBeVisible();
+    const before = pipelines.requestCount();
+
+    await page.clock.runFor(6000);
+
+    await expect.poll(() => pipelines.requestCount()).toBeGreaterThan(before);
+    expect(perPipelineUrls).toEqual([]);
+    const openPipes = await page.evaluate(
+      () =>
+        (window as Window & { __ssePipes?: Map<string, unknown> }).__ssePipes
+          ?.size ?? 0,
+    );
+    expect(openPipes).toBe(0);
+  });
+
+  test('does not poll when every pipeline is done', async ({ page }) => {
+    pipelines.set([
+      buildPipelineItem({
+        pipeline_id: MODULE_A_PIPELINE_ID,
+        module_label: 'Headcount',
+        progress: {
+          phase: 3,
+          phases_total: 3,
+          phase_label: 'aggregation',
+          done: true,
+          has_error: false,
+          status: 'SUCCESS',
+          kind: 'csv_ingest',
+        },
+      }),
+    ]);
+    await page.clock.install();
+    await page.goto(PIPELINE_OPERATIONS_URL);
+    await expect(page.locator('.q-badge', { hasText: 'Done' })).toBeVisible();
+    const before = pipelines.requestCount();
+
+    await page.clock.runFor(12000);
+
+    expect(pipelines.requestCount()).toBe(before);
   });
 });

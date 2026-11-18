@@ -20,7 +20,7 @@ import {
   outlinedDownload,
 } from '@quasar/extras/material-icons-outlined';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { copyToClipboard, debounce, Notify } from 'quasar';
+import { copyToClipboard, Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { api } from '@/api/http';
 import { BACKOFFICE_NAV } from '@/constant/navigation';
@@ -28,8 +28,6 @@ import NavigationHeader from '@/components/organisms/backoffice/NavigationHeader
 import RecomputeStatsCard from '@/components/molecules/backoffice/RecomputeStatsCard.vue';
 import RecalculateEmissionsCard from '@/components/molecules/backoffice/RecalculateEmissionsCard.vue';
 import { PermissionAction, useAuthStore } from '@/stores/auth';
-import { usePipelineStream } from '@/composables/usePipelineStream';
-import { usePipelineStreamStore } from '@/stores/pipelineStream';
 import { useBackofficeDataManagement } from '@/stores/backofficeDataManagement';
 import { useYearConfigStore } from '@/stores/yearConfig';
 import { usePipelineJobRecovery } from '@/composables/usePipelineJobRecovery';
@@ -451,55 +449,28 @@ onMounted(() => {
   }
 });
 
-// 🐞#3 (Guilbert 2026-05-20) — SSE live-update on the ops page.
-//
-// Strategy: subscribe to every visible RUNNING pipeline's SSE stream;
-// on any update, the canonical list endpoint is the source of truth so
-// we refetch (debounced) and the table re-renders. This keeps state
-// consistent (jobs, counts, status_message) without per-cell merging.
-const { subscribe, unsubscribe } = usePipelineStream();
-const pipelineStreamStore = usePipelineStreamStore();
-const subscribedIds = new Set<string>();
+// Refetch the list while a row is not done. One SSE stream per pipeline
+// held a DB connection each and closed them mid-query when the user left.
+const POLL_MS = 5000;
+const polling = computed(() => store.counters.running > 0);
+let pollTimer: number | undefined;
 
-const debouncedRefetch = debounce(() => {
-  void store.fetch();
-}, 500);
-
-function syncSubscriptions(): void {
-  // Desired set: visible pipelines that are NOT done and have a real
-  // pipeline_id (orphans have none — nothing to subscribe to).
-  const desired = new Set<string>();
-  for (const p of store.items) {
-    if (p.pipeline_id && !p.progress.done) {
-      desired.add(p.pipeline_id);
+// watch bridges to a timer, a side effect outside Vue.
+watch(
+  polling,
+  (on) => {
+    window.clearInterval(pollTimer);
+    pollTimer = undefined;
+    if (on) {
+      pollTimer = window.setInterval(() => {
+        if (!store.loading) void store.fetch();
+      }, POLL_MS);
     }
-  }
-  // Subscribe newcomers.
-  for (const id of desired) {
-    if (!subscribedIds.has(id)) {
-      void subscribe(id);
-      subscribedIds.add(id);
-    }
-  }
-  // Unsubscribe pipelines that left the page or finished.
-  for (const id of [...subscribedIds]) {
-    if (!desired.has(id)) {
-      unsubscribe(id);
-      subscribedIds.delete(id);
-    }
-  }
-}
+  },
+  { immediate: true },
+);
 
-watch(() => store.items, syncSubscriptions, { deep: false });
-
-// Any SSE update for any subscribed pipeline → refetch the list
-// (debounced so a burst of child terminals doesn't thrash the API).
-watch(() => pipelineStreamStore.entries, debouncedRefetch, { deep: true });
-
-onUnmounted(() => {
-  for (const id of subscribedIds) unsubscribe(id);
-  subscribedIds.clear();
-});
+onUnmounted(() => window.clearInterval(pollTimer));
 </script>
 
 <template>
