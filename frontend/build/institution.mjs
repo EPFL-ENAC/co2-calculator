@@ -46,6 +46,9 @@ export const loadEnvLocal = () => {
 export const writeInstitutionFiles = (outDir) => {
   const result = spawnSync('sh', [join(FRONTEND_DIR, 'docker/entrypoint.sh')], {
     env: {
+      // These runs are local: the dev server, the tests and Storybook. A
+      // deployment sets APP_ENVIRONMENT itself, the container has no default.
+      APP_ENVIRONMENT: 'development',
       ...process.env,
       OUT_DIR: outDir,
       INSTITUTION_DIR: institutionDir(),
@@ -56,6 +59,8 @@ export const writeInstitutionFiles = (outDir) => {
   if (result.status !== 0) {
     throw new Error(`docker/entrypoint.sh failed:\n${result.stderr}`);
   }
+  // Warnings, for example a value of .env.local that replaces values.env.
+  process.stderr.write(result.stderr);
 };
 
 /**

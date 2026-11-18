@@ -24,8 +24,9 @@
 # app.
 #
 # Every APP_* value is PUBLIC: injectEnv.js goes to every browser, without a
-# login. Never put a secret in an APP_* variable. A key whose name looks like
-# a secret stops the startup.
+# login. Only the names in APP_NAMES are written: an unknown name in
+# values.env stops the startup, an unknown APP_* variable of the environment
+# is logged and left out.
 #
 # Why a JS file and not envsubst on index.html: the JS bundle is fingerprinted
 # and cached one year (see nginx.conf). injectEnv.js is a no-cache surface, so
@@ -72,6 +73,23 @@ font-medium.woff2
 font-bold.woff2
 "
 
+# The APP_* names that src/config/runtime.ts reads, and no other. awk gets
+# them on one line: some awk refuse a line break in a -v value.
+# tests/integration/institution-script.spec.ts fails when the two differ.
+APP_NAMES="
+APP_ACCESS_MANAGEMENT_ABOUT_URL APP_ACCESS_MANAGEMENT_URL
+APP_BACKOFFICE_DOC_SOURCE_URL APP_BACKOFFICE_DOC_URL APP_CONTACT_EMAIL
+APP_DEMO_MODE APP_DEVELOPER_DOC_URL APP_ENVIRONMENT
+APP_EQUIPMENT_POWER_FEEDBACK_EMAIL APP_INSTITUTION_NAME
+APP_INSTITUTION_NAME_FR_A APP_INSTITUTION_NAME_FR_DE
+APP_INSTITUTIONAL_ID_LABEL APP_MAP_TILE_STYLE_URL APP_MATOMO_SITE_ID
+APP_MATOMO_URL APP_OPS_ARGOCD_URL APP_OPS_GRAFANA_DASHBOARD_URL
+APP_OPS_GRAFANA_GRAPHS_URL APP_OPS_LOGS_URL APP_OPS_OPENSHIFT_URL
+APP_PLANNER_MAX_YEAR APP_PLANNER_MIN_YEAR APP_PRODUCTION_URL
+APP_ROLES_DOC_URL APP_SENTRY_DSN APP_SOURCE_CODE_URL APP_STRATEGY_URL_EN
+APP_STRATEGY_URL_FR APP_USER_DOC_SOURCE_URL APP_USER_DOC_URL
+"
+
 fail() {
   echo "[entrypoint] $1" >&2
   exit 1
@@ -85,7 +103,11 @@ fail() {
 # half-written file. awk reads values.env first, when the folder has one, then
 # the environment on stdin ("-"), so the environment wins.
 tmp=$(mktemp "${OUT_DIR}/injectEnv.js.XXXXXX")
-if ! printenv | awk -v env_file="${ENV_FILE}" '
+if ! printenv | awk -v env_file="${ENV_FILE}" -v app_names="$(echo ${APP_NAMES})" '
+  BEGIN {
+    split(app_names, names)
+    for (i in names) known[names[i]] = 1
+  }
   function fail(message) {
     print "[entrypoint] " message > "/dev/stderr"
     failed = 1
@@ -115,6 +137,17 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
     key = substr($0, 1, eq - 1)
     value = substr($0, eq + 1)
     from_file = (env_file != "" && FILENAME == env_file)
+    if (from_file) {
+      if (key in in_file) {
+        fail(FILENAME " line " FNR ": " key " is set twice")
+        next
+      }
+      in_file[key] = 1
+      if (!(key in known)) {
+        fail(FILENAME " line " FNR ": " key " is not a value of the app")
+        next
+      }
+    }
     if (!from_file) {
       # printenv gives lines, and a value can hold a line break: the true
       # value is in ENVIRON. A line with a name that ENVIRON does not have
@@ -125,6 +158,11 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
         next
       }
       value = ENVIRON[key]
+      # The environment holds variables of other tools: never publish one.
+      if (!(key in known)) {
+        print "[entrypoint] " key ": not a value of the app, not published" > "/dev/stderr"
+        next
+      }
       # Not silent: a deployment that sets both must see which one it gets.
       if ((key in values) && values[key] != value) {
         print "[entrypoint] " key ": the environment replaces values.env" > "/dev/stderr"
@@ -139,13 +177,16 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
   }
 
   END {
+    # The app makes a link of each one: a javascript: value would run code.
     for (i = 1; i <= count; i++) {
-      if (order[i] ~ /SECRET|PASSWORD|TOKEN|CREDENTIAL|PRIVATE/) {
-        fail(order[i] ": every APP_* value is public, a secret cannot be one")
+      if (order[i] ~ /_URL(_EN|_FR)?$/ && values[order[i]] != "" &&
+          values[order[i]] !~ /^https?:\/\//) {
+        fail(order[i] " must start with http:// or https://")
       }
     }
     # The texts and the links of the app use these: no default exists.
-    split("APP_INSTITUTION_NAME APP_INSTITUTION_NAME_FR_DE " \
+    # APP_ENVIRONMENT also decides if the test login page exists.
+    split("APP_ENVIRONMENT APP_INSTITUTION_NAME APP_INSTITUTION_NAME_FR_DE " \
           "APP_INSTITUTION_NAME_FR_A APP_INSTITUTIONAL_ID_LABEL " \
           "APP_CONTACT_EMAIL APP_USER_DOC_URL APP_BACKOFFICE_DOC_URL " \
           "APP_STRATEGY_URL_EN APP_STRATEGY_URL_FR " \
@@ -207,11 +248,28 @@ if [ ! -s "${INSTITUTION_DIR}/theme.conf" ]; then
   fail "missing or empty: ${INSTITUTION_DIR}/theme.conf. It sets the accent color."
 fi
 
+# A link must stay inside the folder: nginx serves the files to every
+# browser, and a link to /etc/passwd or /proc/1/environ would publish it. A
+# ConfigMap links each key into its ..data folder, which is inside. A broken
+# link stops too, or the default would replace the file without a word.
+folder=$(cd "${INSTITUTION_DIR}" && pwd -P)
+for path in "${INSTITUTION_DIR}"/*; do
+  [ -L "${path}" ] || continue
+  [ -e "${path}" ] || fail "broken link: ${path}"
+  case "$(readlink -f "${path}")" in
+    "${folder}"/*) ;;
+    *) fail "link out of ${INSTITUTION_DIR}: ${path}" ;;
+  esac
+done
+
 # The folder is flat: a ConfigMap key cannot hold a "/", so one folder mounts
 # from a ConfigMap, a volume or a local path alike. Names that start with "."
-# are skipped: a Kubernetes ConfigMap mount adds ..data and others.
-subfolders=$(cd "${INSTITUTION_DIR}" && find -L . -mindepth 1 -name '.*' -prune \
-  -o -type d -print | sed 's|^\./||' | while read -r dir; do printf ' %s' "${dir}"; done)
+# are skipped: a Kubernetes ConfigMap mount adds ..data and others. Each
+# listing is a separate step, so a find error stops the script.
+dirs=$(cd "${INSTITUTION_DIR}" && find -L . -mindepth 1 -name '.*' -prune \
+  -o -type d -print) || fail "cannot list ${INSTITUTION_DIR}"
+subfolders=$(printf '%s\n' "${dirs}" | sed -n 's|^\./||p' |
+  while read -r dir; do printf ' %s' "${dir}"; done)
 if [ -n "${subfolders}" ]; then
   fail "subfolders in ${INSTITUTION_DIR}:${subfolders}. The folder is flat, it must hold files only."
 fi
@@ -233,8 +291,9 @@ print_unknown() {
     esac
   done
 }
-unknown=$(cd "${INSTITUTION_DIR}" && find -L . -mindepth 1 -name '.*' -prune \
-  -o -type f -print | sed 's|^\./||' | print_unknown)
+files=$(cd "${INSTITUTION_DIR}" && find -L . -mindepth 1 -name '.*' -prune \
+  -o -type f -print) || fail "cannot list ${INSTITUTION_DIR}"
+unknown=$(printf '%s\n' "${files}" | sed -n 's|^\./||p' | print_unknown)
 if [ -n "${unknown}" ]; then
   fail "unknown files in ${INSTITUTION_DIR}:${unknown}. The names are in the defaults folder of the image."
 fi

@@ -347,5 +347,8 @@ locally, a developer sets `INSTITUTION_DIR` to the EPFL folder.
   it to the branch protection of `dev` and `main`.
 - A change of `theme.conf` or of `values.env` reloads the dev server
   page. A change of `.env.local` needs a restart of the dev server.
-- The check of secret names reads the key, not the value. It stops a key
-  such as `APP_API_TOKEN`. It cannot see a secret under a neutral name.
+- `entrypoint.sh` sends only the names that `src/config/runtime.ts`
+  reads, and a test keeps the two lists equal. It cannot see a secret in
+  the value of a known name.
+- A link in the institution folder must stay inside the folder. A Docker
+  or host volume with a link to an outside file stops the container.

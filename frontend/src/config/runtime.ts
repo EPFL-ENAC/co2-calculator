@@ -43,7 +43,8 @@ const read = (key: string): string => injected[key] ?? '';
 export const runtimeConfig = {
   // Sentry/GlitchTip DSN. Empty disables Sentry (src/boot/sentry.ts).
   sentryDsn: read('APP_SENTRY_DSN') || undefined,
-  environment: read('APP_ENVIRONMENT') || 'development',
+  // Required by docker/entrypoint.sh: "development" adds the test login.
+  environment: read('APP_ENVIRONMENT'),
   release: (hasViteEnv && import.meta.env.APP_VERSION) || undefined,
   buildTime: (hasViteEnv && import.meta.env.APP_BUILD_TIME) || undefined,
   // Raster-tile URL template for the MapLibre maps of Professional Travel.

@@ -89,13 +89,16 @@ replaces "SCIPER" in the texts and in the headcount column.
 
 Every `APP_*` value is public. The frontend sends them to each browser,
 without a login. Do not put a password, a token or a key in an `APP_*`
-value. A value whose name looks like a secret, for example
-`APP_API_TOKEN`, stops the frontend at startup.
+value. The frontend sends only the names of this page. An other name in
+`values.env` stops the frontend at startup. An other `APP_*` variable of
+the environment is logged and not sent. Each `*_URL` value must start
+with `http://` or `https://`.
 
 The container reads `/institution/values.env`, then the environment of
 the pod. A variable of the environment wins over the file, also if it
 is empty. The Helm chart does not send an empty `frontend.env` value to
-the pod, so the value of the file stays. `APP_ENVIRONMENT` and
+the pod, so the value of the file stays. `APP_ENVIRONMENT` is required in the environment: the Helm chart
+gives `production`. `APP_ENVIRONMENT` and
 `APP_DEMO_MODE` in `values.env` stop the frontend, because the chart gives
 them a value. Put the values
 that change per cluster in the environment: `APP_ENVIRONMENT`,

@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -45,6 +46,7 @@ const run = (env: Record<string, string> = {}) =>
   spawnSync('sh', [join(FRONTEND, 'docker/entrypoint.sh')], {
     env: {
       PATH: process.env.PATH,
+      APP_ENVIRONMENT: 'production',
       INSTITUTION_DIR: mounted,
       INSTITUTION_DEFAULT_DIR: DEFAULT_DIR,
       OUT_DIR: out,
@@ -187,7 +189,12 @@ for (const [env, message] of [
   [{ APP_USER_DOC_URL: 'https://doc.example.org' }, 'must end with /'],
   [{ APP_MATOMO_SITE_ID: '3' }, 'APP_MATOMO_URL is required'],
   [{ APP_DEMO_MODE: 'true' }, 'APP_PRODUCTION_URL is required'],
-  [{ APP_API_TOKEN: 'abc' }, 'APP_API_TOKEN: every APP_* value is public'],
+  [{ APP_ENVIRONMENT: '' }, 'APP_ENVIRONMENT is required and empty'],
+  [
+    { APP_STRATEGY_URL_EN: 'javascript:alert(1)' },
+    'APP_STRATEGY_URL_EN must start with http:// or https://',
+  ],
+  [{ APP_ROLES_DOC_URL: '/roles/' }, 'APP_ROLES_DOC_URL must start with http'],
   [{ APP_PLANNER_MAX_YEAR: '' }, 'APP_PLANNER_MAX_YEAR is required and empty'],
   [{ APP_PLANNER_MIN_YEAR: '20x6' }, 'APP_PLANNER_MIN_YEAR must be a year'],
   [{ APP_PLANNER_MIN_YEAR: '2051' }, 'must not be after APP_PLANNER_MAX_YEAR'],
@@ -280,4 +287,70 @@ test('an environment variable wins over values.env', () => {
   const result = run({ APP_CONTACT_EMAIL: 'other@example.org' });
   expect(result.status, result.stderr).toBe(0);
   expect(injected().APP_CONTACT_EMAIL).toBe('other@example.org');
+});
+
+// The names of docker/entrypoint.sh are the names that the app reads.
+test('the script publishes exactly the values that runtime.ts reads', () => {
+  const script = readFileSync(join(FRONTEND, 'docker/entrypoint.sh'), 'utf8');
+  const runtime = readFileSync(join(FRONTEND, 'src/config/runtime.ts'), 'utf8');
+  const listed = /APP_NAMES="([^"]*)"/.exec(script)?.[1].split(/\s+/) ?? [];
+  const read = [...runtime.matchAll(/read\('(APP_[A-Z0-9_]+)'\)/g)].map(
+    (match) => match[1],
+  );
+  expect(listed.filter(Boolean).sort()).toEqual([...new Set(read)].sort());
+});
+
+test('an unknown name in values.env stops the startup', () => {
+  theme('accent: #0050a0\n');
+  write('values.env', `${EXAMPLE_VALUES}APP_MAPS_API_KEY=abc\n`);
+  const result = run();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('APP_MAPS_API_KEY is not a value of the app');
+});
+
+test('an unknown APP_* variable of the environment is not published', () => {
+  theme('accent: #0050a0\n');
+  const result = run({ APP_MAPS_API_KEY: 's3cr3t' });
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stderr).toContain('APP_MAPS_API_KEY: not a value of the app');
+  expect(readFileSync(join(out, 'injectEnv.js'), 'utf8')).not.toContain(
+    's3cr3t',
+  );
+});
+
+test('a key set twice in values.env stops the startup', () => {
+  theme('accent: #0050a0\n');
+  write('values.env', `${EXAMPLE_VALUES}APP_CONTACT_EMAIL=other@example.org\n`);
+  const result = run();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('APP_CONTACT_EMAIL is set twice');
+});
+
+test('a link out of the folder stops the startup', () => {
+  theme('accent: #0050a0\n');
+  symlinkSync('/etc/hosts', join(mounted, 'logo.svg'));
+  const result = run();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('link out of');
+  expect(existsSync(join(out, 'institution/logo.svg'))).toBe(false);
+});
+
+test('a broken link stops the startup', () => {
+  theme('accent: #0050a0\n');
+  symlinkSync(join(mounted, 'missing.svg'), join(mounted, 'logo.svg'));
+  const result = run();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('broken link');
+});
+
+// A ConfigMap mount: each key links into the ..data folder.
+test('a link inside the folder, as a ConfigMap makes, is read', () => {
+  theme('accent: #0050a0\n');
+  write('..data/logo.svg', '<svg id="mounted"/>');
+  symlinkSync('..data/logo.svg', join(mounted, 'logo.svg'));
+  const result = run();
+  expect(result.status, result.stderr).toBe(0);
+  expect(readFileSync(join(out, 'institution/logo.svg'), 'utf8')).toContain(
+    'mounted',
+  );
 });
