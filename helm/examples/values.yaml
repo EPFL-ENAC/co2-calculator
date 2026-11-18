@@ -23,8 +23,19 @@ database:
     name: co2-db
 
 frontend:
+  # The institution folder, mounted at /institution: theme.conf, values.env
+  # and your logo, icons and fonts (docs: infra/08-new-institution.md). The
+  # frontend does not start without it. Make the ConfigMap from your folder:
+  #   kubectl create configmap co2-institution -n co2 --from-file=<your folder>
+  institutionAssets:
+    volume:
+      configMap:
+        name: co2-institution
   env:
-    # The chart defaults of these four values belong to one institution.
+    # Chart 1.0.1797 (examples/kustomization.yaml) predates the institution
+    # folder: the defaults of these four values belong to one institution
+    # there. Remove the four lines once kustomization.yaml pins a chart
+    # built after #3244, and give the values in values.env of your folder.
     APP_ACCESS_MANAGEMENT_PROVIDER_NAME: ""
     APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: "co2-support@example.org"
     APP_MATOMO_URL: ""

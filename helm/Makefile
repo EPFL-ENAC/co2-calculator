@@ -54,13 +54,17 @@ lint-examples: ## Fail if an example Secret lacks a key the pods read
 	[ -z "$$short" ] || { echo "❌ skaffold/templates/secrets.yaml has values under 32 characters:" $$short; exit 1; }; \
 	echo "✅ the Skaffold signing and encryption values have 32 characters or more"
 
+# What the chart refuses to render without: the backend Secret name and the
+# institution volume (#3244). For the checks that render the chart defaults.
+REQUIRED = --set backend.existingSecret.name=x --set frontend.institutionAssets.volume.configMap.name=x
+
 # Regression check: "/api/v1" made every API call 404, because FastAPI
 # strips the API_DOCS_PREFIX root path before it routes.
 .PHONY: check-api-version
 check-api-version: ## Fail unless the backend renders API_VERSION=/v1
 	@# Chart defaults, not examples/values.yaml: the example sets API_VERSION
 	@# itself for the older published chart, and would hide a reverted default.
-	@helm template . --set backend.existingSecret.name=x -s templates/backend-deployment.yaml \
+	@helm template . $(REQUIRED) -s templates/backend-deployment.yaml \
 		| grep -A1 'name: API_VERSION' | grep -q 'value: "/v1"' \
 		|| { echo "❌ API_VERSION is not /v1: every /api/v1 call would 404"; exit 1; }
 	@echo "✅ API_VERSION renders as /v1"
@@ -69,7 +73,7 @@ check-api-version: ## Fail unless the backend renders API_VERSION=/v1
 # copied backend.env into it by hand and the copies drifted.
 .PHONY: check-worker-env
 check-worker-env: ## Fail unless the worker gets backend.env under worker.env, keeps the reconciler, no duplicate name
-	@out=$$(helm template . --set backend.existingSecret.name=x --set worker.enabled=true \
+	@out=$$(helm template . $(REQUIRED) --set worker.enabled=true \
 		--set backend.env.CHECK_ONLY_BACKEND=b --set backend.env.CHECK_SHARED=b \
 		--set worker.env.CHECK_SHARED=w --set backend.env.RUN_PIPELINE_RECONCILER=false \
 		-s templates/backend-worker-deployment.yaml) || exit 1; \
