@@ -108,22 +108,6 @@ backend:
     # transform actually reads it.
     #   OTEL_SEMCONV_STABILITY_OPT_IN: "http/dup"
 
-  secrets:
-    # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
-    # Generate a secure, distinct value for EACH key using: openssl rand -hex 32
-    # Use backend.existingSecret.enabled=true for production environments
-    JWT_HMAC_KEY: "" # REQUIRED: JWT signing key. Must be set via --set flag or existing secret
-    SESSION_HMAC_KEY: "" # REQUIRED: OAuth-flow session cookie signing key. Must be set via --set flag or existing secret
-
-    # OAuth/OIDC Configuration (optional, for future OAuth implementation)
-    # OAUTH_CLIENT_ID: ""  # OAuth2 client ID from your identity provider
-    # OAUTH_CLIENT_SECRET: ""  # OAuth2 client secret (keep secure!)
-    # OAUTH_ISSUER_URL: ""  # OIDC issuer URL (e.g., https://keycloak.example.com/realms/your-realm)
-    OAUTH_CLIENT_ID: ""
-    OAUTH_CLIENT_SECRET: ""
-    OAUTH_ISSUER_URL: ""
-    OAUTH_TENANT_ID: ""
-
   podAnnotations: {}
 
   podSecurityContext:
@@ -194,11 +178,6 @@ backend:
   tolerations: []
   affinity: {}
   existingSecret:
-    # Default: reference a pre-existing Secret (production path).
-    # For local/dev chart-managed secrets, set enabled=false and provide
-    # backend.secrets.JWT_HMAC_KEY / backend.secrets.SESSION_HMAC_KEY.
-    # -- Read the backend settings from a Secret that you create. With `false`, the chart makes a Secret that lacks most keys, see the chart README
-    enabled: true
     # -- Name of the backend Secret that you create. Required. The chart README lists its keys
     name: ""
     keys:
@@ -492,8 +471,9 @@ database:
     # -- Wait until PostgreSQL answers before the backend and the migrations start
     enabled: true
     image:
-      repository: bitnamilegacy/postgresql
-      tag: "latest"
+      # Official image: ships pg_isready; 18 matches the deployed PostgreSQL.
+      repository: postgres
+      tag: "18-alpine"
       pullPolicy: IfNotPresent
 
 ingress:

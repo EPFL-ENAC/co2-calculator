@@ -54,12 +54,6 @@ no description has only a comment in `values.yaml`. The chart
 | backend.env.OTEL_TRACES_EXPORTER | string | `"none"` |  |
 | backend.env.OTEL_METRICS_EXPORTER | string | `"none"` |  |
 | backend.env.OTEL_LOGS_EXPORTER | string | `"none"` |  |
-| backend.secrets.JWT_HMAC_KEY | string | `""` |  |
-| backend.secrets.SESSION_HMAC_KEY | string | `""` |  |
-| backend.secrets.OAUTH_CLIENT_ID | string | `""` |  |
-| backend.secrets.OAUTH_CLIENT_SECRET | string | `""` |  |
-| backend.secrets.OAUTH_ISSUER_URL | string | `""` |  |
-| backend.secrets.OAUTH_TENANT_ID | string | `""` |  |
 | backend.podAnnotations | object | `{}` |  |
 | backend.podSecurityContext | string | `nil` |  |
 | backend.securityContext.allowPrivilegeEscalation | bool | `false` |  |
@@ -95,7 +89,6 @@ no description has only a comment in `values.yaml`. The chart
 | backend.nodeSelector | object | `{}` |  |
 | backend.tolerations | list | `[]` |  |
 | backend.affinity | object | `{}` |  |
-| backend.existingSecret.enabled | bool | `true` | Read the backend settings from a Secret that you create. With `false`, the chart makes a Secret that lacks most keys, see the chart README |
 | backend.existingSecret.name | string | `""` | Name of the backend Secret that you create. Required. The chart README lists its keys |
 | backend.existingSecret.keys.jwtHmacKeyKey | string | `"JWT_HMAC_KEY"` |  |
 | backend.existingSecret.keys.sessionHmacKeyKey | string | `"SESSION_HMAC_KEY"` |  |
@@ -230,8 +223,8 @@ no description has only a comment in `values.yaml`. The chart
 | database.existingSecret.keys.url | string | `"DB_URL"` | Key of the PostgreSQL URL in the database Secret. The backend and the migrations read it |
 | database.existingSecret.keys.password | string | `"DB_PASSWORD"` |  |
 | database.waitForPostgres.enabled | bool | `true` | Wait until PostgreSQL answers before the backend and the migrations start |
-| database.waitForPostgres.image.repository | string | `"bitnamilegacy/postgresql"` |  |
-| database.waitForPostgres.image.tag | string | `"latest"` |  |
+| database.waitForPostgres.image.repository | string | `"postgres"` |  |
+| database.waitForPostgres.image.tag | string | `"18-alpine"` |  |
 | database.waitForPostgres.image.pullPolicy | string | `"IfNotPresent"` |  |
 | ingress.enabled | bool | `true` | Create an Ingress. On OpenShift, set `false` and use `routes` |
 | ingress.className | string | `"nginx"` | Ingress class of your cluster |

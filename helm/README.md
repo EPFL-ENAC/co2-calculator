@@ -58,9 +58,6 @@ To upgrade, use `helm upgrade` with the same values file.
 
 ## Limits
 
-- Do not set `backend.existingSecret.enabled` to `false`. With `false`,
-  the chart makes a Secret that has 5 of the 26 keys, and the pods do
-  not start.
 - Outside EPFL, a user logs in with no role, and the app has no units.
   Issue #3246 removes this limit.
 - If you do not use Accred or Elasticsearch, their keys must still
