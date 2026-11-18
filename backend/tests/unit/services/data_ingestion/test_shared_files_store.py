@@ -10,13 +10,25 @@ import pytest
 
 from app.api.v1 import files
 from app.services.data_ingestion.base_csv_provider import BaseCSVProvider
+from app.services.data_ingestion.base_factor_csv_provider import (
+    BaseFactorCSVProvider,
+)
 from app.services.data_ingestion.base_reduction_objective_csv_provider import (
     BaseReductionObjectiveCSVProvider,
+)
+from app.services.data_ingestion.csv_providers.reference_data import (
+    ReferenceDataCSVProvider,
 )
 
 
 @pytest.mark.parametrize(
-    "provider_cls", [BaseCSVProvider, BaseReductionObjectiveCSVProvider]
+    "provider_cls",
+    [
+        BaseCSVProvider,
+        BaseReductionObjectiveCSVProvider,
+        BaseFactorCSVProvider,
+        ReferenceDataCSVProvider,
+    ],
 )
 def test_files_store_is_the_shared_singleton(provider_cls: type) -> None:
     first = SimpleNamespace(_files_store=None)
