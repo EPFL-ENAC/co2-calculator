@@ -48,6 +48,11 @@ lint-examples: ## Fail if an example Secret lacks a key the pods read
 		[ -z "$$missing" ] || { echo "❌ $$f lacks:$$missing"; exit 1; }; \
 	done; \
 	echo "✅ the example Secrets have the $$(echo "$$keys" | wc -l | tr -d ' ') keys the pods read"
+	@# The backend refuses a signing or encryption value under 32 characters,
+	@# so a short local value stops the Skaffold backend at startup.
+	@short=$$(awk -F'"' '/_(HMAC_KEY|ENCRYPTION_KEY|ENCRYPTION_SALT):/ && length($$2) < 32 {print $$1}' skaffold/templates/secrets.yaml); \
+	[ -z "$$short" ] || { echo "❌ skaffold/templates/secrets.yaml has values under 32 characters:" $$short; exit 1; }; \
+	echo "✅ the Skaffold signing and encryption values have 32 characters or more"
 
 # Regression check: "/api/v1" made every API call 404, because FastAPI
 # strips the API_DOCS_PREFIX root path before it routes.
