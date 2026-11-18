@@ -298,9 +298,11 @@ Before the next deployment, a human changes the ops repository:
   `APP_MATOMO_*`, `APP_OPS_*`) in the overlays, under `frontend.env`.
 - Set `APP_MATOMO_URL` and `APP_PRODUCTION_URL` where they are used.
 - Give the ConfigMap of the chart to `frontend.institutionAssets.volume`.
-  The chart version is part of the ConfigMap name, because the frontend
-  reads the folder only at startup. Change the chart version and the name
-  together: the new name restarts the pods.
+  Its name is fixed, and the chart version is a label. The frontend reads
+  the folder only at startup, so each overlay copies that label into the
+  `institution-version` annotation of the frontend pods, with a kustomize
+  replacement. A new chart version is then one edit, and it restarts the
+  pods.
 - Keep in the overlay each value that the image of today reads, until the
   new image runs. That image cannot read `values.env`.
 - Set `FRONTEND_URL` and `DB_URL` for the backend. They have no default.

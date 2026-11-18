@@ -238,9 +238,10 @@ You can also set the institution values under `frontend.env` instead of
 `values.env`. A variable of the environment wins over the file.
 
 The frontend reads the folder only at startup, and a change of a
-ConfigMap does not restart a pod. Put a version in the name of the
-ConfigMap, and change the name each time you change the content. The
-chart of the EPFL repository does this.
+ConfigMap does not restart a pod. Change something in the pod template
+each time you change the folder. The EPFL repository shows one way: its
+chart gives its version as a label, and the overlay copies that label
+into an annotation of the frontend pods.
 
 Without the volume, the Helm chart does not render, because the volume
 gives `theme.conf`. With an empty required value, the new pods stop at
