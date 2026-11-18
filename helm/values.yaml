@@ -5,6 +5,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 global:
+  # -- Pull secrets for all pods. Set them if your image registry is private
   imagePullSecrets: []
   # - name: ghcr-creds
 
@@ -14,6 +15,7 @@ backend:
 
   image:
     repository: ghcr.io/epfl-enac/epfl/co2-calculator/backend
+    # -- Backend image tag. Set it to one release tag, not `latest`
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -34,7 +36,9 @@ backend:
     # Keep "true" wherever a TLS terminator fronts the pods (all clusters);
     # only local plain-http dev sets it "false". See infra OAuth post-mortem.
     COOKIE_SECURE: "true"
-    API_VERSION: "/api/v1"
+    # Under API_DOCS_PREFIX: FastAPI strips that root path before routing,
+    # so /api/v1/... reaches the /v1 routers. "/api/v1" gives 404 everywhere.
+    API_VERSION: "/v1"
     API_DOCS_PREFIX: "/api"
     LOG_LEVEL: "INFO"
     ALGORITHM: "HS256"
@@ -77,6 +81,12 @@ backend:
     # string) in an environment-specific override if SQL-level traces are
     # needed for active debugging — the cost is worth it there, not always-on.
     OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"
+    # No collector by default: the OTLP exporter would retry localhost:4317
+    # and log an error every few seconds. To export, set the three to
+    # "otlp" (logs: "none" is fine) and OTEL_EXPORTER_OTLP_ENDPOINT.
+    OTEL_TRACES_EXPORTER: "none"
+    OTEL_METRICS_EXPORTER: "none"
+    OTEL_LOGS_EXPORTER: "none"
     # co2-calculator#2260: FastAPI puts each endpoint's *un-prefixed* leaf
     # route into scope["route"], so opentelemetry-instrumentation-asgi's
     # http.target (root_path + route.path_format) loses every
@@ -187,8 +197,10 @@ backend:
     # Default: reference a pre-existing Secret (production path).
     # For local/dev chart-managed secrets, set enabled=false and provide
     # backend.secrets.JWT_HMAC_KEY / backend.secrets.SESSION_HMAC_KEY.
+    # -- Read the backend settings from a Secret that you create. With `false`, the chart makes a Secret that lacks most keys, see the chart README
     enabled: true
-    name: "" # REQUIRED when enabled=true: name of the pre-existing Secret
+    # -- Name of the backend Secret that you create. Required. The chart README lists its keys
+    name: ""
     keys:
       jwtHmacKeyKey: JWT_HMAC_KEY # Key in the existing secret for JWT_HMAC_KEY
       sessionHmacKeyKey: SESSION_HMAC_KEY # Key in the existing secret for SESSION_HMAC_KEY
@@ -238,7 +250,8 @@ backend:
           memory: 64Mi
 
   migrations:
-    enabled: true # Run database migrations via init container
+    # -- Run the database migrations in a Job at each install and each upgrade
+    enabled: true
 
     resources: # Resources for the migration job container
       limits:
@@ -263,6 +276,7 @@ backend:
 # templates/backend-worker-deployment.yaml and
 # templates/_helpers.tpl#backendSecretEnv.
 worker:
+  # -- Run the background jobs in a separate worker Deployment
   enabled: false
   replicaCount: 1
   # #2696: on SIGTERM the lifespan cancels running jobs and each hands
@@ -336,6 +350,7 @@ frontend:
 
   image:
     repository: ghcr.io/epfl-enac/epfl/co2-calculator/frontend
+    # -- Frontend image tag. Set it to the same release tag as the backend
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -448,10 +463,10 @@ frontend:
   tolerations: []
   affinity: {}
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # Database configuration
 # External PostgreSQL database (managed separately, e.g., via Bitnami chart)
-# -----------------------------------------------------------------------------
+# =============================================================================
 database:
   # Secret containing database connection details
   # This secret must contain the following keys:
@@ -464,15 +479,17 @@ database:
   #   global.postgresql.auth.secretKeys.adminPasswordKey: DB_PASSWORD
   #   global.postgresql.auth.secretKeys.userPasswordKey: DB_PASSWORD
   existingSecret:
+    # -- Name of the database Secret that you create. Required
     name: "db-secret"
     keys:
-      # use for backend and migrations job
+      # -- Key of the PostgreSQL URL in the database Secret. The backend and the migrations read it
       url: DB_URL
       # use for bitnami/postgresql chart
       password: DB_PASSWORD
 
   # Wait for PostgreSQL readiness before starting backend/migrations
   waitForPostgres:
+    # -- Wait until PostgreSQL answers before the backend and the migrations start
     enabled: true
     image:
       repository: bitnamilegacy/postgresql
@@ -480,12 +497,15 @@ database:
       pullPolicy: IfNotPresent
 
 ingress:
+  # -- Create an Ingress. On OpenShift, set `false` and use `routes`
   enabled: true
+  # -- Ingress class of your cluster
   className: "nginx"
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  # -- Hostnames of the app. The chart sends `/api` to the backend and `/` to the frontend
   hosts:
     # Simple mode - just specify hostname(s), paths are auto-configured
     - co2-calculator.local
@@ -502,11 +522,14 @@ ingress:
     #     - path: /
     #       pathType: Prefix
     #       backend: frontend
+  # -- TLS entries of the Ingress
   tls: []
 
 # OpenShift Routes configuration
 routes:
+  # -- Create OpenShift Routes in place of an Ingress
   enabled: false
+  # -- Hostname of the Routes
   host: "co2-calculator.local"
   frontend:
     extraLabels: {}
@@ -532,6 +555,7 @@ routes:
       termination: edge
 
 serviceAccount:
+  # -- Create a ServiceAccount for the pods
   create: true
   annotations: {}
   name: ""
@@ -546,6 +570,7 @@ podDisruptionBudget:
   maxUnavailable: ""
 
 networkPolicies:
+  # -- Create NetworkPolicies that limit the traffic to the pods
   enabled: false
   ingressFromRoutes: [] # Define allowed ingress sources (e.g., namespaces, pods) for network policies
     # Example
@@ -556,7 +581,7 @@ networkPolicies:
     #     matchLabels:
     #       ingresscontroller.operator.openshift.io/deployment-ingresscontroller: ingress-private
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # Documentation deployment
 # Static documentation served via nginx, built from docs/ directory
 # Built automatically by CI/CD via deploy.yml and deploy-quay.yml
@@ -564,8 +589,9 @@ networkPolicies:
 #   - dev branch → commit SHA
 #   - stage branch → commit SHA
 #   - tags (v*) → version tag (e.g., v1.2.3)
-# -----------------------------------------------------------------------------
+# =============================================================================
 docs:
+  # -- Deploy the developer documentation site
   enabled: true
   replicaCount: 1
 

@@ -1,0 +1,38 @@
+# The app chart on a laptop cluster (Docker Desktop, kind, minikube):
+# the test login, plain http, and Traefik in front, as in Docker Compose.
+backend:
+  replicaCount: 1
+  existingSecret:
+    name: co2-backend
+  env:
+    # Enables the test login. Never on a shared cluster.
+    DEBUG: "true"
+    COOKIE_SECURE: "false"
+    FRONTEND_URL: "http://localhost:8080"
+    # The root filesystem is read-only; /tmp is the writable emptyDir.
+    FILES_STORAGE_PATH: "/tmp/files_storage"
+  connector:
+    allowedHostSuffixes: "localhost"
+  podDisruptionBudget:
+    enabled: false
+frontend:
+  replicaCount: 1
+  env:
+    # The frontend adds the /login-test page only for dev or development.
+    APP_ENVIRONMENT: dev
+  podDisruptionBudget:
+    enabled: false
+database:
+  existingSecret:
+    name: co2-db
+docs:
+  enabled: false
+# Same split as the OpenShift Routes: /api to the backend, unchanged.
+ingress:
+  className: traefik
+  annotations: {}
+  hosts:
+    - host: localhost
+      paths:
+        - { path: /api, pathType: Prefix, backend: backend }
+        - { path: /, pathType: Prefix, backend: frontend }

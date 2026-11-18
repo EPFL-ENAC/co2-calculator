@@ -1,0 +1,40 @@
+# Smallest values file for an installation at a new institution.
+# `make lint` renders the chart with this file, so the file must stay
+# installable. Replace each example.org value with your own.
+#
+#   kubectl apply -n co2 -f examples/secrets.yaml   # after you fill it
+#   helm install co2 . -n co2 -f examples/values.yaml
+
+backend:
+  existingSecret:
+    # The backend Secret of examples/secrets.yaml.
+    name: co2-backend
+  env:
+    # Public URL of the app. The login redirect and the CSRF check use it.
+    FRONTEND_URL: "https://co2.example.org"
+  connector:
+    # Hosts that a data connector can reach. Required: the backend does
+    # not start while it is empty.
+    allowedHostSuffixes: "example.org"
+
+database:
+  existingSecret:
+    # The database Secret of examples/secrets.yaml.
+    name: co2-db
+
+frontend:
+  env:
+    # The chart defaults of these four values belong to one institution.
+    APP_ACCESS_MANAGEMENT_PROVIDER_NAME: ""
+    APP_EQUIPMENT_POWER_FEEDBACK_EMAIL: "co2-support@example.org"
+    APP_MATOMO_URL: ""
+    APP_PRODUCTION_URL: "https://co2.example.org"
+
+ingress:
+  className: nginx
+  hosts:
+    - co2.example.org
+  tls:
+    - secretName: co2-tls
+      hosts:
+        - co2.example.org

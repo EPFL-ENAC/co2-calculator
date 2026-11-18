@@ -1,0 +1,55 @@
+# Local database, same image and credentials as docker-compose.yml. The
+# volume keeps the schema when the pod restarts: the migrations run only
+# at a Helm install or upgrade. skaffold delete removes it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: co2-postgres
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: co2-postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: co2-postgres }
+  template:
+    metadata:
+      labels: { app: co2-postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18-alpine
+          env:
+            - { name: POSTGRES_USER, value: co2_user }
+            - { name: POSTGRES_PASSWORD, value: co2_password }
+            - { name: POSTGRES_DB, value: co2_calculator }
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "co2_user", "-d", "co2_calculator"]
+            periodSeconds: 3
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: co2-postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: co2-postgres
+spec:
+  selector: { app: co2-postgres }
+  ports:
+    - port: 5432
