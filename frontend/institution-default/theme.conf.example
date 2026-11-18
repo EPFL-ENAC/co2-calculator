@@ -1,6 +1,6 @@
 # Theme of an institution: template (#3244).
 #
-# Copy this file to theme.conf in the assets folder of the institution. The
+# Copy this file to theme.conf in the folder of the institution. The
 # folder must give theme.conf: the image has no default for it.
 #
 # One "name: value" line per value. A line that starts with "#" is a

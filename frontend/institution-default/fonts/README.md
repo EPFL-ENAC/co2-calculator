@@ -13,7 +13,7 @@ design. They are subset to Latin-1, the usual punctuation, `€`, `−` and
 
 An institution replaces them in one of two ways:
 
-- Its assets folder gives `fonts/regular.woff2`, `fonts/medium.woff2` and
+- Its folder gives `fonts/regular.woff2`, `fonts/medium.woff2` and
   `fonts/bold.woff2`.
 - Its `theme.conf` sets `font-regular`, `font-medium` and `font-bold` to
   the URLs of a font server. Use this for a licensed brand font: the files

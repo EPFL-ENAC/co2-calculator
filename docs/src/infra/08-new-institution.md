@@ -1,40 +1,44 @@
 # Set up a new institution
 
 Another institution runs the same images as EPFL. It changes no code. It
-gives the frontend a values file and a folder of assets. The image has a
-neutral default for every asset except the theme, so the smallest folder
-holds only `theme.conf` with the accent color. This page shows how. The example institution is `UNIV`, in the folder `institutions/univ`.
+gives the frontend one folder: `values.env`, `theme.conf` and optional
+assets. The image has a neutral default for every asset except the theme,
+so the smallest folder holds only `theme.conf` with the accent color.
+This page shows how. The example institution is `UNIV`, in the folder
+`../co2-institution-univ/`, next to the app repository.
 
 This page covers what #3244 delivers. The frontend is fully configurable.
 Login and units still need Accred and Entra, or the test login. See
 [Limits today](#limits-today). The design and the full list of values are
 in the [plan of #3244](../implementation-plans/3244-institution-values-assets-theme.md).
 
+## One folder for each institution
+
+An institution can publish its folder as a small repository of its own.
+The three consumers take the same folder:
+
+- the dev server, through `INSTITUTION_DIR` in `frontend/.env.local`
+- Docker Compose, through a volume at `/institution`
+- a cluster, through a ConfigMap mounted at `/institution`
+
 ## 1. Make the folder
 
-1. Make a folder for the new institution.
-2. Copy the values file of EPFL into it.
-3. Copy the theme template into its assets folder.
+1. Make the folder outside the app repository.
+2. Copy the values of the example institution into it.
+3. Copy the theme template into it.
 
 ```sh
-mkdir -p institutions/univ/assets
-cp institutions/epfl/frontend.env.example institutions/univ/frontend.env
-cp frontend/institution-default/theme.conf.example institutions/univ/assets/theme.conf
+mkdir ../co2-institution-univ
+cp frontend/institution-example/values.env ../co2-institution-univ/values.env
+cp frontend/institution-default/theme.conf.example ../co2-institution-univ/theme.conf
 ```
 
-Git ignores `institutions/*/frontend.env`, but it does not ignore the
-assets folder. The CI word check allows EPFL words only in
-`institutions/epfl/`. So `make lint` fails while an EPFL value is still
-in the new folder. When `make lint` passes, you replaced every EPFL
-value.
-
-The folder can also live outside this repository, for example in the ops
-repository of the institution. The two paths in step 5 and the volume in
-step 7 then point there.
+The app repository names no institution. Keep the folder in the ops
+repository of the institution, or in a repository of its own.
 
 ## 2. Set the values
 
-Put the values of the institution in `institutions/univ/frontend.env`.
+Put the values of the institution in `values.env` of the folder.
 
 ```sh
 # Required.
@@ -82,9 +86,11 @@ without a login. Do not put a password, a token or a key in an `APP_*`
 value. A value whose name looks like a secret, for example
 `APP_API_TOKEN`, stops the frontend at startup.
 
-The values that change per cluster do not go in this file:
-`APP_ENVIRONMENT`, `APP_SENTRY_DSN`, `APP_MATOMO_*`, `APP_OPS_*`,
-`APP_DEMO_MODE` and `APP_PRODUCTION_URL`. If you set `APP_MATOMO_SITE_ID`,
+The container reads `/institution/values.env`, then the environment of
+the pod. A variable of the environment wins over the file. Put the values
+that change per cluster in the environment: `APP_ENVIRONMENT`,
+`APP_SENTRY_DSN`, `APP_MATOMO_*`, `APP_OPS_*`, `APP_DEMO_MODE` and
+`APP_PRODUCTION_URL`. If you set `APP_MATOMO_SITE_ID`,
 you must also set `APP_MATOMO_URL`. If `APP_DEMO_MODE` is `true`, you
 must also set `APP_PRODUCTION_URL`.
 
@@ -93,7 +99,7 @@ must also set `APP_PRODUCTION_URL`.
 The image has a neutral default for each file below:
 a gray logo and icons, a gray login illustration and the Geist fonts.
 `frontend/institution-default/` holds them. To replace a default, put a
-file with the same name in `institutions/univ/assets/`. Every other file
+file with the same name in the folder. Every other file
 keeps its default.
 
 | File                                         | Content                                        |
@@ -119,8 +125,8 @@ file:
 [entrypoint] favicon.ico: from /usr/local/share/institution/default
 ```
 
-The repository is public. Before you commit the logo of an institution,
-get the agreement of that institution.
+If the folder is in a public repository, get the agreement of the
+institution before you commit its logo.
 
 The login page repeats `login-illustration.svg` as a tile behind the login
 card, and it shows the file as it is. To make the illustration pale, put the
@@ -146,7 +152,7 @@ A system font such as Arial is not allowed in the folder either.
 
 ## 4. Set the colors
 
-Set the accent color in `institutions/univ/assets/theme.conf`. The
+Set the accent color in `theme.conf` of the folder. The
 template sets a neutral gray.
 
 ```
@@ -165,22 +171,23 @@ A color is a hex value, for example `#0050a0`. A radius is a number with
 
 ### With the dev server
 
-1. Set these two lines in `frontend/.env.local`.
+1. Set this line in `frontend/.env.local`. The path is relative to
+   `frontend/`.
 2. Restart the frontend dev server.
 
-After that, a change of the values file or of the assets folder reloads
-the page. You do not restart the dev server again.
-
 ```sh
-INSTITUTION_ENV_FILE=../institutions/univ/frontend.env
-INSTITUTION_ASSETS_DIR=../institutions/univ/assets
+INSTITUTION_DIR=../../co2-institution-univ
 ```
+
+After that, a change of a file in the folder reloads the page. You do
+not restart the dev server again. Without `INSTITUTION_DIR`, the dev
+server uses `frontend/institution-example/`.
 
 ### With the real container
 
 1. In `docker-compose.yml`, find the frontend service.
-2. Change `institutions/epfl` to `institutions/univ` in the `env_file`
-   line and in the `volumes` line. Do not commit this change.
+2. In the `volumes` line, change `./frontend/institution-example` to
+   `../co2-institution-univ`. Do not commit this change.
 3. Run `docker compose up --build frontend`.
 
 If the check passes, the log shows this line:
@@ -216,10 +223,12 @@ The dev server runs the same script, so it shows the same messages.
 
 ## 7. Deploy to a cluster
 
-1. Set the values under `frontend.env` in the Helm values of the
-   cluster.
-2. Make a ConfigMap from the assets folder.
-3. Mount the ConfigMap with `frontend.institutionAssets.volume`.
+1. Make a ConfigMap from the folder. It can include `values.env`.
+2. Mount the ConfigMap with `frontend.institutionAssets.volume`.
+3. Set the per-cluster values under `frontend.env` in the Helm values.
+
+You can also set the institution values under `frontend.env` instead of
+`values.env`. A variable of the environment wins over the file.
 
 Without the volume, the Helm chart does not render, because the volume
 gives `theme.conf`. With an empty required value, the new pods stop at
@@ -230,7 +239,7 @@ ConfigMap holds `theme.conf` alone:
 
 ```sh
 kubectl create configmap co2-institution \
-  --from-file=institutions/univ/assets/theme.conf
+  --from-file=../co2-institution-univ/theme.conf
 ```
 
 ```yaml

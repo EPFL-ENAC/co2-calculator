@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 3244
-last_updated: 2026-11-17
+last_updated: 2026-11-18
 summary: "Institution name, texts, documentation links, logo, fonts and color theme come from the deployment. The image has neutral default assets, so a deployment gives only its values and a theme.conf. The code has no EPFL default and the texts do not name Accred. A CI check finds hard-coded EPFL, Accred or Entra."
 ---
 
@@ -48,6 +48,16 @@ preview`, the component tests and Storybook get `injectEnv.js`,
 - The fonts default to Geist in the image. `theme.conf` can point them at
   a font server. EPFL points them at `enac-it-fonts.epfl.ch`, so the
   licensed Suisse Int'l files are in no repository.
+- One folder is one institution: `values.env`, `theme.conf` and the
+  assets. The repository names no institution. It holds only the neutral
+  example `frontend/institution-example/`, which the dev server, the
+  tests, Docker Compose and Storybook use by default. A real institution
+  keeps its folder outside this repository. Before this rule, the EPFL
+  data existed twice: 8 asset files and 17 values were the same in the
+  app repository and the ops repository, and nothing kept them equal. A
+  developer also had a fourth env file, a generic repository had a folder
+  named after one institution, and that folder was outside the
+  `./frontend` Docker build context.
 
 ## Values
 
@@ -93,23 +103,24 @@ If `APP_EQUIPMENT_POWER_FEEDBACK_EMAIL` is empty, the equipment dialog has
 no power request tab: a mailto link without a recipient opens an empty
 draft.
 
-The EPFL values are in `institutions/epfl/frontend.env.example`. A
-developer copies it to `frontend.env`, which git ignores. If the file is
-missing, `make install` copies it. Docker Compose and the dev server read
-`frontend.env`. The tests read the example, so CI and local runs use the
-same values. The clusters get the same values from the ops repository.
+The values can come from the optional file `values.env` of the
+institution folder, from the environment of the pod, or from both. In the
+container, `entrypoint.sh` reads `/institution/values.env` when it exists,
+then the environment. A variable of the environment wins over the file. So
+a deployment can keep its institution values in `values.env` and set the
+per-cluster values (`APP_ENVIRONMENT`, `APP_SENTRY_DSN`, `APP_MATOMO_*`,
+`APP_OPS_*`) under the Helm `frontend.env`. The file holds
+`APP_<NAME>=value` lines, `#` comments and literal values. Any other line
+stops the script.
 
-The dev server needs two paths in `frontend/.env.local`:
-`INSTITUTION_ENV_FILE` and `INSTITUTION_ASSETS_DIR`. See
-`frontend/.env.example`. `build/institution.mjs` loads `.env.local` for
+The dev server, the tests and Storybook read one variable,
+`INSTITUTION_DIR`: a path relative to `frontend/`, or absolute. If it is
+not set, they use `frontend/institution-example/` ("Example University").
+So a new clone runs with `make install` alone, which copies no
+institution file. To see a real institution, a developer sets
+`INSTITUTION_DIR` in `frontend/.env.local`. A personal `APP_*` value in
+`.env.local` still wins. `build/institution.mjs` loads `.env.local` for
 `quasar dev` and for `npm run preview`, with `process.loadEnvFile` of Node.
-If a path does not exist, the error names `make install`. `wtx` copies
-`frontend.env` into a new worktree, as it copies `.env.local`.
-
-`entrypoint.sh` reads the values file itself when `INSTITUTION_ENV_FILE`
-names it. The file stands for the pod environment: `APP_<NAME>=value`
-lines, `#` comments, literal values. A variable of the shell wins over the
-file. Any other line stops the script.
 
 The dev server gives the output folder of the script to Vite as its public
 folder, so Vite serves `/injectEnv.js`, `/theme.css` and `/institution/` as
@@ -118,9 +129,8 @@ script again and reloads the page.
 
 Three builds outside the container write the institution files with the
 same script. `npm run preview` and the Lighthouse workflow run
-`build/prepare-preview.mjs` on `dist/spa`. The Storybook image gets the
-EPFL folder through the named build context `institutions`, because the
-folder is outside its build context `frontend/`.
+`build/prepare-preview.mjs` on `dist/spa`. The Storybook image copies the
+example folder from its normal build context `frontend/`.
 
 ## Texts
 
@@ -163,6 +173,7 @@ folder, to `/tmp/institution`. nginx serves that folder at
 SVG of the institution). The files:
 
 ```
+values.env         (optional, see Values)
 logo.svg
 login-illustration.svg
 favicon.ico
@@ -186,10 +197,10 @@ and holds the license text. The license of the EPFL brand font Suisse
 Int'l does not allow it in a repository. The license of a system font such
 as Arial does not allow it either.
 
-The EPFL folder `institutions/epfl/assets/` gives the logo, the icons, the
-login illustration and `theme.conf`. It has no font files. Docker Compose
-mounts it. The tests mount `frontend/tests/institution/`, which holds only
-`theme.conf`, so they run on the defaults. The Helm chart mounts the volume
+The example folder `frontend/institution-example/` holds only
+`values.env` and `theme.conf`, so the dev server, the tests and Storybook
+run on the default assets. Docker Compose mounts it at `/institution` and
+has no institution `env_file`. The Helm chart mounts the volume
 that `frontend.institutionAssets.volume` gives, and fails to render
 without it, because the volume gives `theme.conf`.
 
@@ -253,7 +264,6 @@ it on each pull request. It skips the documentation (`docs/`, `*.md`).
 `scripts/institution-words-allowlist.txt` lists the exceptions, each with
 a reason:
 
-- the EPFL folder `institutions/epfl/`
 - the GitHub organization and the image registry of the project
 - the CI/CD and team tooling of the project repository
 - the immutable Alembic history
@@ -276,17 +286,20 @@ Before the next deployment, a human changes the ops repository:
 - Rename `APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL` to
   `APP_ACCESS_MANAGEMENT_ABOUT_URL`.
 - Delete `APP_ACCESS_MANAGEMENT_PROVIDER_NAME`.
-- Set the values of `institutions/epfl/frontend.env` and the operations
-  links of each cluster.
+- Keep the EPFL folder at `epfl/co2-calculator/base/institution/`: the
+  logo, the icons, the login illustration and `theme.conf`. The folder
+  can also hold a `values.env` with the institution values.
+- Keep the per-cluster values (`APP_ENVIRONMENT`, `APP_SENTRY_DSN`,
+  `APP_MATOMO_*`, `APP_OPS_*`) in the overlays, under `frontend.env`.
 - Set `APP_MATOMO_URL` and `APP_PRODUCTION_URL` where they are used.
-- Give the assets volume, for example a ConfigMap made from
-  `institutions/epfl/assets/` with `binaryData`. The folder has no font
-  files: its `theme.conf` points the fonts at the ENAC font server. Without
-  font keys, the ConfigMap needs no `items` list.
+- Give the volume as a ConfigMap made from that folder with
+  `binaryData`. The folder has no font files: its `theme.conf` points the
+  fonts at the ENAC font server. Without font keys, the ConfigMap needs no
+  `items` list.
 - Set `FRONTEND_URL` and `DB_URL` for the backend. They have no default.
 
-A developer also adds `FRONTEND_URL` to `backend/.env`, and the two
-`INSTITUTION_*` paths to `frontend/.env.local`.
+A developer also adds `FRONTEND_URL` to `backend/.env`. To see EPFL
+locally, a developer sets `INSTITUTION_DIR` to the EPFL folder.
 
 ## Caveats
 
@@ -309,7 +322,7 @@ A developer also adds `FRONTEND_URL` to `backend/.env`, and the two
   and the logo in the static page.
 - The `institution-words` job is a required check only after an admin adds
   it to the branch protection of `dev` and `main`.
-- A change of `theme.conf` or of the values file reloads the dev server
+- A change of `theme.conf` or of `values.env` reloads the dev server
   page. A change of `.env.local` needs a restart of the dev server.
 - The check of secret names reads the key, not the value. It stops a key
   such as `APP_API_TOKEN`. It cannot see a secret under a neutral name.
