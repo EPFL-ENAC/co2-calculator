@@ -1,5 +1,6 @@
 import { test, expect, type Page } from 'playwright/test';
 import loginMessages from '../../src/i18n/login';
+import { mockHomeBackend } from './setup/home-module-visibility-mocks';
 
 // index.html paints the login title before the JavaScript runs (#3244).
 // Aborting every script keeps #q-app empty, as on a slow first load.
@@ -47,6 +48,21 @@ test.describe('static first frame of index.html', () => {
       await expect(shell).toBeVisible();
       await expect(shell).toHaveText(loginMessages.config_missing[language]);
     }
+  });
+
+  // Catches the login title shown to a signed-in visitor while the app
+  // goes home, and next to the reload prompt when a chunk fails.
+  test('clears for a signed-in visitor and on a failed chunk', async ({
+    page,
+  }) => {
+    await mockHomeBackend(page);
+    // The signed-in layout never arrives, so the app stays unmounted.
+    await page.route(/\/assets\/(Co2Header|HomePage)-[\w-]+\.js$/, (route) =>
+      route.abort(),
+    );
+    await page.goto('/en/login');
+    await expect(page.locator('.reload-prompt-notify')).toBeVisible();
+    await expect(page.locator('#shell')).toHaveText('');
   });
 
   // Catches a title left on screen under the mounted app (#q-app:empty rule).

@@ -9,7 +9,8 @@ import {
 import routes from './routes';
 import { authGuard } from './guards/authGuard';
 import workspaceGuard from './guards/workspaceGuard';
-import { authenticatedShellReady } from './authenticatedShell';
+import { authenticatedShell } from './authenticatedShell';
+import { useAuthStore } from '@/stores/auth';
 import {
   defaultLanguageGuard,
   setLanguageCookieGuard,
@@ -76,8 +77,11 @@ export default defineRouter(function (/* { store, ssrContext } */) {
   Router.beforeEach(setLanguageCookieGuard);
   Router.beforeEach(authGuard);
   Router.beforeEach(workspaceGuard);
-  Router.beforeResolve(async () => {
-    await authenticatedShellReady();
+  // MainLayout draws the parts for a signed-in user on any page.
+  Router.beforeResolve(async (to) => {
+    if (to.meta.requiresAuth || useAuthStore().isAuthenticated) {
+      await authenticatedShell.get();
+    }
   });
 
   return Router;

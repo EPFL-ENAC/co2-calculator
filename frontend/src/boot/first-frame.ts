@@ -7,6 +7,12 @@ const MAX_WAIT_MS = 100;
 // removes it when it mounts. On a fast connection the app can mount before
 // the browser has shown that frame, and the login page then starts blank.
 // Two animation frames make sure that the frame reached the screen.
+// The frame stays while #q-app is empty. Called when the login title is
+// wrong for what comes next: a signed-in visitor, or a chunk that failed.
+export function clearFirstFrame(): void {
+  document.getElementById('shell')?.replaceChildren();
+}
+
 export default defineBoot(async () => {
   if (!document.getElementById('shell')?.textContent) return;
   await new Promise<void>((resolve) => {

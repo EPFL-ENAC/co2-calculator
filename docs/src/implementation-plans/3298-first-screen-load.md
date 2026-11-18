@@ -53,6 +53,15 @@ and the results page at about 12 s on Slow 4G, before and after.
 - The entry is two JavaScript files: `vendor` (the libraries that each
   page needs) and the app entry. Rolldown `codeSplitting.groups` makes
   them. The chart and map libraries stay lazy.
+- The login page and the signed-in layout are each one
+  `retryableImport` of `src/router/retryableImport.ts`. All callers
+  share one download. A failed download is forgotten, so the next
+  navigation tries again.
+- Two events clear the static frame: a session call that says "signed
+  in", and the reload prompt after a failed chunk. So a signed-in visitor
+  of the login URL does not see the login title.
+- If `/injectEnv.js` does not load, `src/config/runtime.ts` throws and the
+  static frame shows an alert in the language of the URL.
 - Quasar imports each boot file after the entry runs. A build plugin
   adds one `modulepreload` link for each boot chunk, so they download
   with the entry.
@@ -68,11 +77,52 @@ and the results page at about 12 s on Slow 4G, before and after.
   has no brotli module: a `map` on `Accept-Encoding` and an internal
   location serve the `.br` files with the content type of the original.
 
+## First load, step by step
+
+The diagram shows a first load of `/en/login`. The steps on the left of
+the app run before Vue mounts. A dashed arrow is a download that starts
+early and that a later step waits for.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant H as index.html
+    participant A as App (router guards)
+    participant S as Server
+
+    B->>S: GET /en/login
+    S-->>B: index.html
+    H->>B: paint #shell with the login title
+    H-)S: preload logo.svg and login-illustration.svg
+    B->>S: entry, vendor, boot chunks, /injectEnv.js (parallel)
+    alt /injectEnv.js did not load
+        H->>B: #shell shows the alert, the app stops
+    end
+    A-)S: preload LoginPage chunk (loginPage.preload)
+    A->>S: GET /api/v1/session
+    alt not signed in
+        A->>A: await loginPage.get()
+        A->>B: mount the login page, #shell hides
+    else signed in
+        A->>B: clear #shell
+        A-)S: preload header, sidebars, home (authenticatedShell.preload)
+        A->>A: workspace guards, then await authenticatedShell.get()
+        A->>B: mount the home page with its header
+    end
+    alt a chunk fails
+        A->>B: clear #shell, show the reload prompt
+    end
+```
+
 ## Tests
 
 - `tests/integration/login-shell.spec.ts`: the first frame shows the
   title in both languages, stays empty on other pages, hides after the
-  app mounts, and is the largest paint.
+  app mounts, and is the largest paint. It clears for a signed-in visitor
+  and on a failed chunk, and shows the alert without `/injectEnv.js`.
+- `tests/unit/retryable-import.spec.ts`: one shared download, a new
+  download after a failure, and no unhandled rejection from a preload.
 - `tests/integration/authenticated-shell.spec.ts`: the login page does
   not request the layout files, and the header is in the first frame of
   the page content.

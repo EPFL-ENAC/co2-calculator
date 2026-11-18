@@ -1,4 +1,5 @@
 import { shallowRef, type Component } from 'vue';
+import { retryableImport } from './retryableImport';
 
 // What every signed-in screen draws but the login page does not. Kept out of
 // the entry bundle so the first screen downloads less JavaScript.
@@ -15,12 +16,11 @@ interface ShellParts {
 // paint one frame later and shift the content).
 const parts = shallowRef<ShellParts | null>(null);
 
-let shell: Promise<unknown> = Promise.resolve();
-
-// Called as soon as the session is known, so the chunks download while the
-// workspace guards wait for the API instead of after them.
-export function preloadAuthenticatedShell(): void {
-  shell = Promise.all([
+// Preloaded as soon as the session is known, so the chunks download while
+// the workspace guards wait for the API. Awaited before a signed-in page is
+// confirmed (router/index.ts), so the header and sidebars never pop in late.
+export const authenticatedShell = retryableImport(() =>
+  Promise.all([
     import('@/components/layout/Co2Header.vue'),
     import('@/components/layout/Co2Sidebar.vue'),
     import('@/components/organisms/layout/Co2ModuleSidebar.vue'),
@@ -31,16 +31,8 @@ export function preloadAuthenticatedShell(): void {
       Co2Sidebar: sidebar.default,
       Co2ModuleSidebar: moduleSidebar.default,
     };
-  });
-}
-
-// Awaited before a navigation is confirmed, so the header and sidebars never
-// pop in late. Handed out once: a failed download fails one navigation only.
-export function authenticatedShellReady(): Promise<unknown> {
-  const pending = shell;
-  shell = Promise.resolve();
-  return pending;
-}
+  }),
+);
 
 // Only signed-in screens call this, and the router loaded the parts before
 // confirming them: a miss is a router bug, so it throws instead of hiding.
