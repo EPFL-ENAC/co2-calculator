@@ -67,9 +67,9 @@ favicon-16x16.png
 favicon-32x32.png
 favicon-96x96.png
 favicon-128x128.png
-fonts/regular.woff2
-fonts/medium.woff2
-fonts/bold.woff2
+font-regular.woff2
+font-medium.woff2
+font-bold.woff2
 "
 
 fail() {
@@ -168,10 +168,18 @@ if [ ! -s "${INSTITUTION_DIR}/theme.conf" ]; then
   fail "missing or empty: ${INSTITUTION_DIR}/theme.conf. It sets the accent color."
 fi
 
-# A file the app does not read is a typo of a file it reads. Names that start
-# with "." are skipped: a Kubernetes ConfigMap mount adds ..data and others.
-# A file of fonts/ that is not a .woff2 is allowed: a free font must keep its
-# license next to it (see institution-default/fonts/README.md).
+# The folder is flat: a ConfigMap key cannot hold a "/", so one folder mounts
+# from a ConfigMap, a volume or a local path alike. Names that start with "."
+# are skipped: a Kubernetes ConfigMap mount adds ..data and others.
+subfolders=$(cd "${INSTITUTION_DIR}" && find -L . -mindepth 1 -name '.*' -prune \
+  -o -type d -print | sed 's|^\./||' | while read -r dir; do printf ' %s' "${dir}"; done)
+if [ -n "${subfolders}" ]; then
+  fail "subfolders in ${INSTITUTION_DIR}:${subfolders}. The folder is flat, it must hold files only."
+fi
+
+# A file the app does not read is a typo of a file it reads. A font-* file
+# that is not a .woff2 is allowed and not copied: a free font must keep its
+# license next to it (see institution-default/font-README.md).
 # values.env is known but not an asset: the loop below copies only ASSET_FILES.
 known=" theme.conf values.env $(echo ${ASSET_FILES}) "
 print_unknown() {
@@ -180,8 +188,8 @@ print_unknown() {
       *" ${file} "*) continue ;;
     esac
     case "${file}" in
-      fonts/*.woff2) printf ' %s' "${file}" ;;
-      fonts/*) ;;
+      font-*.woff2) printf ' %s' "${file}" ;;
+      font-*) ;;
       *) printf ' %s' "${file}" ;;
     esac
   done
@@ -196,7 +204,6 @@ fi
 # never serve a half-copied folder. The log names the source of each file, so
 # a deployment that forgets an override shows it.
 tmp_dir=$(mktemp -d "${OUT_DIR}/institution.XXXXXX")
-mkdir "${tmp_dir}/fonts"
 for file in ${ASSET_FILES}; do
   source="${DEFAULT_DIR}"
   if [ -e "${INSTITUTION_DIR}/${file}" ]; then
@@ -242,8 +249,8 @@ if ! awk '
     weight["font-bold"] = 700
     for (i in fonts) {
       kind[fonts[i]] = "font"
-      # Without a URL, the font comes from the fonts/ folder of the assets.
-      font[fonts[i]] = "/institution/fonts/" substr(fonts[i], 6) ".woff2"
+      # Without a URL, the font is the file of the same name in the assets.
+      font[fonts[i]] = "/institution/" fonts[i] ".woff2"
     }
   }
 

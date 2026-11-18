@@ -407,7 +407,7 @@ frontend:
   # Volume with the institution folder, mounted at /institution (#3244):
   # theme.conf (required, the accent color), an optional values.env and
   # optional assets. The image has a neutral default for the assets (logo.svg,
-  # login-illustration.svg, the favicons, fonts/*.woff2), and a file of the
+  # login-illustration.svg, the favicons, font-*.woff2), and a file of the
   # volume replaces its default. Any volume source works, for example a
   # ConfigMap built from the institution folder.
   institutionAssets:

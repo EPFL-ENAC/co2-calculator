@@ -1,10 +1,11 @@
 # Default fonts
 
-The three files in this folder are the default fonts of the image (#3244).
+The three `font-*.woff2` files in this folder are the default fonts of the
+image (#3244).
 
-- `regular.woff2` (weight 400)
-- `medium.woff2` (weight 500)
-- `bold.woff2` (weight 700)
+- `font-regular.woff2` (weight 400)
+- `font-medium.woff2` (weight 500)
+- `font-bold.woff2` (weight 700)
 
 The files are Geist 1.3.1 (npm package `geist`), a free font with a Swiss
 design. They are subset to Latin-1, the usual punctuation, `€`, `−` and
@@ -13,8 +14,8 @@ design. They are subset to Latin-1, the usual punctuation, `€`, `−` and
 
 An institution replaces them in one of two ways:
 
-- Its folder gives `fonts/regular.woff2`, `fonts/medium.woff2` and
-  `fonts/bold.woff2`.
+- Its folder gives `font-regular.woff2`, `font-medium.woff2` and
+  `font-bold.woff2`.
 - Its `theme.conf` sets `font-regular`, `font-medium` and `font-bold` to
   the URLs of a font server. Use this for a licensed brand font: the files
   then stay on the server of the institution.
@@ -30,7 +31,10 @@ repository is public, and each file in it is redistributed.
 - Do not commit a system font such as Arial or Helvetica. The operating
   system gives you the right to use it, not to copy it.
 - If you replace these files with another free font, keep its license with
-  the files. The SIL Open Font License below requires this.
+  the files. The SIL Open Font License below requires this. Give the
+  license file a name that starts with `font-`, for example
+  `font-license.txt`. The startup script then accepts it and does not
+  serve it.
 
 ## Geist license
 

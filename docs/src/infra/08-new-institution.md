@@ -108,16 +108,18 @@ keeps its default.
 | `login-illustration.svg`                     | the image of the login page                    |
 | `favicon.ico`                                | the browser icon                               |
 | `favicon-16x16.png` to `favicon-128x128.png` | the browser icons in 16, 32, 96 and 128 pixels |
-| `fonts/regular.woff2`                        | the text font, weight 400                      |
-| `fonts/medium.woff2`                         | the text font, weight 500                      |
-| `fonts/bold.woff2`                           | the text font, weight 700                      |
+| `font-regular.woff2`                         | the text font, weight 400                      |
+| `font-medium.woff2`                          | the text font, weight 500                      |
+| `font-bold.woff2`                            | the text font, weight 700                      |
 
+The folder is flat. A subfolder stops the container.
 If the folder holds a file name that is not in this table or
 `theme.conf`, the container stops. This catches a typo, for example
 `logo.SVG`, that would show the default logo without an error. One
-exception: `fonts/` can also hold a file that is not a `.woff2`, for
-example the license of a free font. An empty file also stops the
-container. At startup, the log gives the source of each
+exception: a file whose name starts with `font-` and does not end with
+`.woff2` is allowed, for example `font-license.txt`. Use it for the
+license of a free font. The container does not serve this file. An
+empty file also stops the container. At startup, the log gives the source of each
 file:
 
 ```
@@ -148,7 +150,7 @@ font-bold: https://fonts.example.org/Brand-Bold.woff2
 
 The font server must allow the site of the calculator in its CORS headers.
 A system font such as Arial is not allowed in the folder either.
-`frontend/institution-default/fonts/README.md` gives the rules.
+`frontend/institution-default/font-README.md` gives the rules.
 
 ## 4. Set the colors
 
@@ -250,12 +252,9 @@ frontend:
         name: co2-institution
 ```
 
-Without `items`, Kubernetes mounts every key of the ConfigMap. A key
-cannot contain `/`, so a font file needs its own key and an `items` entry
-that maps it to `fonts/`, for example
-`{ key: fonts-bold.woff2, path: fonts/bold.woff2 }`. With `items`, list
-every file, because Kubernetes then mounts only the keys that `items`
-lists. To avoid this, point `theme.conf` at a font server.
+The folder is flat, so a ConfigMap of the folder needs no `items`
+mapping. A ConfigMap is limited to 1 MiB. For a large font set, use a
+font server and put its URLs in `theme.conf`.
 
 The backend also needs `DB_URL` and `FRONTEND_URL`. They have no default.
 

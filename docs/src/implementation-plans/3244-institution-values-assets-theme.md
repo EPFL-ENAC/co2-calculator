@@ -178,21 +178,24 @@ logo.svg
 login-illustration.svg
 favicon.ico
 favicon-16x16.png  favicon-32x32.png  favicon-96x96.png  favicon-128x128.png
-fonts/regular.woff2  fonts/medium.woff2  fonts/bold.woff2
+font-regular.woff2  font-medium.woff2  font-bold.woff2
 theme.conf         (required, no default)
 ```
 
 The defaults are a gray mark with a leaf for the logo and the icons, the
 login illustration in gray, and Geist. The log gives the source of each
 file. These cases stop the container with a message: no `theme.conf`, an
-empty file, and a file name outside the list. Names that start with `.`
-are skipped, because a ConfigMap mount adds `..data`. A file of `fonts/`
-that is not a `.woff2` is allowed, because a free font keeps its license
-next to its files. A line of `theme.conf` can end with `\r\n`.
+empty file, a file name outside the list, and a subfolder. The folder is
+flat because a ConfigMap key cannot contain `/`. A flat folder mounts from
+a ConfigMap, a Helm chart, a Docker volume or a local path with no special
+case. Names that start with `.` are skipped, because a ConfigMap mount
+adds `..data`. A file whose name starts with `font-` and does not end with
+`.woff2` is allowed and not copied, because a free font keeps its license
+next to its files, for example `font-license.txt`. A line of `theme.conf` can end with `\r\n`.
 
 The default fonts are Geist 1.3.1 under the SIL Open Font License, subset
 with `pyftsubset` to Latin-1, the usual punctuation, `€`, `−` and `₂`.
-`frontend/institution-default/fonts/README.md` gives the licensing rules
+`frontend/institution-default/font-README.md` gives the licensing rules
 and holds the license text. The license of the EPFL brand font Suisse
 Int'l does not allow it in a repository. The license of a system font such
 as Arial does not allow it either.
@@ -222,7 +225,7 @@ names.
 an `https://` URL or a path that starts with one `/`. `entrypoint.sh`
 writes one `@font-face` rule per weight for the family `InstitutionFont`, because
 `@font-face` cannot read a custom property. Without a value, the rule loads
-`/institution/fonts/<weight>.woff2`. The bundle has no `@font-face` rule,
+`/institution/<name>.woff2`, for example `/institution/font-bold.woff2`. The bundle has no `@font-face` rule,
 and `index.html` preloads no font, because the URLs are known only at
 startup.
 

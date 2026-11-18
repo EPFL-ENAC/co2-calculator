@@ -60,9 +60,9 @@ accent: #424242
 # radius-lg: 0.75rem
 
 # Fonts. Each value is the URL of a woff2 file: an https:// URL, or a path
-# that starts with one /. Without them, the app loads fonts/regular.woff2,
-# fonts/medium.woff2 and fonts/bold.woff2 of the assets folder. If the folder
-# does not give them, the image gives Geist (see fonts/README.md).
+# that starts with one /. Without them, the app loads font-regular.woff2,
+# font-medium.woff2 and font-bold.woff2 of the assets folder. If the folder
+# does not give them, the image gives Geist (see font-README.md).
 # A font server of another host must allow this site in its CORS headers.
 # font-regular: https://fonts.example.org/Brand-Regular.woff2
 # font-medium: https://fonts.example.org/Brand-Medium.woff2

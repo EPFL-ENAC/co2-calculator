@@ -79,7 +79,7 @@ test('a folder with only theme.conf gets every default asset', () => {
   expect(result.stdout).toContain(`logo.svg: from ${DEFAULT_DIR}`);
   const css = readFileSync(join(out, 'theme.css'), 'utf8');
   expect(css).toContain('--theme-accent: #0050a0;');
-  expect(css).toContain('url("/institution/fonts/bold.woff2")');
+  expect(css).toContain('url("/institution/font-bold.woff2")');
 });
 
 test('a file of the mounted folder replaces its default', () => {
@@ -101,7 +101,7 @@ test('theme.conf points the fonts at a font server', () => {
   expect(result.status, result.stderr).toBe(0);
   const css = readFileSync(join(out, 'theme.css'), 'utf8');
   expect(css).toContain('url("https://fonts.example.org/Regular.woff2")');
-  expect(css).toContain('url("/institution/fonts/medium.woff2")');
+  expect(css).toContain('url("/institution/font-medium.woff2")');
 });
 
 // Each value is pasted into CSS, so only one shape per kind passes.
@@ -141,13 +141,24 @@ test('a file name the app does not know stops the startup', () => {
 
 test('a font license next to the fonts is allowed, a font typo is not', () => {
   theme('accent: #0050a0\n');
-  write('fonts/OFL.txt', 'license');
+  write('font-license.txt', 'license');
   expect(run().status).toBe(0);
-  write('fonts/Bold.woff2', 'font');
+  expect(existsSync(join(out, 'institution/font-license.txt'))).toBe(false);
+  write('font-Bold.woff2', 'font');
   const result = run();
   expect(result.status).toBe(1);
   expect(result.stderr).toContain(
-    `unknown files in ${mounted}: fonts/Bold.woff2.`,
+    `unknown files in ${mounted}: font-Bold.woff2.`,
+  );
+});
+
+test('a subfolder in the mounted folder stops the startup', () => {
+  theme('accent: #0050a0\n');
+  write('fonts/font-regular.woff2', 'font');
+  const result = run();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(
+    `subfolders in ${mounted}: fonts. The folder is flat`,
   );
 });
 
