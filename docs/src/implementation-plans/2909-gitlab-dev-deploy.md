@@ -1,11 +1,11 @@
 ---
 status: delivered
 issue: "2909"
-last_updated: 2026-09-23
-summary: dev deploys from gitlab.epfl.ch through the EPFL-ENAC/build-push-deploy CI/CD component, started when GitHub Actions was billing-locked and kept as a live trial of the fallback; stage, ci-test and v* tags stay on deploy.yml so each ref has one pipeline writing the overlays.
+last_updated: 2026-11-18
+summary: dev, stage and release tags deploy from gitlab.epfl.ch through the EPFL-ENAC/build-push-deploy CI/CD component. dev moved first, when GitHub Actions was billing-locked. stage and tags followed on 2026-11-18, when quay-its.epfl.ch closed to traffic from outside EPFL, and deploy.yml was deleted.
 ---
 
-# 2909 — Deploy dev from gitlab.epfl.ch
+# 2909 — Deploy from gitlab.epfl.ch
 
 ## Why
 
@@ -83,6 +83,27 @@ moves back, GitHub's chart-reuse check would see the GitLab version as
 - Reuse, 2026-09-23: pipeline 426659 rebuilt everything once (no labels
   yet); pipeline 426661 on the same commit reused all three images and the
   chart (build jobs 20–29 s) and left both overlays untouched.
+
+## Stage and release tags (2026-11-18)
+
+quay-its.epfl.ch stopped accepting traffic from outside the EPFL network.
+GitHub-hosted runners then failed to deploy: the stage run and tag
+`v1.4.22` stopped at `Get "https://quay-its.epfl.ch/v2/": EOF`. The
+gitlab.epfl.ch runners are inside EPFL and still reach quay.
+
+- `.gitlab-ci.yml` runs on `dev`, `stage` and tags `vX.Y.Z` (exact SemVer,
+  no pre-release). Component `0.4.0`: a SemVer tag publishes chart `X.Y.Z`
+  with appVersion set to the tag, and only a SemVer tag updates the prod
+  overlay.
+- `deploy.yml` is deleted. `ci-test/**` no longer deploys.
+- `mirror-to-gitlab.yml` (`v4.2.0`) pushes `dev`, `stage` and `v*.*.*`
+  tags. It pushes a tag as a tag.
+- GitHub keeps the code, the PRs and "Tag and Release". The tag that
+  workflow creates with its PAT triggers the mirror.
+
+GitLab setup: protect `stage` and the `v*` tags, and let the deploy key
+push to them. Protected variables and the `enack8s` runner only serve
+protected refs.
 
 ## Not ported
 

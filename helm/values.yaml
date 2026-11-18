@@ -568,7 +568,7 @@ networkPolicies:
 # =============================================================================
 # Documentation deployment
 # Static documentation served via nginx, built from docs/ directory
-# Built automatically by CI/CD via deploy.yml and deploy-quay.yml
+# Built automatically by CI/CD via .gitlab-ci.yml
 # Image tag is set by ArgoCD based on branch:
 #   - dev branch → commit SHA
 #   - stage branch → commit SHA

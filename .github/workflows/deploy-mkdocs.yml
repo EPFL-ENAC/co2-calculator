@@ -7,7 +7,7 @@ name: deploy-mkdocs
 # ⚠️  THIS WORKFLOW IS DEPRECATED AND ONLY USED FOR MAIN BRANCH FALLBACK
 #
 # For ALL other branches (dev, stage, ci-test/*, tags):
-#   Documentation is deployed via deploy.yml and deploy-quay.yml
+#   Documentation is deployed by .gitlab-ci.yml on gitlab.epfl.ch
 #   Access docs at: https://co2-calculator-*.epfl.ch/docs
 #
 # Branch-to-URL mapping:

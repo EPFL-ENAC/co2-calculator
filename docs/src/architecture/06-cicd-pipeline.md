@@ -129,10 +129,10 @@ Merge is blocked automatically if requirements are not met.
 
 ## Deployment Pipeline
 
-`stage` and release tags deploy through `deploy.yml` on GitHub Actions;
-`dev` deploys through `.gitlab-ci.yml` on gitlab.epfl.ch, which GitHub
-feeds via `mirror-to-gitlab.yml`. Both run the same steps and commit the
-same overlays; see [plan 2909](../implementation-plans/2909-gitlab-dev-deploy.md).
+`dev`, `stage` and release tags deploy through `.gitlab-ci.yml` on
+gitlab.epfl.ch. GitHub feeds it via `mirror-to-gitlab.yml`. quay-its.epfl.ch
+only accepts traffic from the EPFL network, so GitHub-hosted runners
+cannot deploy. See [plan 2909](../implementation-plans/2909-gitlab-dev-deploy.md).
 
 ### Build Process per Subsystem
 
@@ -282,7 +282,7 @@ GitHub Actions workflows in `.github/workflows/`:
 - `build.yml` - Build verification
 - `security.yml` - Security vulnerability scanning
 - `lighthouse.yml` - Performance and accessibility audits
-- `deploy.yml` - Automated deployment
+- `mirror-to-gitlab.yml` - Push `dev`, `stage` and tags to the GitLab deploy
 - `deploy-mkdocs.yml` - Documentation deployment
 - `release-please.yml` - Automated release management
 

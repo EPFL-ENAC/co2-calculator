@@ -1,7 +1,7 @@
 #!/bin/sh
 # APP_VERSION build arg (#2437), the version the images report at runtime,
-# from the same root package.json the release tag comes from. Called by both
-# deploy pipelines (.github/workflows/deploy.yml, .gitlab-ci.yml) so the
+# from the same root package.json the release tag comes from. Called by the
+# deploy pipeline (.gitlab-ci.yml) so the
 # rule lives once. Only a tag build gets the bare version; dev adds the
 # commit's UTC timestamp so every dev image between two bumps reports a
 # different string; any other branch is marked so a ci-test image can never
