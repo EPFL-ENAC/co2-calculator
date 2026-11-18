@@ -22,11 +22,8 @@ ALLOWLIST = ROOT / "scripts" / "institution-words-allowlist.txt"
 # Case-sensitive on purpose: "accredited" and "Entrance" are plain words.
 WORDS = re.compile(r"EPFL_TABLEAU|EPFL Tableau|EPFL|epfl|Accred|ACCRED|Entra(?![a-z])")
 # Names of the project itself, not values of an institution: the GitHub
-# organization and image registry that host the code, and the path of the
-# EPFL deployment folder.
-PROJECT_TOKENS = re.compile(
-    r"EPFL-ENAC|epfl-enac|ghcr\.io/epfl-enac/epfl/|institutions/epfl\b"
-)
+# organization and image registry that host the code.
+PROJECT_TOKENS = re.compile(r"EPFL-ENAC|epfl-enac|ghcr\.io/epfl-enac/epfl/")
 
 
 def load_allowlist() -> list[tuple[str, set[str]]]:

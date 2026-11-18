@@ -7,13 +7,9 @@ import { writeInstitutionFiles } from './build/institution.mjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// The tests run with the values of institutions/epfl and the default assets
-// (tests/institution gives only theme.conf), injected
-// the same way as in the container (#3244). The tracked example keeps CI and
-// local runs equal.
-process.env.INSTITUTION_ENV_FILE ??=
-  '../institutions/epfl/frontend.env.example';
-process.env.INSTITUTION_ASSETS_DIR ??= './tests/institution';
+// The tests run with the example institution of frontend/institution-example,
+// injected the same way as in the container, so CI and local runs are equal
+// (#3244).
 // Playwright CT copies publicDir into its build, so the files nginx serves in
 // the container (injectEnv.js, theme.css, institution/) go there.
 const institutionPublicDir = resolve(__dirname, 'playwright/.institution');

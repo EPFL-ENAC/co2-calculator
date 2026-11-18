@@ -10,9 +10,6 @@
 docs/*                          *        # documentation
 *.md                            *        # documentation, changelog, plans
 
-# The EPFL deployment.
-institutions/epfl/*             *        # EPFL values and assets, the reason the folder exists
-
 # The project repository and its tooling, not the app.
 .github/*                       *        # CI/CD of the project, hosted by EPFL
 .gitlab-ci.yml                  *        # mirror of the project, hosted by EPFL

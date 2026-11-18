@@ -364,7 +364,7 @@ frontend:
     # Institution values (#3244). Required: an empty one stops the
     # container at startup. Every APP_* value is public, sent to each browser
     # without a login: never put a secret here. Example values are in
-    # institutions/epfl/frontend.env.example and set in the ops repo.
+    # frontend/institution-example/values.env; the real ones are in the ops repo.
     APP_INSTITUTION_NAME: ""
     APP_INSTITUTION_NAME_FR_DE: ""
     APP_INSTITUTION_NAME_FR_A: ""
@@ -404,12 +404,12 @@ frontend:
     APP_DEMO_MODE: "false"
     APP_PRODUCTION_URL: ""
 
-  # Volume with the institution assets folder, mounted at /institution
-  # (#3244). Required, because it gives theme.conf with the accent color.
-  # The image has a neutral default for the other files (logo.svg,
+  # Volume with the institution folder, mounted at /institution (#3244):
+  # theme.conf (required, the accent color), an optional values.env and
+  # optional assets. The image has a neutral default for the assets (logo.svg,
   # login-illustration.svg, the favicons, fonts/*.woff2), and a file of the
   # volume replaces its default. Any volume source works, for example a
-  # ConfigMap built from institutions/<name>/assets.
+  # ConfigMap built from the institution folder.
   institutionAssets:
     volume: {}
 

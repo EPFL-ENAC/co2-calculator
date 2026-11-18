@@ -58,7 +58,7 @@ Build and run Storybook using Docker:
 make storybook-docker
 
 # Or using docker directly
-docker build -f Dockerfile.storybook --build-context institutions=../institutions -t storybook .
+docker build -f Dockerfile.storybook -t storybook .
 docker run -p 8080:8080 storybook
 ```
 
@@ -274,7 +274,7 @@ export const WithCustomState: Story = {
 
    ```bash
    cd frontend
-   docker build -f Dockerfile.storybook --build-context institutions=../institutions -t storybook .
+   docker build -f Dockerfile.storybook -t storybook .
    ```
 
 2. Check that all source files are copied correctly in the Dockerfile

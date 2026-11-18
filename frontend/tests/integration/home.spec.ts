@@ -1,10 +1,14 @@
 import { test, expect } from 'playwright/test';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseEnv } from 'node:util';
 
-// The title names the institution of the run (playwright.config.js, #3244).
+// The title names the example institution of the run (#3244).
 const values = parseEnv(
-  readFileSync(process.env.INSTITUTION_ENV_FILE ?? '', 'utf8'),
+  readFileSync(
+    resolve(import.meta.dirname, '../../institution-example/values.env'),
+    'utf8',
+  ),
 );
 const institution = values.APP_INSTITUTION_NAME;
 

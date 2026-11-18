@@ -156,15 +156,12 @@ services:
       - /tmp
       - /var/cache/nginx
       - /var/run
-    # Institution values and assets (#3244). The container stops without the
-    # required values, and without theme.conf in the mounted folder. The
-    # other assets of the folder replace the neutral defaults of the image.
-    # institutions/epfl holds the values of the clusters. Copy
-    # frontend.env.example to frontend.env first (`make install` does it).
-    env_file:
-      - ./institutions/epfl/frontend.env
+    # The institution (#3244): one folder gives the values (values.env) and
+    # the files (theme.conf, assets). The container stops without the
+    # required values or without theme.conf. To try a real institution, mount
+    # its folder instead, and do not commit that change.
     volumes:
-      - ./institutions/epfl/assets:/institution:ro
+      - ./frontend/institution-example:/institution:ro
     environment:
       # Empty by default. Set in your shell to enable
       # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s

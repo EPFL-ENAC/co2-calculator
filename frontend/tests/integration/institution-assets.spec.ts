@@ -1,16 +1,20 @@
 import { test, expect, type Page } from 'playwright/test';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseEnv } from 'node:util';
 
 /**
  * #3244 — the institution comes from the deployment: values from
  * /injectEnv.js, files from /institution/, colors from /theme.css. The run
- * uses the institution of playwright.config.js, prepared by build/prepare-preview.mjs with the
- * container script.
+ * uses the example institution, prepared by build/prepare-preview.mjs with
+ * the container script.
  */
 
 const institution = parseEnv(
-  readFileSync(process.env.INSTITUTION_ENV_FILE ?? '', 'utf8'),
+  readFileSync(
+    resolve(import.meta.dirname, '../../institution-example/values.env'),
+    'utf8',
+  ),
 ).APP_INSTITUTION_NAME;
 
 // No backend runs against this webServer (see chunk-load-reload.spec.ts).
