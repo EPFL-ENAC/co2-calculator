@@ -21,19 +21,19 @@ of the repository. The database starts empty.
 > CAUTION: Do not put this setup on a network. Docker Compose sets
 > `DEBUG=True`, and the test login then gives any role with no password.
 
-1. Copy the two example files.
+1. Copy the example database file.
 2. Start the app.
 3. Open <http://localhost/en/login-test> and select a test role.
 
 ```bash
-cp backend/.env.example backend/.env
 cp .database.env.example .database.env
 docker compose up --build
 ```
 
 The backend applies the database migrations at startup. Docker Compose
-always gives it the `postgres` service as its database, whatever
-`backend/.env` contains.
+gives the backend the committed `backend/.env.example` and the
+`postgres` service as its database. It does not read `backend/.env`,
+which can name a shared database or real services for `make dev`.
 
 ## Try the chart on a local cluster with Skaffold
 
@@ -76,6 +76,11 @@ create the Secrets. You supply these parts:
 - an OIDC login provider, for example Keycloak or Entra ID
 - S3-compatible storage for uploaded files
 - two Secrets, one for the database and one for the backend
+
+The chart never creates a Secret. Create the two Secrets before you
+install the chart, with `kubectl` or with a secret operator, for example
+External Secrets or Sealed Secrets. If `backend.existingSecret.name` is
+empty, the install stops.
 
 The [chart README](../../../helm/README.md) gives the steps.
 [`helm/examples/`](../../../helm/examples/values.yaml) holds a values file and

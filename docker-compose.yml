@@ -38,7 +38,6 @@ services:
     container_name: co2-calculator-postgres
     restart: unless-stopped
     env_file:
-      - ./backend/.env
       - ./.database.env
     environment:
       POSTGRES_HOST_AUTH_METHOD: "trust"
@@ -58,7 +57,7 @@ services:
     shm_size: "1gb"
     command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]
     healthcheck:
-      # Its own server, not DB_URL: backend/.env may name a remote database.
+      # Probe its own server, the one that .database.env creates.
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 3s
       timeout: 5s
@@ -89,13 +88,13 @@ services:
     environment:
       # Local compose only — never True on stage/prod (see app/core/config.py).
       DEBUG: "True"
-      # These two win over backend/.env, which serves `make dev`: there the
-      # app is on :9000, and DB_URL may name a shared database. Compose must
-      # only ever migrate its own postgres service (.database.env).
+      # The committed example below, never your backend/.env: that file
+      # serves `make dev` and can name a shared database or real services.
+      # These win over the example: the app is behind traefik on :80, and
+      # the backend must only migrate its own postgres service.
       FRONTEND_URL: "http://localhost"
       DB_URL: "postgresql://co2_user:co2_password@postgres:5432/co2_calculator?sslmode=disable"
-      # Empty host: uploads stay in the container (FILES_STORAGE_PATH), never
-      # in a bucket that backend/.env names.
+      # Empty host: uploads stay in the container (FILES_STORAGE_PATH).
       S3_ENDPOINT_HOSTNAME: ""
       HOST: "0.0.0.0"
       PORT: "8000"
@@ -106,7 +105,7 @@ services:
         exec opentelemetry-instrument uvicorn app.main:app --host $$HOST --port $$PORT --workers $$WORKERS
       '
     env_file:
-      - ./backend/.env
+      - ./backend/.env.example
     # volumes:
     #   - ./app:/app/app:ro
     labels:
@@ -150,7 +149,7 @@ services:
       - /var/cache/nginx
       - /var/run
     environment:
-      # Empty by default. Set in your shell (or repo-root .env) to enable
+      # Empty by default. Set in your shell to enable
       # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s
       # pod receives via helm/values.yaml frontend.env.
       APP_SENTRY_DSN: "${APP_SENTRY_DSN:-}"

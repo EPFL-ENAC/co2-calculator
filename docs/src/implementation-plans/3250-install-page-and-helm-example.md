@@ -35,10 +35,12 @@ linted the chart with the default values.
   chart and Kustomize. The home page links to it.
 
 - `docker-compose.yml` runs the full app with the test login. The
-  backend always uses the `postgres` service and `http://localhost`,
-  whatever `backend/.env` holds. That file serves `make dev`, and its
-  `DB_URL` can name a shared database. For the same reason, the S3 host
-  is empty, so uploads stay in the container. The frontend gets
+  backend reads the committed `backend/.env.example`, never
+  `backend/.env`. That file serves `make dev`, and it can name a shared
+  database, Elasticsearch or S3. Like the frontend, which sets each
+  value inline, Compose reads no private file. The backend also gets the
+  `postgres` service, `http://localhost` and an empty S3 host, so
+  uploads stay in the container. The frontend gets
   `APP_ENVIRONMENT=development`, which adds the `/login-test` page and
   labels local errors apart from the deployed `dev`. The PostgreSQL and
   Traefik health checks probe their own containers.

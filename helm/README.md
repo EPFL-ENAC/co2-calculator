@@ -21,7 +21,10 @@ The chart needs these services. You supply each one.
 
 ## Create the two Secrets
 
-The chart reads a database Secret and a backend Secret.
+The chart reads a database Secret and a backend Secret. It never
+creates them: create them before you install the chart, with `kubectl`
+or with a secret operator, for example External Secrets or Sealed
+Secrets. If `backend.existingSecret.name` is empty, the install stops.
 [`examples/secrets.yaml`](examples/secrets.yaml) lists each key and
 tells you how to make each value.
 
