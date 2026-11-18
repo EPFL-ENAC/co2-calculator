@@ -206,6 +206,37 @@ test('a values.env line that is not APP_<NAME>=value stops the startup', () => {
 });
 
 // A deployment can give every value through the environment.
+test('a line break in a value of the environment stops the startup', () => {
+  theme('accent: #0050a0\n');
+  // printenv would give "APP_INJECTED=two" as a second variable.
+  const result = run({ APP_ROLES_DOC_URL: 'one\nAPP_INJECTED=two' });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(
+    'APP_ROLES_DOC_URL: a value cannot hold a line break',
+  );
+  expect(result.stderr).not.toContain('APP_INJECTED');
+});
+
+test('a name with another character in the environment stops the startup', () => {
+  theme('accent: #0050a0\n');
+  const result = run({ 'APP_K"Y': '1' });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('a name is APP_ and then capital letters');
+});
+
+test('the log names a value that the environment replaces', () => {
+  theme('accent: #0050a0\n');
+  const result = run({ APP_CONTACT_EMAIL: '', APP_INSTITUTION_NAME: 'Other' });
+  expect(result.stderr).toContain(
+    'APP_INSTITUTION_NAME: the environment replaces values.env',
+  );
+  // An empty variable replaces the value too, and the value is required.
+  expect(result.stderr).toContain(
+    'APP_CONTACT_EMAIL: the environment replaces values.env',
+  );
+  expect(result.status).toBe(1);
+});
+
 test('a folder without values.env starts on the environment alone', () => {
   theme('accent: #0050a0\n');
   rmSync(join(mounted, 'values.env'));

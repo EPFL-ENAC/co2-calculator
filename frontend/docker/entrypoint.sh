@@ -106,8 +106,29 @@ if ! printenv | awk -v env_file="${ENV_FILE}" '
   {
     eq = index($0, "=")
     key = substr($0, 1, eq - 1)
+    value = substr($0, eq + 1)
+    from_file = (env_file != "" && FILENAME == env_file)
+    if (!from_file) {
+      # printenv gives lines, and a value can hold a line break: the true
+      # value is in ENVIRON. A line with a name that ENVIRON does not have
+      # is the rest of such a value, not a variable.
+      if (!(key in ENVIRON)) next
+      if (key !~ /^APP_[A-Z0-9_]+$/) {
+        fail(key ": a name is APP_ and then capital letters, digits or _")
+        next
+      }
+      value = ENVIRON[key]
+      # Not silent: a deployment that sets both must see which one it gets.
+      if ((key in values) && values[key] != value) {
+        print "[entrypoint] " key ": the environment replaces values.env" > "/dev/stderr"
+      }
+    }
+    if (index(value, "\n") || index(value, "\r")) {
+      fail(key ": a value cannot hold a line break")
+      next
+    }
     if (!(key in values)) order[++count] = key
-    values[key] = substr($0, eq + 1)
+    values[key] = value
   }
 
   END {
