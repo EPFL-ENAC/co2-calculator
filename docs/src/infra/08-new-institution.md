@@ -92,7 +92,9 @@ value. A value whose name looks like a secret, for example
 `APP_API_TOKEN`, stops the frontend at startup.
 
 The container reads `/institution/values.env`, then the environment of
-the pod. A variable of the environment wins over the file. Put the values
+the pod. A variable of the environment wins over the file, also if it
+is empty. The Helm chart does not send an empty `frontend.env` value to
+the pod, so the value of the file stays. Put the values
 that change per cluster in the environment: `APP_ENVIRONMENT`,
 `APP_SENTRY_DSN`, `APP_MATOMO_*`, `APP_OPS_*`, `APP_DEMO_MODE` and
 `APP_PRODUCTION_URL`. If you set `APP_MATOMO_SITE_ID`,

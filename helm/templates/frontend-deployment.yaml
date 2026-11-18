@@ -62,10 +62,16 @@ spec:
               protocol: TCP
           # Iterates frontend.env so adding a new env var (e.g. APP_*)
           # only requires a values.yaml entry — no template change.
+          # An empty value is not rendered: in the container, a variable of
+          # the environment wins over values.env of the institution folder,
+          # also when it is empty, so an empty default would erase the value
+          # of the folder.
           env:
             {{- range $key, $value := .Values.frontend.env }}
+            {{- if ne (toString $value) "" }}
             - name: {{ $key }}
               value: {{ $value | quote }}
+            {{- end }}
             {{- end }}
           {{- with .Values.frontend.livenessProbe }}
           livenessProbe:

@@ -69,6 +69,19 @@ check-api-version: ## Fail unless the backend renders API_VERSION=/v1
 		|| { echo "❌ API_VERSION is not /v1: every /api/v1 call would 404"; exit 1; }
 	@echo "✅ API_VERSION renders as /v1"
 
+# Regression check: the chart gave each empty frontend.env default to the
+# pod, and an empty variable wins over values.env of the institution folder:
+# the frontend stopped with "APP_INSTITUTION_NAME is required and empty".
+.PHONY: check-frontend-env
+check-frontend-env: ## Fail if the frontend gets an empty env value, or loses a set one
+	@out=$$(helm template . $(REQUIRED) --set frontend.env.APP_CONTACT_EMAIL=a@example.org \
+		-s templates/frontend-deployment.yaml) || exit 1; \
+	echo "$$out" | grep -q 'value: ""' \
+		&& { echo "❌ the frontend gets an empty env value: it erases values.env"; exit 1; }; \
+	echo "$$out" | grep -A1 'name: APP_CONTACT_EMAIL$$' | grep -q 'value: "a@example.org"' \
+		|| { echo "❌ the frontend lacks a frontend.env value that is set"; exit 1; }
+	@echo "✅ the frontend gets only the frontend.env values that are set"
+
 # Regression check: the worker read worker.env only, so every deployment
 # copied backend.env into it by hand and the copies drifted.
 .PHONY: check-worker-env
@@ -116,7 +129,7 @@ lint-docs: ## Fail if VALUES.md is older than values.yaml
 ## 🧪 Combined linting
 ## -------------------------------
 .PHONY: lint
-lint: lint-helm lint-examples check-api-version check-worker-env lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker env, VALUES.md)
+lint: lint-helm lint-examples check-api-version check-worker-env check-frontend-env lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker and frontend env, VALUES.md)
 	@echo "🧭 All lint checks passed!"
 
 
