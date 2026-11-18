@@ -277,6 +277,8 @@ worker:
     targetCPUUtilizationPercentage: 60
     targetMemoryUtilizationPercentage: 80
 
+  # -- Worker env vars, merged over backend.env: a key set here wins. Set
+  # only what differs from the backend.
   env: {}
   # RUN_BACKGROUND_POLLER and DISPATCH_JOBS_INLINE are set unconditionally
   # by the template, not here — see backend-worker-deployment.yaml.

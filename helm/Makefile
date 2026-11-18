@@ -60,6 +60,26 @@ check-api-version: ## Fail unless the backend renders API_VERSION=/v1
 		|| { echo "❌ API_VERSION is not /v1: every /api/v1 call would 404"; exit 1; }
 	@echo "✅ API_VERSION renders as /v1"
 
+# Regression check: the worker read worker.env only, so every deployment
+# copied backend.env into it by hand and the copies drifted.
+.PHONY: check-worker-env
+check-worker-env: ## Fail unless the worker gets backend.env under worker.env, keeps the reconciler, no duplicate name
+	@out=$$(helm template . --set backend.existingSecret.name=x --set worker.enabled=true \
+		--set backend.env.CHECK_ONLY_BACKEND=b --set backend.env.CHECK_SHARED=b \
+		--set worker.env.CHECK_SHARED=w --set backend.env.RUN_PIPELINE_RECONCILER=false \
+		-s templates/backend-worker-deployment.yaml) || exit 1; \
+	echo "$$out" | grep -A1 'name: RUN_PIPELINE_RECONCILER$$' | grep -q 'value: "false"' \
+		&& { echo "❌ the worker inherits RUN_PIPELINE_RECONCILER=false: no pod runs the sweep"; exit 1; }; \
+	echo "$$out" | grep -A1 'name: CHECK_ONLY_BACKEND$$' | grep -q 'value: "b"' \
+		|| { echo "❌ the worker lacks backend.env"; exit 1; }; \
+	[ "$$(echo "$$out" | grep -c 'name: CHECK_SHARED$$')" = 1 ] \
+		&& echo "$$out" | grep -A1 'name: CHECK_SHARED$$' | grep -q 'value: "w"' \
+		|| { echo "❌ CHECK_SHARED must render once, with the worker.env value"; exit 1; }; \
+	dups=$$(echo "$$out" | sed -n '/^ *- name: worker$$/,/^ *livenessProbe:/s/^ *- name: \([A-Za-z_][A-Za-z0-9_]*\)$$/\1/p' \
+		| sort | uniq -d); \
+	[ -z "$$dups" ] || { echo "❌ duplicate worker env names:" $$dups; exit 1; }
+	@echo "✅ the worker gets backend.env with worker.env on top"
+
 ## -------------------------------
 ## 📖 Values reference
 ## -------------------------------
@@ -87,7 +107,7 @@ lint-docs: ## Fail if VALUES.md is older than values.yaml
 ## 🧪 Combined linting
 ## -------------------------------
 .PHONY: lint
-lint: lint-helm lint-examples check-api-version lint-docs ## Run all lint checks (helm, examples, API_VERSION, VALUES.md)
+lint: lint-helm lint-examples check-api-version check-worker-env lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker env, VALUES.md)
 	@echo "🧭 All lint checks passed!"
 
 
