@@ -77,9 +77,9 @@ create the Secrets. You supply these parts:
 - S3-compatible storage for uploaded files
 - two Secrets, one for the database and one for the backend
 
-The [chart README](helm/README.md) gives the steps.
-[`helm/examples/`](helm/examples/values.yaml) holds a values file and
-the two Secrets to copy. [`helm/VALUES.md`](helm/VALUES.md) lists each
+The [chart README](../../../helm/README.md) gives the steps.
+[`helm/examples/`](../../../helm/examples/values.yaml) holds a values file and
+the two Secrets to copy. [`helm/VALUES.md`](../../../helm/VALUES.md) lists each
 value of the chart.
 
 ## Deploy with Kustomize and Argo CD
@@ -89,7 +89,7 @@ Kustomize can render it from a Git folder, and Argo CD can sync that
 folder. The EPFL deployment works this way. The supplies are the same
 as for the Helm chart.
 
-1. Copy [`helm/examples/`](helm/examples/kustomization.yaml) to your
+1. Copy [`helm/examples/`](../../../helm/examples/kustomization.yaml) to your
    Git repository.
 2. Replace each `example.org` value in `values.yaml`.
 3. Create the two Secrets of `secrets.yaml` with the secret tool of
@@ -117,6 +117,6 @@ The app still depends on EPFL services. These issues remove the limits.
 ## Subsequent step
 
 Start with Docker Compose to see the app. Then read the
-[chart README](helm/README.md) and prepare the two Secrets. The Helm
+[chart README](../../../helm/README.md) and prepare the two Secrets. The Helm
 chart and Kustomize use the same two Secrets. If a step
 of this page fails, open an issue in the repository.

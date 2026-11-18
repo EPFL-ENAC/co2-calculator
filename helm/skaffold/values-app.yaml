@@ -18,8 +18,9 @@ backend:
 frontend:
   replicaCount: 1
   env:
-    # The frontend adds the /login-test page only for dev or development.
-    APP_ENVIRONMENT: dev
+    # Adds the /login-test page. "development" is the GlitchTip label of
+    # local runs, apart from the deployed "dev".
+    APP_ENVIRONMENT: development
   podDisruptionBudget:
     enabled: false
 database:

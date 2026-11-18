@@ -94,6 +94,9 @@ services:
       # only ever migrate its own postgres service (.database.env).
       FRONTEND_URL: "http://localhost"
       DB_URL: "postgresql://co2_user:co2_password@postgres:5432/co2_calculator?sslmode=disable"
+      # Empty host: uploads stay in the container (FILES_STORAGE_PATH), never
+      # in a bucket that backend/.env names.
+      S3_ENDPOINT_HOSTNAME: ""
       HOST: "0.0.0.0"
       PORT: "8000"
       WORKERS: "1"
@@ -151,9 +154,10 @@ services:
       # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s
       # pod receives via helm/values.yaml frontend.env.
       APP_SENTRY_DSN: "${APP_SENTRY_DSN:-}"
-      # "dev" adds the /login-test page, the only login without an OIDC
-      # provider. Same as DEBUG above: local compose only.
-      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-dev}"
+      # "development" adds the /login-test page, the only login without an
+      # OIDC provider, and is the GlitchTip label of local runs, apart from
+      # the deployed "dev". Same as DEBUG above: local compose only.
+      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-development}"
       # Matomo analytics. Empty site id keeps tracking off, so a compose run
       # never sends hits to a real Matomo site by accident.
       APP_MATOMO_URL: "${APP_MATOMO_URL:-}"
