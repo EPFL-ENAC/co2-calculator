@@ -5,6 +5,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 global:
+  # -- Pull secrets for all pods. Set them if your image registry is private
   imagePullSecrets: []
   # - name: ghcr-creds
 
@@ -14,6 +15,7 @@ backend:
 
   image:
     repository: ghcr.io/epfl-enac/epfl/co2-calculator/backend
+    # -- Backend image tag. Set it to one release tag, not `latest`
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -34,7 +36,9 @@ backend:
     # Keep "true" wherever a TLS terminator fronts the pods (all clusters);
     # only local plain-http dev sets it "false". See infra OAuth post-mortem.
     COOKIE_SECURE: "true"
-    API_VERSION: "/api/v1"
+    # Under API_DOCS_PREFIX: FastAPI strips that root path before routing,
+    # so /api/v1/... reaches the /v1 routers. "/api/v1" gives 404 everywhere.
+    API_VERSION: "/v1"
     API_DOCS_PREFIX: "/api"
     LOG_LEVEL: "INFO"
     ALGORITHM: "HS256"
@@ -62,9 +66,9 @@ backend:
     # only (peak `checked_out` ~4/pod, 13 fleet-wide) — prod concurrency is
     # unmeasured, and too small a pool trades idle sockets for per-checkout
     # connect churn. Set it per environment in the deploy repo's values
-    # (dev: "5"), in BOTH `backend.env` and `worker.env` — the worker
-    # Deployment renders `worker.env`, not `backend.env`. The code default
-    # (10, app/core/config.py) stands everywhere else.
+    # (dev: "5"), in `backend.env`. The worker inherits it, and
+    # `worker.env` overrides it. The code default (10,
+    # app/core/config.py) stands everywhere else.
     INGEST_COPY_BATCH_SIZE: "50000" # Rows per COPY batch for bulk CSV data_entries ingest
     ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
     ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries
@@ -77,6 +81,12 @@ backend:
     # string) in an environment-specific override if SQL-level traces are
     # needed for active debugging — the cost is worth it there, not always-on.
     OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "sqlalchemy,psycopg"
+    # No collector by default: the OTLP exporter would retry localhost:4317
+    # and log an error every few seconds. To export, set the three to
+    # "otlp" (logs: "none" is fine) and OTEL_EXPORTER_OTLP_ENDPOINT.
+    OTEL_TRACES_EXPORTER: "none"
+    OTEL_METRICS_EXPORTER: "none"
+    OTEL_LOGS_EXPORTER: "none"
     # co2-calculator#2260: FastAPI puts each endpoint's *un-prefixed* leaf
     # route into scope["route"], so opentelemetry-instrumentation-asgi's
     # http.target (root_path + route.path_format) loses every
@@ -97,22 +107,6 @@ backend:
     # (dev first, to confirm that name) and only promote once the ops-repo
     # transform actually reads it.
     #   OTEL_SEMCONV_STABILITY_OPT_IN: "http/dup"
-
-  secrets:
-    # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
-    # Generate a secure, distinct value for EACH key using: openssl rand -hex 32
-    # Use backend.existingSecret.enabled=true for production environments
-    JWT_HMAC_KEY: "" # REQUIRED: JWT signing key. Must be set via --set flag or existing secret
-    SESSION_HMAC_KEY: "" # REQUIRED: OAuth-flow session cookie signing key. Must be set via --set flag or existing secret
-
-    # OAuth/OIDC Configuration (optional, for future OAuth implementation)
-    # OAUTH_CLIENT_ID: ""  # OAuth2 client ID from your identity provider
-    # OAUTH_CLIENT_SECRET: ""  # OAuth2 client secret (keep secure!)
-    # OAUTH_ISSUER_URL: ""  # OIDC issuer URL (e.g., https://keycloak.example.com/realms/your-realm)
-    OAUTH_CLIENT_ID: ""
-    OAUTH_CLIENT_SECRET: ""
-    OAUTH_ISSUER_URL: ""
-    OAUTH_TENANT_ID: ""
 
   podAnnotations: {}
 
@@ -184,11 +178,8 @@ backend:
   tolerations: []
   affinity: {}
   existingSecret:
-    # Default: reference a pre-existing Secret (production path).
-    # For local/dev chart-managed secrets, set enabled=false and provide
-    # backend.secrets.JWT_HMAC_KEY / backend.secrets.SESSION_HMAC_KEY.
-    enabled: true
-    name: "" # REQUIRED when enabled=true: name of the pre-existing Secret
+    # -- Name of the backend Secret that you create. Required. The chart README lists its keys
+    name: ""
     keys:
       jwtHmacKeyKey: JWT_HMAC_KEY # Key in the existing secret for JWT_HMAC_KEY
       sessionHmacKeyKey: SESSION_HMAC_KEY # Key in the existing secret for SESSION_HMAC_KEY
@@ -238,7 +229,8 @@ backend:
           memory: 64Mi
 
   migrations:
-    enabled: true # Run database migrations via init container
+    # -- Run the database migrations in a Job at each install and each upgrade
+    enabled: true
 
     resources: # Resources for the migration job container
       limits:
@@ -263,6 +255,7 @@ backend:
 # templates/backend-worker-deployment.yaml and
 # templates/_helpers.tpl#backendSecretEnv.
 worker:
+  # -- Run the background jobs in a separate worker Deployment
   enabled: false
   replicaCount: 1
   # #2696: on SIGTERM the lifespan cancels running jobs and each hands
@@ -284,6 +277,10 @@ worker:
     targetCPUUtilizationPercentage: 60
     targetMemoryUtilizationPercentage: 80
 
+  # -- Worker env vars, merged over backend.env: a key set here wins. Set
+  # only what differs from the backend. The worker does not inherit
+  # RUN_PIPELINE_RECONCILER, so it runs the reconciler unless set here.
+  # A null value does not remove an inherited key: set "" instead.
   env: {}
   # RUN_BACKGROUND_POLLER and DISPATCH_JOBS_INLINE are set unconditionally
   # by the template, not here — see backend-worker-deployment.yaml.
@@ -336,6 +333,7 @@ frontend:
 
   image:
     repository: ghcr.io/epfl-enac/epfl/co2-calculator/frontend
+    # -- Frontend image tag. Set it to the same release tag as the backend
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -448,10 +446,10 @@ frontend:
   tolerations: []
   affinity: {}
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # Database configuration
 # External PostgreSQL database (managed separately, e.g., via Bitnami chart)
-# -----------------------------------------------------------------------------
+# =============================================================================
 database:
   # Secret containing database connection details
   # This secret must contain the following keys:
@@ -464,28 +462,34 @@ database:
   #   global.postgresql.auth.secretKeys.adminPasswordKey: DB_PASSWORD
   #   global.postgresql.auth.secretKeys.userPasswordKey: DB_PASSWORD
   existingSecret:
+    # -- Name of the database Secret that you create. Required
     name: "db-secret"
     keys:
-      # use for backend and migrations job
+      # -- Key of the PostgreSQL URL in the database Secret. The backend and the migrations read it
       url: DB_URL
       # use for bitnami/postgresql chart
       password: DB_PASSWORD
 
   # Wait for PostgreSQL readiness before starting backend/migrations
   waitForPostgres:
+    # -- Wait until PostgreSQL answers before the backend and the migrations start
     enabled: true
     image:
-      repository: bitnamilegacy/postgresql
-      tag: "latest"
+      # Official image: ships pg_isready; 18 matches the deployed PostgreSQL.
+      repository: postgres
+      tag: "18-alpine"
       pullPolicy: IfNotPresent
 
 ingress:
+  # -- Create an Ingress. On OpenShift, set `false` and use `routes`
   enabled: true
+  # -- Ingress class of your cluster
   className: "nginx"
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  # -- Hostnames of the app. The chart sends `/api` to the backend and `/` to the frontend
   hosts:
     # Simple mode - just specify hostname(s), paths are auto-configured
     - co2-calculator.local
@@ -502,11 +506,14 @@ ingress:
     #     - path: /
     #       pathType: Prefix
     #       backend: frontend
+  # -- TLS entries of the Ingress
   tls: []
 
 # OpenShift Routes configuration
 routes:
+  # -- Create OpenShift Routes in place of an Ingress
   enabled: false
+  # -- Hostname of the Routes
   host: "co2-calculator.local"
   frontend:
     extraLabels: {}
@@ -532,6 +539,7 @@ routes:
       termination: edge
 
 serviceAccount:
+  # -- Create a ServiceAccount for the pods
   create: true
   annotations: {}
   name: ""
@@ -546,6 +554,7 @@ podDisruptionBudget:
   maxUnavailable: ""
 
 networkPolicies:
+  # -- Create NetworkPolicies that limit the traffic to the pods
   enabled: false
   ingressFromRoutes: [] # Define allowed ingress sources (e.g., namespaces, pods) for network policies
     # Example
@@ -556,7 +565,7 @@ networkPolicies:
     #     matchLabels:
     #       ingresscontroller.operator.openshift.io/deployment-ingresscontroller: ingress-private
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # Documentation deployment
 # Static documentation served via nginx, built from docs/ directory
 # Built automatically by CI/CD via deploy.yml and deploy-quay.yml
@@ -564,8 +573,9 @@ networkPolicies:
 #   - dev branch → commit SHA
 #   - stage branch → commit SHA
 #   - tags (v*) → version tag (e.g., v1.2.3)
-# -----------------------------------------------------------------------------
+# =============================================================================
 docs:
+  # -- Deploy the developer documentation site
   enabled: true
   replicaCount: 1
 

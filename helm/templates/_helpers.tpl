@@ -59,11 +59,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{- define "co2-calculator.backendSecretName" -}}
-{{- if .Values.backend.existingSecret.enabled -}}
-{{- required "backend.existingSecret.enabled=true but backend.existingSecret.name is empty. Set it to your pre-existing Secret's name, or set backend.existingSecret.enabled=false to use a chart-managed secret." .Values.backend.existingSecret.name -}}
-{{- else -}}
-{{ include "co2-calculator.fullname" . }}-backend
-{{- end -}}
+{{- required "backend.existingSecret.name is required: create the backend Secret first (see examples/secrets.yaml) and set its name." .Values.backend.existingSecret.name -}}
 {{- end -}}
 
 {{- define "co2-calculator.serviceAccountName" -}}

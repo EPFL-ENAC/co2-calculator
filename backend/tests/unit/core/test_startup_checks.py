@@ -28,11 +28,11 @@ def _settings(**overrides) -> SimpleNamespace:
         "LOCAL_ENVIRONMENT": False,
         "JWT_HMAC_KEY": "j" * 64,
         "SESSION_HMAC_KEY": "s" * 64,
-        "CREDENTIALS_ENCRYPTION_KEY": "key",
-        "CREDENTIALS_ENCRYPTION_SALT": "salt",
+        "CREDENTIALS_ENCRYPTION_KEY": "c" * 64,
+        "CREDENTIALS_ENCRYPTION_SALT": "t" * 64,
         "CONNECTOR_ALLOWED_HOST_SUFFIXES": "epfl.ch",
-        "FILES_ENCRYPTION_KEY": "files-key",
-        "FILES_ENCRYPTION_SALT": "files-salt",
+        "FILES_ENCRYPTION_KEY": "f" * 64,
+        "FILES_ENCRYPTION_SALT": "a" * 64,
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -79,6 +79,55 @@ def test_non_local_raises_on_a_weak_signing_key(key_field, weak_value):
     with pytest.raises(RuntimeError) as exc:
         assert_security_settings(settings)
     assert key_field in str(exc.value)
+
+
+_ENCRYPTION_FIELDS = (
+    "CREDENTIALS_ENCRYPTION_KEY",
+    "CREDENTIALS_ENCRYPTION_SALT",
+    "FILES_ENCRYPTION_KEY",
+    "FILES_ENCRYPTION_SALT",
+)
+
+
+def test_non_local_raises_on_a_31_character_files_encryption_key():
+    secret = "x" * 31
+    with pytest.raises(RuntimeError) as exc:
+        assert_security_settings(_settings(FILES_ENCRYPTION_KEY=secret))
+    assert "FILES_ENCRYPTION_KEY" in str(exc.value)
+    assert secret not in str(exc.value)
+
+
+@pytest.mark.parametrize("field", _ENCRYPTION_FIELDS)
+@pytest.mark.parametrize(
+    "weak_value",
+    [
+        "<change-me>",
+        "change-me-" + "x" * 40,
+        "<change-me-" + "x" * 40 + ">",
+        "Qz9#short",
+    ],
+)
+def test_non_local_raises_on_a_weak_encryption_value(field, weak_value):
+    with pytest.raises(RuntimeError) as exc:
+        assert_security_settings(_settings(**{field: weak_value}))
+    assert field in str(exc.value)
+    assert weak_value not in str(exc.value)
+    assert "openssl rand -hex 32" in str(exc.value)
+
+
+def test_weak_error_names_every_weak_setting():
+    settings = _settings(
+        JWT_HMAC_KEY="short", CREDENTIALS_ENCRYPTION_SALT="<change-me>"
+    )
+    with pytest.raises(RuntimeError) as exc:
+        assert_security_settings(settings)
+    assert "JWT_HMAC_KEY" in str(exc.value)
+    assert "CREDENTIALS_ENCRYPTION_SALT" in str(exc.value)
+
+
+def test_non_local_passes_with_32_character_encryption_values():
+    settings = _settings(**{field: "e" * 32 for field in _ENCRYPTION_FIELDS})
+    assert_security_settings(settings)  # must not raise
 
 
 def test_local_environment_accepts_the_placeholder_keys():

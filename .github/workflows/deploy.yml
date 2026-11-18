@@ -15,7 +15,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@0314c16414e1017bca29057008d243fe6bbcf264 # v4.0.1
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/deploy.yml@e5d75b6b5b1a6e5c04be9afef18f19df68962ef6 # v4.1.0
     secrets:
       token: ${{ secrets.CD_TOKEN }}
       registry_token: ${{ secrets.QUAY_TOKEN }}
@@ -35,12 +35,10 @@ jobs:
       # The action packages and pushes the chart in a job that runs beside
       # the image builds; only its update-manifest waits for it.
       helm_chart_path: ./helm
-      # Smoke-test both secret paths. Default (external) needs a Secret name;
-      # chart-managed (dev) needs throwaway signing keys. Real deploys inject
-      # the real values.
+      # Smoke-test the render. The chart only reads an existing Secret, so
+      # it needs a Secret name. Real deploys name the real Secret.
       helm_chart_render_args: |
         --set backend.existingSecret.name=ci-existing-secret
-        --set backend.existingSecret.enabled=false --set backend.secrets.JWT_HMAC_KEY=ci-render-check --set backend.secrets.SESSION_HMAC_KEY=ci-render-check
       # Scan images in the build job: fixable or not, HIGH/CRITICAL findings
       # block the rollout. The image is already on ghcr under its sha tag, but
       # it gets no branch tag, no quay copy and no Argo update.

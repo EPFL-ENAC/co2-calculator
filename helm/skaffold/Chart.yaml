@@ -1,0 +1,7 @@
+# What the app chart expects the cluster to provide, for a local Skaffold
+# run only: a throwaway PostgreSQL and the two Secrets with dev values.
+apiVersion: v2
+name: co2-calculator-local
+description: Local PostgreSQL and Secrets for make skaffold-dev
+type: application
+version: 0.1.0

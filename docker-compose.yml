@@ -18,7 +18,8 @@ services:
     container_name: co2-calculator-traefik
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      # The ping lives on the traefik entrypoint (:8833), not the default :8080.
+      test: ["CMD", "traefik", "healthcheck", "--ping", "--entryPoints.traefik.address=:8833"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,7 +38,6 @@ services:
     container_name: co2-calculator-postgres
     restart: unless-stopped
     env_file:
-      - ./backend/.env
       - ./.database.env
     environment:
       POSTGRES_HOST_AUTH_METHOD: "trust"
@@ -57,7 +57,8 @@ services:
     shm_size: "1gb"
     command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $$DB_URL"]
+      # Probe its own server, the one that .database.env creates.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 3s
       timeout: 5s
       retries: 5
@@ -87,6 +88,14 @@ services:
     environment:
       # Local compose only — never True on stage/prod (see app/core/config.py).
       DEBUG: "True"
+      # The committed example below, never your backend/.env: that file
+      # serves `make dev` and can name a shared database or real services.
+      # These win over the example: the app is behind traefik on :80, and
+      # the backend must only migrate its own postgres service.
+      FRONTEND_URL: "http://localhost"
+      DB_URL: "postgresql://co2_user:co2_password@postgres:5432/co2_calculator?sslmode=disable"
+      # Empty host: uploads stay in the container (FILES_STORAGE_PATH).
+      S3_ENDPOINT_HOSTNAME: ""
       HOST: "0.0.0.0"
       PORT: "8000"
       WORKERS: "1"
@@ -96,7 +105,7 @@ services:
         exec opentelemetry-instrument uvicorn app.main:app --host $$HOST --port $$PORT --workers $$WORKERS
       '
     env_file:
-      - ./backend/.env
+      - ./backend/.env.example
     # volumes:
     #   - ./app:/app/app:ro
     labels:
@@ -140,11 +149,14 @@ services:
       - /var/cache/nginx
       - /var/run
     environment:
-      # Empty by default. Set in your shell (or repo-root .env) to enable
+      # Empty by default. Set in your shell to enable
       # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s
       # pod receives via helm/values.yaml frontend.env.
       APP_SENTRY_DSN: "${APP_SENTRY_DSN:-}"
-      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-compose}"
+      # "development" adds the /login-test page, the only login without an
+      # OIDC provider, and is the GlitchTip label of local runs, apart from
+      # the deployed "dev". Same as DEBUG above: local compose only.
+      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-development}"
       # Matomo analytics. Empty site id keeps tracking off, so a compose run
       # never sends hits to a real Matomo site by accident.
       APP_MATOMO_URL: "${APP_MATOMO_URL:-}"
