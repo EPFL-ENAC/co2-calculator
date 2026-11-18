@@ -207,6 +207,12 @@ has no institution `env_file`. The Helm chart mounts the volume
 that `frontend.institutionAssets.volume` gives, and fails to render
 without it, because the volume gives `theme.conf`.
 
+Each render of the chart in the repository gives a volume name: the smoke
+render of the deploy pipeline (`.gitlab-ci.yml`), the checks of
+`helm/Makefile` and `helm/examples/values.yaml`. For the local cluster,
+the Skaffold chart makes the ConfigMap from the example folder, through
+the symlink `helm/skaffold/institution`.
+
 ## Theme
 
 `theme.conf` has one `name: value` line per value. A line that starts
