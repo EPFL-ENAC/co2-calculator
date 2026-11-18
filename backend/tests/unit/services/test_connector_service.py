@@ -9,6 +9,16 @@ from app.schemas.connector import ConnectorConnectionCreate
 from app.services.connector_service import ConnectorConnectionService
 
 
+@pytest.fixture(autouse=True)
+def _public_dns(monkeypatch):
+    # Stub DNS: validate_external_url resolves the host; tests stay offline.
+    monkeypatch.setattr(
+        url_safety.socket,
+        "getaddrinfo",
+        lambda *a, **k: [(0, 0, 0, "", ("128.178.1.1", 0))],
+    )
+
+
 @pytest.mark.asyncio
 async def test_save_encrypts_blank_keeps_and_read_hides_secret(db_session, monkeypatch):
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
