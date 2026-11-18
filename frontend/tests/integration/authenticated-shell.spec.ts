@@ -4,6 +4,10 @@ import {
   HOME_URL,
   mockHomeBackend,
 } from './setup/home-module-visibility-mocks';
+import {
+  RF_URL,
+  mockResearchFacilitiesBackend,
+} from './setup/research-facilities-mocks';
 
 // The header and sidebars load as their own chunks, only once a session
 // exists (src/router/authenticatedShell.ts, #3244). Vite names a lazy chunk
@@ -85,5 +89,18 @@ test.describe('signed-in shell', () => {
       'data-header-at-first-content',
       'true',
     );
+  });
+
+  // Catches a deep link that waits for the home chunk: after a deploy, a
+  // missing old home chunk made every signed-in page fail to load.
+  test('a deep link does not need the home page chunk', async ({ page }) => {
+    await mockResearchFacilitiesBackend(page);
+    await page.route(/\/assets\/HomePage-[\w-]+\.js$/, (route) =>
+      route.abort(),
+    );
+    await page.goto(RF_URL);
+    await expect(page.getByText('Research facilities').first()).toBeVisible();
+    await expect(page.locator('.q-header')).toBeVisible();
+    await expect(page.locator('.reload-prompt-notify')).toHaveCount(0);
   });
 });

@@ -19,20 +19,23 @@ const parts = shallowRef<ShellParts | null>(null);
 // Preloaded as soon as the session is known, so the chunks download while
 // the workspace guards wait for the API. Awaited before a signed-in page is
 // confirmed (router/index.ts), so the header and sidebars never pop in late.
-export const authenticatedShell = retryableImport(() =>
-  Promise.all([
+export const authenticatedShell = retryableImport(() => {
+  // The home page is the usual first screen: start its download too, but do
+  // not wait for it. A deep link must not fail on a chunk it never draws;
+  // the home route awaits its own import.
+  loadHomePage().catch(() => undefined);
+  return Promise.all([
     import('@/components/layout/Co2Header.vue'),
     import('@/components/layout/Co2Sidebar.vue'),
     import('@/components/organisms/layout/Co2ModuleSidebar.vue'),
-    loadHomePage(),
   ]).then(([header, sidebar, moduleSidebar]) => {
     parts.value = {
       Co2Header: header.default,
       Co2Sidebar: sidebar.default,
       Co2ModuleSidebar: moduleSidebar.default,
     };
-  }),
-);
+  });
+});
 
 // Only signed-in screens call this, and the router loaded the parts before
 // confirming them: a miss is a router bug, so it throws instead of hiding.
