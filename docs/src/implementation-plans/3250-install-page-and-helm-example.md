@@ -57,7 +57,7 @@ linted the chart with the default values.
 
 ## Checks
 
-`make -C helm lint` now runs four checks. The root `make lint` calls it,
+`make -C helm lint` now runs five checks. The root `make lint` calls it,
 and the new `helm-quality` job of `quality-check.yml` runs it on each
 pull request. If `values.yaml` is staged, the pre-commit hook runs
 `make -C helm docs`, as it does for the ERD.
@@ -67,6 +67,7 @@ pull request. If `values.yaml` is staged, the pre-commit hook runs
 | `lint-helm`         | the chart does not render with `examples/values.yaml`     |
 | `lint-examples`     | an example Secret lacks a key that the pods read          |
 | `check-api-version` | the backend does not render `API_VERSION=/v1`             |
+| `check-worker-env`  | the worker lacks `backend.env`, or a name repeats         |
 | `lint-docs`         | `VALUES.md` is stale. Without `helm-docs`, it is skipped. |
 
 Under `CI`, a missing `helm` or `helm-docs` fails the check. The
@@ -77,12 +78,26 @@ PR. `examples/values.yaml` therefore sets `API_VERSION` and the three
 exporters itself. When the example pins a newer chart, remove the four
 lines.
 
+## Hardening after the review
+
+- The chart has no chart-managed Secret. It made 5 of the 26 keys, so
+  its pods did not start. `backend.existingSecret.name` is required.
+- The database wait image is `postgres:18-alpine`, not an unpinned
+  Bitnami image.
+- The startup check refuses an encryption key or salt that is shorter
+  than 32 characters or that starts with a placeholder. The live values
+  are 65 characters.
+- The worker gets `backend.env`, and `worker.env` overrides it. The
+  worker does not get `RUN_PIPELINE_RECONCILER`, because the overlays
+  turn it off on the API pods only. `check-worker-env` tests both.
+- `make -C frontend audit` ignores GHSA-fc5q-39xc-vjpf (picomatch)
+  until 2027-01-31. No fixed version exists, and the build tools
+  require picomatch.
+
 ## Not in this part
 
 - Optional Secret keys for Accred, Elasticsearch and S3. See the comment
   on #3246.
-- The chart-managed Secret (`backend.existingSecret.enabled=false`). It
-  does not give a working deployment.
 - Descriptions for each value. Only the values that an installation
   sets have a `# --` description.
 - The full Docker Compose app with Keycloak, and the reference page.
