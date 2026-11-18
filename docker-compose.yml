@@ -18,7 +18,8 @@ services:
     container_name: co2-calculator-traefik
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      # The ping lives on the traefik entrypoint (:8833), not the default :8080.
+      test: ["CMD", "traefik", "healthcheck", "--ping", "--entryPoints.traefik.address=:8833"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -57,7 +58,8 @@ services:
     shm_size: "1gb"
     command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $$DB_URL"]
+      # Its own server, not DB_URL: backend/.env may name a remote database.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 3s
       timeout: 5s
       retries: 5
@@ -87,6 +89,11 @@ services:
     environment:
       # Local compose only — never True on stage/prod (see app/core/config.py).
       DEBUG: "True"
+      # These two win over backend/.env, which serves `make dev`: there the
+      # app is on :9000, and DB_URL may name a shared database. Compose must
+      # only ever migrate its own postgres service (.database.env).
+      FRONTEND_URL: "http://localhost"
+      DB_URL: "postgresql://co2_user:co2_password@postgres:5432/co2_calculator?sslmode=disable"
       HOST: "0.0.0.0"
       PORT: "8000"
       WORKERS: "1"
@@ -144,7 +151,9 @@ services:
       # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s
       # pod receives via helm/values.yaml frontend.env.
       APP_SENTRY_DSN: "${APP_SENTRY_DSN:-}"
-      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-compose}"
+      # "dev" adds the /login-test page, the only login without an OIDC
+      # provider. Same as DEBUG above: local compose only.
+      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-dev}"
       # Matomo analytics. Empty site id keeps tracking off, so a compose run
       # never sends hits to a real Matomo site by accident.
       APP_MATOMO_URL: "${APP_MATOMO_URL:-}"
