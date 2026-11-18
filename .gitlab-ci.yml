@@ -23,11 +23,10 @@ include:
       build_key_paths: package.json
       helm_chart_path: helm
       helm_chart_repository: ghcr.io/epfl-enac/co2-calculator/helm
-      # Smoke-test both secret paths. Default (external) needs a Secret name;
-      # chart-managed (dev) needs throwaway signing keys.
+      # Smoke-test the render. The chart only reads an existing Secret, so
+      # it needs a Secret name. Real deploys name the real Secret.
       helm_chart_render_args: |
         --set backend.existingSecret.name=ci-existing-secret
-        --set backend.existingSecret.enabled=false --set backend.secrets.JWT_HMAC_KEY=ci-render-check --set backend.secrets.SESSION_HMAC_KEY=ci-render-check
       # GIT_SHA: the frontend's APP_VERSION for GlitchTip and the backend's
       # GIT_SHA (#2436). Every image also uses it to re-run its `apk upgrade`
       # layer on each build.
