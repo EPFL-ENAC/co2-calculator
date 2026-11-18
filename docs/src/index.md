@@ -15,6 +15,10 @@ The docs cover product scope (the CRD/spec), system architecture and decision re
 - [Operations](./infra/04-operations.md) — where to look, who to call, what to expect
 - [Tools and access](./infra/05-tools-and-access.md) — every dashboard and how to get in
 
+## Install it
+
+- [Install the CO2 Calculator](./infra/install.md): Docker Compose on one machine, or the Helm chart on Kubernetes
+
 ## Start here — humans
 
 - [Architecture overview](./architecture/index.md)
