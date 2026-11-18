@@ -62,4 +62,11 @@ case_ "route br" /some/route "br, gzip" 200 br text/html "$SHORT" Accept-Encodin
 case_ "injectEnv br" /injectEnv.js "br, gzip" 200 gzip $JST "$SHORT" Accept-Encoding
 case_ "png br" /institution/favicon-32x32.png br 200 "" image/png "$SHORT" ""
 fetch "$JS.br" br; expect "direct .br" status 404
+# A missing file gets index.html with the 404 status: the body is brotli,
+# so the header must say so.
+fetch /assets/missing-AAAAAAAA.js br
+expect "missing br" status 404; expect "missing br" Content-Encoding br
+expect "missing br" Vary Accept-Encoding
+fetch /assets/missing-AAAAAAAA.js ""
+expect "missing none" status 404; expect "missing none" Content-Encoding ""
 echo "all checks passed"
