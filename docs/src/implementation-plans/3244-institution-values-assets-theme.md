@@ -43,7 +43,7 @@ preview`, the component tests and Storybook get `injectEnv.js`,
   2026-11-13). A new deployment works with its values and one theme line.
   The accent color stays required, so the folder still gives
   `theme.conf`. A default is visible on the first page, unlike a wrong
-  number. The startup log names the source of each file, and an unknown
+  number. The startup log names the source of each file. An unknown
   file name stops the container, so a typo in an override is not silent.
 - The fonts default to Geist in the image. `theme.conf` can point them at
   a font server. EPFL points them at `enac-it-fonts.epfl.ch`, so the
@@ -55,9 +55,9 @@ preview`, the component tests and Storybook get `injectEnv.js`,
   keeps its folder outside this repository. Before this rule, the EPFL
   data existed twice: 8 asset files and 17 values were the same in the
   app repository and the ops repository, and nothing kept them equal. A
-  developer also had a fourth env file, a generic repository had a folder
-  named after one institution, and that folder was outside the
-  `./frontend` Docker build context.
+  developer also had a fourth env file. A generic repository had a folder
+  named after one institution. That folder was outside the `./frontend`
+  Docker build context.
 
 ## Values
 
@@ -104,12 +104,13 @@ no power request tab: a mailto link without a recipient opens an empty
 draft.
 
 The values can come from the optional file `values.env` of the
-institution folder, from the environment of the pod, or from both. In the
-container, `entrypoint.sh` reads `/institution/values.env` when it exists,
-then the environment. A variable of the environment wins over the file. So
-a deployment can keep its institution values in `values.env` and set the
-per-cluster values (`APP_ENVIRONMENT`, `APP_SENTRY_DSN`, `APP_MATOMO_*`,
-`APP_OPS_*`) under the Helm `frontend.env`. The file holds
+institution folder, from the environment of the pod, or from both. If
+`/institution/values.env` exists, `entrypoint.sh` reads it in the
+container. Then the script reads the environment. A variable of the
+environment wins over the file. So a deployment can keep its institution
+values in `values.env`. It sets the per-cluster values under the Helm
+`frontend.env`: `APP_ENVIRONMENT`, `APP_SENTRY_DSN`, `APP_MATOMO_*` and
+`APP_OPS_*`. The file holds
 `APP_<NAME>=value` lines, `#` comments and literal values. Any other line
 stops the script.
 
@@ -123,9 +124,9 @@ institution file. To see a real institution, a developer sets
 `quasar dev` and for `npm run preview`, with `process.loadEnvFile` of Node.
 
 The dev server gives the output folder of the script to Vite as its public
-folder, so Vite serves `/injectEnv.js`, `/theme.css` and `/institution/` as
-nginx does. When a file of the institution changes, the dev server runs the
-script again and reloads the page.
+folder. Vite then serves `/injectEnv.js`, `/theme.css` and `/institution/`
+as nginx does. If a file of the institution changes, the dev server runs
+the script again and reloads the page.
 
 Three builds outside the container write the institution files with the
 same script. `npm run preview` and the Lighthouse workflow run
@@ -165,12 +166,13 @@ référence de l'EPFL" instead of "de référence pour l'EPFL".
 ## Assets folder
 
 The deployment mounts its folder at `/institution`. At startup,
-`frontend/docker/entrypoint.sh` copies the defaults of the image (`frontend/institution-default/`, in the image at
-`/usr/local/share/institution/default`), then the files of the mounted
-folder, to `/tmp/institution`. nginx serves that folder at
-`/institution/` with revalidation, and with a second
-`Content-Security-Policy` that stops script in a file opened as a page (an
-SVG of the institution). The files:
+`frontend/docker/entrypoint.sh` copies the defaults of the image to
+`/tmp/institution`. The defaults are `frontend/institution-default/`, in
+the image at `/usr/local/share/institution/default`. Then the script
+copies the files of the mounted folder on top. nginx serves
+`/tmp/institution` at `/institution/` with revalidation. A second
+`Content-Security-Policy` stops script in a file that a browser opens as
+a page, for example an SVG of the institution. The files:
 
 ```
 values.env         (optional, see Values)
@@ -189,12 +191,13 @@ empty file, a file name outside the list, and a subfolder. The folder is
 flat because a ConfigMap key cannot contain `/`. A flat folder mounts from
 a ConfigMap, a Helm chart, a Docker volume or a local path with no special
 case. Names that start with `.` are skipped, because a ConfigMap mount
-adds `..data`. A file whose name starts with `font-` and does not end with
-`.woff2` is allowed and not copied, because a free font keeps its license
-next to its files, for example `font-license.txt`. A line of `theme.conf` can end with `\r\n`.
+adds `..data`. A file with a name that starts with `font-` and does not end
+with `.woff2` is allowed and not copied. A free font keeps its license
+next to its files, for example `font-license.txt`. A line of `theme.conf`
+can end with `\r\n`.
 
-The default fonts are Geist 1.3.1 under the SIL Open Font License, subset
-with `pyftsubset` to Latin-1, the usual punctuation, `€`, `−` and `₂`.
+The default fonts are Geist 1.3.1 under the SIL Open Font License.
+`pyftsubset` keeps Latin-1, the usual punctuation, `€`, `−` and `₂`.
 `frontend/institution-default/font-README.md` gives the licensing rules
 and holds the license text. The license of the EPFL brand font Suisse
 Int'l does not allow it in a repository. The license of a system font such
@@ -207,9 +210,9 @@ has no institution `env_file`. The Helm chart mounts the volume
 that `frontend.institutionAssets.volume` gives, and fails to render
 without it, because the volume gives `theme.conf`.
 
-Each render of the chart in the repository gives a volume name: the smoke
-render of the deploy pipeline (`.gitlab-ci.yml`), the checks of
-`helm/Makefile` and `helm/examples/values.yaml`. For the local cluster,
+Each render of the chart in the repository gives a volume name. The
+renders are the smoke render of the deploy pipeline (`.gitlab-ci.yml`),
+the checks of `helm/Makefile` and `helm/examples/values.yaml`. For the local cluster,
 the Skaffold chart makes the ConfigMap from the example folder, through
 the symlink `helm/skaffold/institution`.
 
@@ -305,9 +308,9 @@ Before the next deployment, a human changes the ops repository:
 - Set `APP_MATOMO_URL` and `APP_PRODUCTION_URL` where they are used.
 - Give the ConfigMap of the chart to `frontend.institutionAssets.volume`.
   Its name is fixed, and the chart version is a label. The frontend reads
-  the folder only at startup, so each overlay copies that label into the
-  `institution-version` annotation of the frontend pods, with a kustomize
-  replacement. A new chart version is then one edit, and it restarts the
+  the folder only at startup. So each overlay has a kustomize replacement
+  that copies that label into the `institution-version` annotation of the
+  frontend pods. A new chart version is then one edit, and it restarts the
   pods.
 - Keep in the overlay each value that the image of today reads, until the
   new image runs. That image cannot read `values.env`.
@@ -320,13 +323,13 @@ locally, a developer sets `INSTITUTION_DIR` to the EPFL folder.
 
 - The first-load badge counts only the bundle. The fonts of the
   deployment are not known at build time.
-- Without the font preloads, the browser finds the fonts later, when it
-  applies `theme.css`: about 155 ms after the page request, against 36 ms
-  with the preloads (login page, local build, real font server). The first
+- Without the font preloads, the browser finds the fonts only after it
+  applies `theme.css`. That is about 155 ms after the page request, against
+  36 ms with the preloads (login page, local build, real font server). The first
   text can show the fallback font a little longer. The first paint does not
   wait for the fonts, and Lighthouse gives it 1.50 s against 1.96 s before.
-- The logo is now a file of the deployment, not a part of the bundle, so
-  the browser asks for it only when the app starts. The logo of the login
+- The logo is now a file of the deployment, not a part of the bundle. The
+  browser asks for it only after the app starts. The logo of the login
   page loads eagerly and without a fade, and it paints with the first text
   (149 ms against 148 ms before this change, 294 ms without these settings).
   The mobile simulation of Lighthouse still counts the logo as the largest
