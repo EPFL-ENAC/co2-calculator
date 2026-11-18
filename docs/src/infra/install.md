@@ -38,7 +38,7 @@ always gives it the `postgres` service as its database, whatever
 ## Try the chart on a local cluster with Skaffold
 
 Skaffold builds the two images, and installs the chart on a cluster on
-your machine. It also installs a throwaway PostgreSQL, the two Secrets
+your machine. It also installs a local PostgreSQL, the two Secrets
 with local values, and Traefik as the web proxy. When you change the
 code, Skaffold builds and installs again.
 
@@ -92,7 +92,8 @@ as for the Helm chart.
 1. Copy [`helm/examples/`](helm/examples/kustomization.yaml) to your
    Git repository.
 2. Replace each `example.org` value in `values.yaml`.
-3. Create the two Secrets with the secret tool of your cluster.
+3. Create the two Secrets of `secrets.yaml` with the secret tool of
+   your cluster. Fill the six empty signing and encryption values.
 4. Build the folder, or point an Argo CD application at it.
 
 ```bash

@@ -48,7 +48,10 @@ linted the chart with the default values.
   sets `/v1`, so no deployment saw the bug. The default is now `/v1`.
 - The examples said that file encryption was optional. The startup check
   (#454) requires the file and credential encryption keys and salts, and
-  `CONNECTOR_ALLOWED_HOST_SUFFIXES`. The examples now set them.
+  `CONNECTOR_ALLOWED_HOST_SUFFIXES`. The example values set the host
+  list. The example Secret leaves the six signing and encryption values
+  empty. The check refuses an empty value but accepts any other. With a
+  placeholder such as `<change-me>`, the app runs with a public key.
 
 ## Checks
 
