@@ -89,11 +89,11 @@ Two values lose their EPFL default. If `APP_MATOMO_SITE_ID` is set,
 `APP_MATOMO_URL` is required. If `APP_DEMO_MODE` is `true`,
 `APP_PRODUCTION_URL` is required. The backend loses its defaults for `DB_URL`
 and `FRONTEND_URL`. The Helm default of `FRONTEND_URL` is empty, so a
-cluster that does not set it stops at boot. Docker Compose takes `DB_URL`
-from `backend/.env` and changes only its host from `localhost` to
-`postgres`, so the credentials are written in one file. Compose refuses
-any other host, so a `backend/.env` that names a shared database never gets
-the migrations of a local `docker compose up`.
+cluster that does not set it stops at boot. Docker Compose does not read
+`backend/.env`: it reads `backend/.env.example` and gives the backend a
+fixed `DB_URL` for its own `postgres` service. So a `backend/.env` that
+names a shared database never gets the migrations of a local
+`docker compose up`.
 
 The texts add page paths after `APP_USER_DOC_URL` and
 `APP_BACKOFFICE_DOC_URL`. If one does not end with `/`, the container

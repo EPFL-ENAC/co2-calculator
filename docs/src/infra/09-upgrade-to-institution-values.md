@@ -101,8 +101,9 @@ If you seed the reduction objectives, rename the local input file in
 `backend/INPUT_DATA/` from `reduction_obj_epfl_footprint(in).csv` to
 `reduction_obj_institution_footprint(in).csv`.
 
-Docker Compose reads `DB_URL` from `backend/.env` and changes the host
-`localhost` to `postgres`. It refuses each other host.
+Docker Compose does not read `backend/.env`. It reads
+`backend/.env.example` and gives the backend a fixed `DB_URL` for its own
+`postgres` service.
 
 ## Update a cluster
 
