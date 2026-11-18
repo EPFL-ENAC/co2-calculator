@@ -48,7 +48,7 @@ code, Skaffold builds and installs again.
 1. Start a local cluster, for example Kubernetes in Docker Desktop.
 2. Install Skaffold and Helm.
 3. Start the loop. The command uses the context `docker-desktop`.
-4. Open <http://localhost:8080/en/login-test> and select a test role.
+4. Open <http://localhost:8090/en/login-test> and select a test role.
 
 ```bash
 make -C helm skaffold-dev
@@ -57,13 +57,14 @@ make -C helm skaffold-dev KUBE_CONTEXT=kind-co2
 ```
 
 Use the host name `localhost`, not `127.0.0.1`. The backend sends the
-login back to `http://localhost:8080`, and the browser keeps the session
+login back to `http://localhost:8090`, and the browser keeps the session
 cookie for that host only. The page `/en/login` needs an OIDC provider,
 so it does not work in this setup. Use `/en/login-test`.
 
 The database keeps its data in a persistent volume claim. To remove the
-app and its data, run `skaffold delete` in the `helm` folder. The files
-of this setup are in `helm/skaffold/`.
+app and its data, run `make -C helm skaffold-delete`. Use the same
+`KUBE_CONTEXT` as for `skaffold-dev`. The files of this setup are in
+`helm/skaffold/`.
 
 ## Install on Kubernetes with Helm
 

@@ -30,18 +30,32 @@ lint-helm: ## Run helm lint on all Helm charts
 		done; \
 	else \
 		echo "⚠️  Warning: helm not found. Skipping helm lint."; \
+		[ -z "$$CI" ] || { echo "❌ helm is required in CI"; exit 1; }; \
 	fi
 
 # The example Secret is the public contract of the chart: a key the pods
 # read and the example lacks leaves an installer with pods that never start.
+# The keys come from the render, so a template change cannot hide one.
 .PHONY: lint-examples
 lint-examples: ## Fail if an example Secret lacks a key the pods read
-	@grep -oE '^ +[a-zA-Z0-9]+Key: [A-Z0-9_]+' values.yaml | awk '{print $$2}' | sort -u > .keys-chart
-	@for f in examples/secrets.yaml skaffold/templates/secrets.yaml; do \
-		missing=$$(grep -oE '^  [A-Z0-9_]+:' $$f | tr -d ' :' | sort -u | comm -13 - .keys-chart); \
-		if [ -n "$$missing" ]; then rm -f .keys-chart; echo "❌ $$f lacks:" $$missing; exit 1; fi; \
-	done; rm -f .keys-chart
-	@echo "✅ the example Secrets have every key of backend.existingSecret.keys"
+	@keys=$$(helm template . -f examples/values.yaml \
+		| awk '/secretKeyRef:/{ref=1; next} ref && /key:/{print $$2; ref=0} /^ *- key:/{print $$3}' | sort -u); \
+	[ -n "$$keys" ] || { echo "❌ no Secret key found in the render"; exit 1; }; \
+	for f in examples/secrets.yaml skaffold/templates/secrets.yaml; do \
+		missing=""; \
+		for k in $$keys; do grep -q "^  $$k:" $$f || missing="$$missing $$k"; done; \
+		[ -z "$$missing" ] || { echo "❌ $$f lacks:$$missing"; exit 1; }; \
+	done; \
+	echo "✅ the example Secrets have the $$(echo "$$keys" | wc -l | tr -d ' ') keys the pods read"
+
+# Regression check: "/api/v1" made every API call 404, because FastAPI
+# strips the API_DOCS_PREFIX root path before it routes.
+.PHONY: check-api-version
+check-api-version: ## Fail unless the backend renders API_VERSION=/v1
+	@helm template . -f examples/values.yaml -s templates/backend-deployment.yaml \
+		| grep -A1 'name: API_VERSION' | grep -q 'value: "/v1"' \
+		|| { echo "❌ API_VERSION is not /v1: every /api/v1 call would 404"; exit 1; }
+	@echo "✅ API_VERSION renders as /v1"
 
 ## -------------------------------
 ## 📖 Values reference
@@ -51,7 +65,7 @@ HELM_DOCS = helm-docs --chart-to-generate . --template-files VALUES.md.gotmpl --
 .PHONY: docs
 docs: ## Generate VALUES.md from values.yaml (needs helm-docs)
 	@command -v helm-docs >/dev/null 2>&1 \
-		|| { echo "❌ helm-docs not found: brew install helm-docs (https://github.com/norwoodj/helm-docs)"; exit 1; }
+		|| { echo "❌ helm-docs 1.14.2 not found: brew install helm-docs, or https://github.com/norwoodj/helm-docs/releases/tag/v1.14.2"; exit 1; }
 	@$(HELM_DOCS)
 
 .PHONY: lint-docs
@@ -62,6 +76,7 @@ lint-docs: ## Fail if VALUES.md is older than values.yaml
 		echo "✅ VALUES.md matches values.yaml"; \
 	else \
 		echo "⚠️  Warning: helm-docs not found. Skipping the VALUES.md check."; \
+		[ -z "$$CI" ] || { echo "❌ helm-docs is required in CI"; exit 1; }; \
 	fi
 
 
@@ -69,7 +84,7 @@ lint-docs: ## Fail if VALUES.md is older than values.yaml
 ## 🧪 Combined linting
 ## -------------------------------
 .PHONY: lint
-lint: lint-helm lint-examples lint-docs ## Run all lint checks (helm, examples, VALUES.md)
+lint: lint-helm lint-examples check-api-version lint-docs ## Run all lint checks (helm, examples, API_VERSION, VALUES.md)
 	@echo "🧭 All lint checks passed!"
 
 
@@ -90,7 +105,6 @@ template-docs-disabled: ## Render Helm templates with docs disabled
 check-network-policies: ## Fail unless pod-to-pod ingress to the backend renders (#2845)
 	@echo "🧪 Checking network policies render pod-to-pod backend ingress..."
 	@helm template . --values examples/values.yaml --set networkPolicies.enabled=true \
-		--set backend.existingSecret.name=placeholder \
 		-s templates/network-policies.yaml \
 		| grep -q "name: allow-backend-from-pods" \
 		|| { echo "❌ allow-backend-from-pods missing: worker→backend broadcast would be dropped"; exit 1; }
@@ -110,8 +124,11 @@ KUBE_CONTEXT ?= docker-desktop
 
 .PHONY: skaffold-dev
 skaffold-dev: ## Run the app on a local cluster, rebuilt on change (KUBE_CONTEXT=docker-desktop)
-	@echo "🚀 Starting skaffold on $(KUBE_CONTEXT): http://localhost:8080/en/login-test"
+	@echo "🚀 Starting skaffold on $(KUBE_CONTEXT): http://localhost:8090/en/login-test"
 	@# user: only the Traefik forward of skaffold.yaml. A direct forward to
 	@# the frontend serves index.html for every /api call.
 	@skaffold dev --port-forward=user --kube-context $(KUBE_CONTEXT)
 
+.PHONY: skaffold-delete
+skaffold-delete: ## Remove the local app and its database (KUBE_CONTEXT=docker-desktop)
+	@skaffold delete --kube-context $(KUBE_CONTEXT)

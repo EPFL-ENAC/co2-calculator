@@ -12,6 +12,13 @@ backend:
   env:
     # Public URL of the app. The login redirect and the CSRF check use it.
     FRONTEND_URL: "https://co2.example.org"
+    # Chart 1.0.1797 (examples/kustomization.yaml) predates these defaults:
+    # its "/api/v1" gives 404 on every API call. Remove the four lines once
+    # kustomization.yaml pins a chart built after #3304.
+    API_VERSION: "/v1"
+    OTEL_TRACES_EXPORTER: "none"
+    OTEL_METRICS_EXPORTER: "none"
+    OTEL_LOGS_EXPORTER: "none"
   connector:
     # Hosts that a data connector can reach. Required: the backend does
     # not start while it is empty.

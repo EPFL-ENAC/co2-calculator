@@ -1,6 +1,6 @@
 # Local Kubernetes loop: `make skaffold-dev` builds the two images, deploys
 # a throwaway PostgreSQL, Traefik and the chart, and rebuilds on change.
-# Open http://localhost:8080/en/login-test. Needs a local cluster context
+# Open http://localhost:8090/en/login-test. Needs a local cluster context
 # (Docker Desktop, kind or minikube) and the images it can see.
 apiVersion: skaffold/v4beta13
 kind: Config
@@ -15,6 +15,9 @@ build:
     - image: co2-calculator-frontend
       context: ../frontend
 deploy:
+  # Never the current context: a maintainer's kubeconfig holds the shared
+  # clusters. --kube-context overrides it, e.g. for kind.
+  kubeContext: docker-desktop
   helm:
     # Released in this order: the app's migration Job waits for PostgreSQL.
     releases:
@@ -46,6 +49,7 @@ portForward:
     resourceName: traefik
     namespace: co2-calculator
     port: 80
-    localPort: 8080
-    # The login sends the browser back to FRONTEND_URL, http://localhost:8080.
+    # 8080 is the Traefik dashboard of docker-compose.yml.
+    localPort: 8090
+    # The login sends the browser back to FRONTEND_URL, http://localhost:8090.
     address: localhost

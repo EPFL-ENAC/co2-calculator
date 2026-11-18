@@ -52,16 +52,25 @@ linted the chart with the default values.
 
 ## Checks
 
-`make -C helm lint` now runs three checks. The root `make lint` calls it,
+`make -C helm lint` now runs four checks. The root `make lint` calls it,
 and the new `helm-quality` job of `quality-check.yml` runs it on each
 pull request. If `values.yaml` is staged, the pre-commit hook runs
 `make -C helm docs`, as it does for the ERD.
 
-| Target          | Fails when                                                |
-| --------------- | --------------------------------------------------------- |
-| `lint-helm`     | the chart does not render with `examples/values.yaml`     |
-| `lint-examples` | an example Secret lacks a key that the pods read          |
-| `lint-docs`     | `VALUES.md` is stale. Without `helm-docs`, it is skipped. |
+| Target              | Fails when                                                |
+| ------------------- | --------------------------------------------------------- |
+| `lint-helm`         | the chart does not render with `examples/values.yaml`     |
+| `lint-examples`     | an example Secret lacks a key that the pods read          |
+| `check-api-version` | the backend does not render `API_VERSION=/v1`             |
+| `lint-docs`         | `VALUES.md` is stale. Without `helm-docs`, it is skipped. |
+
+Under `CI`, a missing `helm` or `helm-docs` fails the check. The
+`helm-quality` job installs both, pinned and checked with SHA-256.
+
+`examples/kustomization.yaml` pins chart 1.0.1797, built before this
+PR. `examples/values.yaml` therefore sets `API_VERSION` and the three
+exporters itself. When the example pins a newer chart, remove the four
+lines.
 
 ## Not in this part
 

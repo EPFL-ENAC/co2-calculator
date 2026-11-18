@@ -8,7 +8,7 @@ backend:
     # Enables the test login. Never on a shared cluster.
     DEBUG: "true"
     COOKIE_SECURE: "false"
-    FRONTEND_URL: "http://localhost:8080"
+    FRONTEND_URL: "http://localhost:8090"
     # The root filesystem is read-only; /tmp is the writable emptyDir.
     FILES_STORAGE_PATH: "/tmp/files_storage"
   connector:
@@ -30,7 +30,8 @@ docs:
 # Same split as the OpenShift Routes: /api to the backend, unchanged.
 ingress:
   className: traefik
-  annotations: {}
+  # null, not {}: Helm merges maps, and {} keeps the nginx annotations.
+  annotations: null
   hosts:
     - host: localhost
       paths:

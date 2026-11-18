@@ -9,12 +9,15 @@ This page tells you what you must supply and how to install the chart.
 
 The chart needs these services. You supply each one.
 
-- A Kubernetes cluster, version 1.24 or later, and Helm 3.
+- A Kubernetes cluster, version 1.24 or later, and Helm 3 or 4.
 - A PostgreSQL database that the cluster can reach.
 - A login provider that speaks OIDC, for example Keycloak or Entra ID.
 - S3-compatible storage for uploaded files. The pods have no
   persistent volume.
-- An Ingress controller, or OpenShift Routes (`routes.enabled`).
+- ingress-nginx, or OpenShift Routes (`routes.enabled`). The simple
+  `ingress.hosts` form uses nginx regex paths and rewrites. For another
+  controller, use the per-path form, as in
+  [`skaffold/values-app.yaml`](skaffold/values-app.yaml).
 
 ## Create the two Secrets
 
@@ -82,3 +85,9 @@ deployment, for example with Argo CD. It needs the same two Secrets.
 stale and `helm-docs` is installed, `make -C helm lint` fails. After
 you change `values.yaml`, run `make -C helm docs` and commit the two
 files.
+
+> Note: To change `values.yaml`, install `helm-docs` 1.14.2, the
+> version that CI uses. The pre-commit hook needs it. Another version
+> can give a different table. Get it with `brew install helm-docs` or
+> from the
+> [releases](https://github.com/norwoodj/helm-docs/releases/tag/v1.14.2).
