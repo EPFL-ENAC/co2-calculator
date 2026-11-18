@@ -551,28 +551,14 @@ class TestQueryPolicyResourceAccess:
         assert "No policy defined" in result["reason"]
 
 
-class TestQueryPolicyLegacy:
-    """Tests for query_policy with legacy/fallback policy paths."""
+class TestQueryPolicyUnknownName:
+    """An unknown policy name fails closed instead of falling back to allow."""
 
     @pytest.mark.asyncio
-    async def test_query_policy_legacy_allow(self):
-        """Test legacy policy path returns allow."""
-        input_data = {"filters": {"unit_ids": ["123"]}}
-
-        result = await query_policy("authz/unit/list", input_data)
-
-        assert result["allow"] is True
-        assert "filters" in result
-
-    @pytest.mark.asyncio
-    async def test_query_policy_legacy_no_filters(self):
-        """Test legacy policy path with no filters."""
-        input_data = {}
-
-        result = await query_policy("authz/resource/list", input_data)
-
-        assert result["allow"] is True
-        assert result["filters"] == {}
+    @pytest.mark.parametrize("policy_name", ["authz/unit/list", "unit:query", ""])
+    async def test_query_policy_raises_on_an_unknown_name(self, policy_name):
+        with pytest.raises(ValueError, match="Unknown policy"):
+            await query_policy(policy_name, {"filters": {"unit_ids": ["123"]}})
 
 
 class TestPlanPolicy:

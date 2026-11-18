@@ -1667,7 +1667,7 @@ export interface paths {
          *         "carbon_report_module_id": 123,
          *         "filters": {},
          *         "config": {},
-         *         "file_path": "tmp/1770129151949277/seed_equipment_data.csv"
+         *         "file_path": "tmp/42/1770129151949277/seed_equipment_data.csv"
          *     }
          *
          *     example of request body for carbon_report_module_id only:

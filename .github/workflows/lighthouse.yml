@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           cache: "npm"
           node-version-file: '.nvmrc'
@@ -26,7 +26,7 @@ jobs:
 
       - name: Restore frontend build cache
         id: build-cache
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./frontend/dist
           key: frontend-build-${{ hashFiles('frontend/src/**', 'frontend/package-lock.json') }}
@@ -58,7 +58,7 @@ jobs:
           "
 
       - name: Run Lighthouse CI
-        uses: treosh/lighthouse-ci-action@v11
+        uses: treosh/lighthouse-ci-action@72f881228236981b625ed765b928efb1786a1f55 # v11
         with:
           configPath: "./frontend/.lighthouserc.json"
           uploadArtifacts: true

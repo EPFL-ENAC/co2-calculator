@@ -90,3 +90,14 @@ function normalizeEmissionKey(categoryKey: string, key: string): string {
   }
   return key;
 }
+
+const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
+export const escapeCsvValue = (v: unknown) => {
+  const raw = String(v ?? '');
+  // A spreadsheet runs a cell opening like this as a formula. A plain number,
+  // even negative, is data and has to stay numeric.
+  const isFormula = FORMULA_PREFIX.test(raw) && Number.isNaN(Number(raw));
+  const s = isFormula ? `'${raw}` : raw;
+  return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};

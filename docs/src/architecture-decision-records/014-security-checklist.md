@@ -302,8 +302,8 @@ Reduce the risk of vulnerabilities and misconfigurations in container images dep
 
 - [x] Review and document the base images used for backend and frontend containers. — [`backend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/Dockerfile), [`frontend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/Dockerfile)
 - [x] Enforce non-root execution in Dockerfiles (e.g. avoid `USER root`). — [`backend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/backend/Dockerfile) runs `USER appuser`; [`frontend/Dockerfile`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/Dockerfile) uses `nginx-unprivileged`
-- [x] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent). — [`deploy.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/deploy.yml), [`image-vulnerability-scan.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/image-vulnerability-scan.yml)
-- [x] Configure CI to fail builds when critical container vulnerabilities are detected. — [`deploy.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/deploy.yml) sets `skip_vulnerability_scan: false` — HIGH/CRITICAL block the push
+- [x] Integrate automated container image vulnerability scanning in CI (e.g. Trivy or equivalent). — [`.gitlab-ci.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.gitlab-ci.yml), [`image-vulnerability-scan.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.github/workflows/image-vulnerability-scan.yml)
+- [x] Configure CI to fail builds when critical container vulnerabilities are detected. — [`.gitlab-ci.yml`](https://github.com/EPFL-ENAC/co2-calculator/blob/dev/.gitlab-ci.yml) keeps the component default `skip_vulnerability_scan: false` — HIGH/CRITICAL block the push
 - [ ] Test containers under OpenShift Security Context Constraints.
 
 #### Exploitation Phase

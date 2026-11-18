@@ -32,6 +32,9 @@ REPO_DIRS = (
     ".github/",
 )
 
+# docs_dir of mkdocs.yml, from the repository root.
+DOCS_ROOT = "docs/src"
+
 _LINK = re.compile(r"(\[[^\]]*\]\()([^)\s]+)(\))")
 
 
@@ -49,6 +52,13 @@ def on_page_markdown(
         if target.startswith(("http://", "https://", "#", "mailto:", "/")):
             return match.group(0)
         path = target.split("#")[0].split("?")[0]
+        # `../../../helm/README.md` from a page is the form that also works
+        # when the file is read on GitHub: resolve it to a repository path.
+        if path.startswith("../"):
+            repo_path = posixpath.normpath(posixpath.join(DOCS_ROOT, page_dir, path))
+            if repo_path.startswith(REPO_DIRS):
+                url = f"{base}{repo_path}{target[len(path) :]}"
+                return f"{match.group(1)}{url}{match.group(3)}"
         if not path or not path.startswith(REPO_DIRS):
             return match.group(0)
         # A page in this site wins over a repository file of the same path.

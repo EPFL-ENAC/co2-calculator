@@ -1,19 +1,23 @@
-# dev deploys from gitlab.epfl.ch (.gitlab-ci.yml) and GitLab CE cannot pull
-# from GitHub, so every dev change is pushed there. Outage fallback:
-#   git fetch origin && git push gitlab origin/dev:dev
+# dev, stage and release tags vX.Y.Z deploy from gitlab.epfl.ch
+# (.gitlab-ci.yml). GitLab CE cannot pull from GitHub, so this workflow
+# pushes each of them there. A tag goes as a tag. Outage fallback:
+#   git fetch origin --tags
+#   git push gitlab origin/stage:stage
+#   git push gitlab refs/tags/vX.Y.Z
 # https://github.com/EPFL-ENAC/epfl-enac-build-push-deploy-action/blob/main/docs/mirror-to-gitlab.md
 name: mirror-to-gitlab
 
 "on":
   push:
-    branches: [dev]
+    branches: [dev, stage]
+    tags: ["v*.*.*"]
 
 permissions:
   contents: read
 
 jobs:
   mirror:
-    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/mirror-to-gitlab.yml@v3.10.0
+    uses: EPFL-ENAC/epfl-enac-build-push-deploy-action/.github/workflows/mirror-to-gitlab.yml@3739f2a12ba55f4546dd261e68d9d8d435bdfe6f # v4.2.0
     with:
       gitlab_repo: EPFL-ENAC/co2-calculator
     secrets:

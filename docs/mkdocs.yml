@@ -155,6 +155,7 @@ nav:
       - Tools and access: infra/05-tools-and-access.md
       - Debugging with traces: infra/06-debugging-with-traces.md
       - Overview: infra/01-overview.md
+      - Install: infra/install.md
       - Observability & SLOs: infra/03-observability-slo.md
       - Postmortem, OAuth HTTP redirect: infra/02-postmortem-oauth-http-redirect.md
       - Postmortem, prod DB dropped: infra/07-postmortem-prod-db-dropped.md

@@ -291,6 +291,21 @@ def test_logout(client):
 
 
 @pytest.mark.asyncio
+async def test_logout_clears_the_cookie_with_the_issuing_attributes(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
+    response = Response()
+
+    await auth_module.delete_session(
+        response=response, request=MagicMock(), auth_token=None, db=MagicMock()
+    )
+
+    cookie = response.headers["set-cookie"].lower()
+    assert "max-age=0" in cookie
+    assert "samesite=lax" in cookie
+    assert "secure" in cookie
+
+
+@pytest.mark.asyncio
 async def test_logout_logs_audit_event(monkeypatch):
     monkeypatch.setattr(
         auth_module,

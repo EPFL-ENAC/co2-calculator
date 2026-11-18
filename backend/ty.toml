@@ -32,7 +32,7 @@ exclude = [
 include = ["app/models/__init__.py"]
 
 [overrides.rules]
-unresolved-attribute = "ignore"
+missing-attribute = "ignore"
 
 
 [terminal]

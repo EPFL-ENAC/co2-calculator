@@ -57,7 +57,7 @@ are needed for local development.
 ### 3. Set up the database
 
 ```bash
-# Start PostgreSQL (docker compose reads backend/.env and .database.env)
+# Start PostgreSQL (docker compose reads .database.env)
 docker compose up -d postgres
 
 # Create the database, run migrations, and seed development data

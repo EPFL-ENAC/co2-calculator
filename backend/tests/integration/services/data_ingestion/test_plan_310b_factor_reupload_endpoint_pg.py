@@ -364,7 +364,7 @@ async def test_factor_reupload_endpoint_recomputes_emission_via_recalc_task(
     )
 
     # ── 3. Write factor v2 CSV (ef doubled) to the patched files dir ───
-    csv_dir = tmp_path / "tmp" / "test_310b"
+    csv_dir = tmp_path / "tmp" / "1" / "test_310b"
     csv_dir.mkdir(parents=True, exist_ok=True)
     csv_path = csv_dir / "factor_v2.csv"
     csv_path.write_text(
@@ -373,7 +373,7 @@ async def test_factor_reupload_endpoint_recomputes_emission_via_recalc_task(
         "standby_usage_hours_per_week,ef_kg_co2eq_per_kwh\n"
         "it,Laptop,Standard,100,10,40,128,0.2\n"
     )
-    csv_relative = "tmp/test_310b/factor_v2.csv"
+    csv_relative = "tmp/1/test_310b/factor_v2.csv"
 
     # ── 4. POST /v1/sync/dispatch ──────────────────────────────────────
     # Single-type variant: parent job carries data_entry_type_id=it, so
@@ -492,7 +492,7 @@ async def test_factor_reupload_deletes_superseded_rows(pg_app):
         "standby_power_w,active_usage_hours_per_week,"
         "standby_usage_hours_per_week,ef_kg_co2eq_per_kwh\n"
     )
-    csv_dir = tmp_path / "tmp" / "test_1661_del"
+    csv_dir = tmp_path / "tmp" / "1" / "test_1661_del"
     csv_dir.mkdir(parents=True, exist_ok=True)
 
     async def _dispatch(filename: str, rows: str) -> int:
@@ -501,7 +501,7 @@ async def test_factor_reupload_deletes_superseded_rows(pg_app):
             "ingestion_method": IngestionMethod.csv.value,
             "target_type": TargetType.FACTORS.value,
             "year": 2026,
-            "file_path": f"tmp/test_1661_del/{filename}",
+            "file_path": f"tmp/1/test_1661_del/{filename}",
             "config": {
                 "module_type_id": ModuleTypeEnum.equipment.value,
                 "data_entry_type_id": DataEntryTypeEnum.it.value,

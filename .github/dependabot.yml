@@ -114,6 +114,18 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+  # Workflows pin actions to commit SHAs: this bumps the SHA and its version
+  # comment, which nothing would do otherwise.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "dev"
+    assignees:
+      - "co2-calculator"
+    labels:
+      - "dependencies"
+      - "dev"
   # Base images in Dockerfiles (FROM tags). Note: this only bumps the tag when
   # a new base version is published — OS-package fixes shipped under the same
   # tag still require a rebuild, which the weekly registry scan surfaces.

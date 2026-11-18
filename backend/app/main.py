@@ -49,8 +49,14 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 
+# .env.example and the example Secret ship public placeholders: a copied one
+# signs or encrypts with a key anyone can read, yet passes the missing check.
+_PLACEHOLDER_KEY_PREFIXES = ("change-me", "<change-me")
+_MIN_SECRET_LENGTH = 32
+
+
 def assert_security_settings(settings) -> None:
-    """Fail closed at boot outside local/dev when security settings are missing."""
+    """Fail closed at boot outside local/dev on missing or weak security settings."""
     if settings.LOCAL_ENVIRONMENT:
         return
     missing = [
@@ -70,6 +76,25 @@ def assert_security_settings(settings) -> None:
     ]
     if missing:
         raise RuntimeError(f"Missing required security settings: {missing}")
+    weak = [
+        name
+        for name in (
+            "JWT_HMAC_KEY",
+            "SESSION_HMAC_KEY",
+            "CREDENTIALS_ENCRYPTION_KEY",
+            "CREDENTIALS_ENCRYPTION_SALT",
+            "FILES_ENCRYPTION_KEY",
+            "FILES_ENCRYPTION_SALT",
+        )
+        if getattr(settings, name).startswith(_PLACEHOLDER_KEY_PREFIXES)
+        or len(getattr(settings, name)) < _MIN_SECRET_LENGTH
+    ]
+    if weak:
+        raise RuntimeError(
+            "Weak signing or encryption settings (placeholder or shorter than "
+            f"{_MIN_SECRET_LENGTH} characters), generate each with "
+            f"openssl rand -hex 32: {weak}"
+        )
 
 
 def assert_proxy_trust_settings() -> None:

@@ -100,24 +100,31 @@ so navigation guards skip auth in CI; the flag never reaches
 production builds. The full sweep runs nightly off the PR critical
 path; reproduce locally with `make lighthouse`.
 
-### `deploy.yml` — App Deploy
+### App deploy (gitlab.epfl.ch)
 
-**Trigger:** push to `dev`, `stage`, `ci-test/**`, or tags
-`v*.*.*`. **Jobs:** `deploy` (EPFL-ENAC build-push-deploy action,
-`helm_chart_path: ./helm`). `APP_VERSION` is computed by the action's
-`build_args_script` inside each build job, from the root `package.json`
-and the commit date. Images whose build context did not change since the
+No GitHub workflow deploys the app. quay-its.epfl.ch only accepts
+traffic from the EPFL network, so `dev`, `stage` and tags `vX.Y.Z`
+deploy from `.gitlab-ci.yml` on gitlab.epfl.ch, through the
+EPFL-ENAC/build-push-deploy component
+([plan 2909](../implementation-plans/2909-gitlab-dev-deploy.md)).
+`APP_VERSION` is computed by `scripts/app-version.sh` inside each build
+job, from the root `package.json` and the commit date. Images whose build context did not change since the
 last dev image are re-tagged instead of rebuilt (`reuse_unchanged_images`;
 a root `package.json` change rebuilds all three); a reused pod keeps the
-`APP_VERSION` of the commit that last changed its component. The action
-packages and pushes the Helm chart in its own `publish-chart` job,
-in parallel with the image builds; only its `update-manifest` job
-waits for the chart. A single `deploy` job pushes images to **both**
+`APP_VERSION` of the commit that last changed its component. The component
+packages and pushes the Helm chart in parallel with the image builds.
+The overlay update waits for the chart. Images go to **both**
 `ghcr.io` and the EPFL Quay registry `quay-its.epfl.ch` (path
 `svc1751`); manifests update Argo CD repos
 `EPFL-ENAC/enack8s-app-config` and
 `EPFL-ENAC/openshift-app-config` respectively. Tags promote to
-production; branches map to the matching environment URL.
+production and publish chart `X.Y.Z`. Branches map to the matching
+environment URL.
+
+### `mirror-to-gitlab.yml` — Mirror to GitLab
+
+**Trigger:** push to `dev`, `stage`, or tags `v*.*.*`. Pushes the ref
+to gitlab.epfl.ch, which cannot pull from GitHub. A tag goes as a tag.
 
 ### `deploy-storybook.yml` — Storybook Image + Manifest Dispatch
 
@@ -134,7 +141,7 @@ container image plus the dispatch event.
 
 **Trigger:** push/PR to `main`, push to `stage`/`ci-test/**`. Kept
 as a fallback for the `main` GitHub Pages mirror. Per-environment
-docs (`/docs` path) ship with `deploy.yml`.
+docs (`/docs` path) ship with the GitLab deploy.
 
 ### `release-please.yml` — Tag and Release
 
@@ -165,14 +172,13 @@ that flow.
 
 ## Required Secrets
 
-| Secret                    | Used by                             | Notes                                                                                                                                                                                        |
-| ------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`            | all                                 | auto-provided                                                                                                                                                                                |
-| `MY_RELEASE_PLEASE_TOKEN` | `release-please.yml`                | PAT with `contents: write` to push tags + create releases                                                                                                                                    |
-| `CD_TOKEN`                | `deploy.yml`                        | EPFL-ENAC build-push-deploy action token                                                                                                                                                     |
-| `QUAY_TOKEN`              | `deploy.yml`                        | passed as `registry_token` for `quay-its.epfl.ch` push                                                                                                                                       |
-| `token`                   | `deploy-storybook.yml`              | bearer token for the `repository_dispatch` POST to `EPFL-ENAC/enack8s-app-config`; the workflow references `secrets.token` literally — the secret name is generic and currently undocumented |
-| `CODECOV_TOKEN`           | `test.yml`, `integration-tests.yml` | optional, required for private forks                                                                                                                                                         |
+| Secret                    | Used by                             | Notes                                                                                                                                          |
+| ------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`            | all                                 | auto-provided                                                                                                                                  |
+| `MY_RELEASE_PLEASE_TOKEN` | `release-please.yml`                | PAT with `contents: write` to push tags + create releases                                                                                      |
+| `CD_TOKEN`                | `deploy-storybook.yml`              | EPFL-ENAC build-push-deploy action token; also the bearer token for the Storybook `repository_dispatch` POST to `EPFL-ENAC/enack8s-app-config` |
+| `GITLAB_DEPLOY_KEY`       | `mirror-to-gitlab.yml`              | private SSH key of the GitLab deploy key with write access                                                                                     |
+| `CODECOV_TOKEN`           | `test.yml`, `integration-tests.yml` | optional, required for private forks                                                                                                           |
 
 ## Status Badges
 

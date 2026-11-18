@@ -1,155 +1,94 @@
-# Deploy CO2 Calculator on Kubernetes
+# CO2 Calculator Helm chart
 
-Deploy the CO2 Calculator stack (FastAPI backend, Quasar frontend,
-PostgreSQL) on Kubernetes with Helm. This guide covers local
-development and production deployment.
+This chart deploys the CO2 Calculator on Kubernetes: the backend, the
+frontend, the documentation site and an optional worker for background
+jobs. It does not deploy PostgreSQL and it does not create the Secrets.
+This page tells you what you must supply and how to install the chart.
 
-## Prerequisites
+## Before you install
 
-Kubernetes 1.24+, Helm 3.8+, kubectl configured.
+The chart needs these services. You supply each one.
 
-## Quick Start
+- A Kubernetes cluster, version 1.24 or later, and Helm 3 or 4.
+- A PostgreSQL database that the cluster can reach.
+- A login provider that speaks OIDC, for example Keycloak or Entra ID.
+- S3-compatible storage for uploaded files. The pods have no
+  persistent volume.
+- ingress-nginx, or OpenShift Routes (`routes.enabled`). The simple
+  `ingress.hosts` form uses nginx regex paths and rewrites. For another
+  controller, use the per-path form, as in
+  [`skaffold/values-app.yaml`](skaffold/values-app.yaml).
 
-```bash
-# Install with default values
-helm install co2-calc ./helm
+## Create the two Secrets
 
-# Access locally
-kubectl port-forward svc/co2-calc-frontend 8080:80
-```
+The chart reads a database Secret and a backend Secret. It never
+creates them: create them before you install the chart, with `kubectl`
+or with a secret operator, for example External Secrets or Sealed
+Secrets. If `backend.existingSecret.name` is empty, the install stops.
+[`examples/secrets.yaml`](examples/secrets.yaml) lists each key and
+tells you how to make each value.
 
-Visit `http://localhost:8080`.
+> CAUTION: Do not remove a key from the backend Secret. The pods
+> reference every key, and a pod with a missing key does not start.
+> If a signing key, an encryption key or an encryption salt is empty,
+> the backend stops at startup.
 
-Override defaults with a custom values file:
-
-```bash
-helm install co2-calc ./helm -f values.local.yaml
-```
-
-## Development with Skaffold
-
-Start a live-reload development loop:
-
-- `backend.env`: Maps to `APP_NAME`, `API_VERSION`, `LOG_LEVEL` and security values such as `ALGORITHM`.
-- `backend.secrets.JWT_HMAC_KEY` / `backend.secrets.SESSION_HMAC_KEY`: Mirror the required `JWT_HMAC_KEY` / `SESSION_HMAC_KEY` in the backend `.env`. Override each with a distinct secure value.
-- `database.external`: Provides the duplicate `DB_URL`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` entries expected by the backend.
-- `frontend.env.API_BASE_URL`: Allows the UI to target the API path exposed through the ingress.
-
-```bash
-cd helm
-make skaffold-dev
-```
-
-Skaffold watches for code changes, rebuilds images, and redeploys
-pods automatically.
-
-## Production Deployment
-
-### 1. Create Secrets
+1. Copy `examples/secrets.yaml` to a location outside the repository.
+2. Replace each `<change-me>` in the copy, and fill the six empty
+   signing and encryption values.
+3. Apply the copy to the namespace.
 
 ```bash
-kubectl create namespace prod
-
-# Backend secret
-kubectl create secret generic backend-secret -n prod \
-  --from-literal=JWT_HMAC_KEY="$(openssl rand -hex 32)" \
-  --from-literal=SESSION_HMAC_KEY="$(openssl rand -hex 32)"
-
-# Database secret
-kubectl create secret generic db-secret -n prod \
-  --from-literal=DB_URL='postgresql+psycopg://user:pass@host:5432/db'
+kubectl create namespace co2
+kubectl apply --namespace co2 -f my-secrets.yaml
 ```
 
-### 2. Configure values.prod.yaml
+## Install the chart
 
-```yaml
-backend:
-  replicaCount: 3
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 20
-  existingSecret:
-    enabled: true
-    name: backend-secret
-
-database:
-  existingSecret:
-    name: db-secret
-
-ingress:
-  enabled: true
-  className: nginx
-  hosts:
-    - co2.example.com
-  tls:
-    - secretName: co2-tls
-      hosts: [co2.example.com]
-```
-
-### 3. Deploy
+1. Copy [`examples/values.yaml`](examples/values.yaml).
+2. Replace each `example.org` value in the copy.
+3. Set `backend.image.tag` and `frontend.image.tag` to one release tag,
+   for example `v1.4.21`.
+4. Install the chart from the root of the repository.
 
 ```bash
-helm install co2-calc ./helm -n prod -f values.prod.yaml
+helm install co2 ./helm --namespace co2 -f my-values.yaml
+kubectl get pods --namespace co2
 ```
 
-Migrations run automatically via an init container. Disable with
-`backend.migrations.enabled: false` if running manually.
+A Job applies the database migrations at each install and each upgrade.
+To upgrade, use `helm upgrade` with the same values file.
 
-## Configuration Essentials
+## Limits
 
-### Resource Limits
+- Outside EPFL, a user logs in with no role, and the app has no units.
+  Issue #3246 removes this limit.
+- If you do not use Accred or Elasticsearch, their keys must still
+  exist in the backend Secret.
 
-```yaml
-backend:
-  resources:
-    requests: { cpu: 250m, memory: 256Mi }
-    limits: { cpu: 1000m, memory: 1Gi }
-```
+## Try it on a local cluster
 
-### Autoscaling
+`make -C helm skaffold-dev` installs the chart on a cluster on your
+machine, with a local PostgreSQL, the two Secrets and Traefik. The
+files are in [`skaffold/`](skaffold/values-app.yaml). The
+[install page](../docs/src/infra/install.md) gives the steps.
 
-```yaml
-backend:
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 20
-    targetCPUUtilizationPercentage: 70
-```
+## Kustomize
 
-### Environment Variables
+[`examples/kustomization.yaml`](examples/kustomization.yaml) renders
+the published chart with the same values file. Use it for a GitOps
+deployment, for example with Argo CD. It needs the same two Secrets.
 
-```yaml
-backend:
-  env:
-    DEBUG: "false"
-    LOG_LEVEL: "INFO"
-```
+## Values
 
-## Updates and Rollbacks
+[`VALUES.md`](VALUES.md) lists each value and its default. The tool
+`helm-docs` generates this file from `values.yaml`. If the file is
+stale and `helm-docs` is installed, `make -C helm lint` fails. After
+you change `values.yaml`, run `make -C helm docs` and commit the two
+files.
 
-### Upgrade Release
-
-```bash
-helm upgrade co2-calc ./helm -n prod -f values.prod.yaml
-```
-
-### Rollback
-
-```bash
-helm rollback co2-calc -n prod
-```
-
-If schema changed, downgrade database:
-
-```bash
-kubectl exec deploy/co2-calc-backend -n prod -- \
-  alembic downgrade -1
-```
-
-## Additional Resources
-
-- Full configuration reference: values.yaml
-- Chart version: 0.2.0
-- Makefile targets: `make help` from helm directory
+> Note: To change `values.yaml`, install `helm-docs` 1.14.2, the
+> version that CI uses. The pre-commit hook needs it. Another version
+> can give a different table. Get it with `brew install helm-docs` or
+> from the
+> [releases](https://github.com/norwoodj/helm-docs/releases/tag/v1.14.2).

@@ -1,0 +1,25 @@
+# GitOps example: Kustomize renders the published chart with the values
+# of this folder. Argo CD can sync this folder as it is.
+#
+#   kustomize build --enable-helm helm/examples   (Helm 4 needs Kustomize 5.8.1+)
+#
+# Do not keep filled Secrets in Git. Create the two Secrets of
+# secrets.yaml with the secret tool of your cluster.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: co2
+helmCharts:
+  - name: co2-calculator
+    releaseName: co2
+    repo: oci://ghcr.io/epfl-enac/co2-calculator/helm
+    # Chart versions are build numbers. They do not follow the release tags.
+    version: 1.0.1797
+    valuesFile: values.yaml
+# Pin the three images to one release tag.
+images:
+  - name: ghcr.io/epfl-enac/epfl/co2-calculator/backend
+    newTag: v1.4.21
+  - name: ghcr.io/epfl-enac/epfl/co2-calculator/frontend
+    newTag: v1.4.21
+  - name: ghcr.io/epfl-enac/epfl/co2-calculator/docs
+    newTag: v1.4.21

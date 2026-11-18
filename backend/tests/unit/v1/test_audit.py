@@ -1256,6 +1256,31 @@ class TestExportAuditLogs:
             # Should not raise errors with None values
 
     @pytest.mark.asyncio
+    async def test_csv_neutralizes_formula_cells(
+        self, client, mock_auth_allow, mock_user, mock_audit_doc
+    ):
+        """A user-controlled cell can't run as a spreadsheet formula (#3185)."""
+        from app.api.deps import get_db
+        from app.core.security import get_current_active_user
+        from app.repositories.audit_repo import AuditDocumentRepository
+
+        async def override_get_db():
+            yield AsyncMock(spec=AsyncSession)
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = lambda: mock_user
+        mock_audit_doc.change_reason = "=HYPERLINK(1)"
+
+        with patch.object(
+            AuditDocumentRepository, "query", new_callable=AsyncMock
+        ) as mock_query:
+            mock_query.return_value = ([mock_audit_doc], 1)
+
+            response = client.get("/api/v1/audit/export?format=csv")
+
+        assert "'=HYPERLINK(1)" in response.text
+
+    @pytest.mark.asyncio
     async def test_json_export_format(
         self, client, mock_auth_allow, mock_user, mock_audit_doc
     ):

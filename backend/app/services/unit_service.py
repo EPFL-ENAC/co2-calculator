@@ -6,9 +6,8 @@ from fastapi import HTTPException, status
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.core.policy import query_policy, require_unit_access
+from app.core.policy import require_unit_access
 from app.core.role_priority import role_priority_case
 from app.models.unit import Unit
 from app.models.unit_user import UnitUser
@@ -26,27 +25,10 @@ class UnitService:
         self.session = session
         self.unit_repo = UnitRepository(session)
 
-    def _build_policy_input(self, user: User, action: str) -> dict:
-        """Build OPA input data from user context.
-
-        The per-unit resource branch left with get_by_id's policy call
-        (#2379) — get_user_units is the only remaining consumer.
-        """
-        return {
-            "action": action,
-            "resource_type": "unit",
-            "user": {"id": user.id, "email": user.email, "roles": user.roles or []},
-            "filters": {},
-        }
-
     async def get_user_units(self, user: User) -> list[dict]:
-        """List units with policy authorization and enriched user data.
+        """List the user's units with enriched user data.
 
-        This orchestrates:
-        1. Policy authorization with user context
-        2. Querying units with filters from policy
-        3. Enriching with user-specific role information
-        4. Joining with principal user details
+        Enriches each unit with the user's role and its principal user's details.
 
         Returns:
             List of dicts with structure:
@@ -58,24 +40,6 @@ class UnitService:
                 "affiliations": ["ENAC", "ENAC-IT"],
             }
         """
-        # 1. Build policy input
-        input_data = self._build_policy_input(user, "read")
-
-        # 2. Query policy for authorization decision
-        decision = await query_policy("unit:query", input_data)
-        logger.info(
-            "Policy decision requested",
-            extra={
-                "user_id": sanitize(user.id),
-                "action": "list_user_units",
-                "decision": sanitize(decision),
-            },
-        )
-
-        # 3. Extract filters from policy decision
-        filters = decision.get("filters", {})
-
-        # 4. Build complex query with joins (service-level orchestration)
         columns: list[Any] = [
             Unit,
             UnitUser.role,
@@ -96,14 +60,6 @@ class UnitService:
             # ancestor levels (EPFL/faculty/institute) have no own data.
             .where(col(Unit.level) == 4)
         )
-
-        # Apply filters from policy engine
-        if "unit_id" in filters:  # Keep as unit_id for policy compatibility
-            unit_ids = filters["unit_id"]
-            if isinstance(unit_ids, list):
-                query = query.where(col(Unit.id).in_(unit_ids))
-            else:
-                query = query.where(Unit.id == unit_ids)
 
         # #2379: no offset/limit. The join bounds the result by the user's
         # own membership rows — a limit here silently truncated the session

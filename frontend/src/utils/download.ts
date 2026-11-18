@@ -3,11 +3,6 @@ import { i18n } from '@/boot/i18n';
 
 const UTF8_BOM = '\ufeff';
 
-export const escapeCsvValue = (v: unknown) => {
-  const s = String(v ?? '');
-  return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
-
 // The one way to hand a file to the user. Callers load the Blob first, so
 // the request shows in DevTools and a failure throws instead of ending as a
 // silent failed entry in the browser's download shelf. Object URLs honor

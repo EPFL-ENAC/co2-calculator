@@ -99,16 +99,17 @@ spec:
               protocol: TCP
           env:
             {{- include "co2-calculator.backendSecretEnv" . | nindent 12 }}
-            # Same non-secret config every backend-image pod needs (app
-            # name, provider types, log level, DB pool sizing, ...) —
-            # backend.env was never included here, so the worker crashed
-            # on boot missing required Settings fields (#2050, caught on
-            # dev's first real worker.enabled deploy; unit/integration
-            # tests mock Settings and never exercise this).
-            {{- /* omit: the explicit block below owns these two keys; a
+            # backend.env with worker.env on top: the worker runs the same
+            # app, so a hand copy of backend.env in worker.env only drifted.
+            {{- /* RUN_PIPELINE_RECONCILER is a role key: overlays turn it off
+                 on the API pods so only the worker sweeps, so the worker
+                 never inherits it (worker.env may still set it).
+                 One merged map, so a key set in both renders once. omit:
+                 the explicit block below owns the two poller keys. A
                  duplicate env name breaks ArgoCD's strategic-merge-patch
                  diff — see the matching note in backend-deployment.yaml. */}}
-            {{- range $key, $value := omit .Values.worker.env "RUN_BACKGROUND_POLLER" "DISPATCH_JOBS_INLINE" }}
+            {{- $env := mustMergeOverwrite (omit (deepCopy .Values.backend.env) "RUN_PIPELINE_RECONCILER") .Values.worker.env }}
+            {{- range $key, $value := omit $env "RUN_BACKGROUND_POLLER" "DISPATCH_JOBS_INLINE" }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}

@@ -20,3 +20,10 @@ def test_debug_defaults_to_false():
     it pins the source-code default, which is the thing that must not regress.
     """
     assert Settings.model_fields["DEBUG"].default is False
+
+
+def test_elasticsearch_default_host_is_localhost():
+    """A typo here made a missing setting look like a DNS failure (#3185)."""
+    assert (
+        Settings.model_fields["ELASTICSEARCH_HOSTS"].default == "https://localhost:9200"
+    )

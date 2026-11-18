@@ -285,9 +285,7 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
 
     Supports multiple policy types:
     - "authz/permission/check": Permission-based authorization
-    - "authz/resource/list": Resource listing with filters
     - "authz/resource/access": Resource-level access for edit/delete operations
-    - "authz/unit/list": Unit listing with filters
     - "authz/data/list": Data filtering based on user scope
     - "authz/data/access": Data access filtering for single resource
 
@@ -302,6 +300,9 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
             "reason": str,
             "filters": dict (optional, for data filtering policies)
         }
+
+    Raises:
+        ValueError: If ``policy_name`` is not a known policy.
     """
     # Route to appropriate policy evaluator
     if policy_name == "authz/permission/check":
@@ -313,14 +314,8 @@ async def query_policy(policy_name: str, input_data: dict) -> dict:
     if policy_name in ("authz/data/list", "authz/data/access"):
         return await _evaluate_data_filter_policy(input_data)
 
-    # Legacy/fallback: For resource and unit policies, return basic allow
-    # These can be extended later with proper policy evaluation
-    filters = input_data.get("filters", None)
-    return {
-        "allow": True if filters is not None else True,  # Default allow for now
-        "reason": "Filtered query" if filters else "Policy evaluation",
-        "filters": filters or {},
-    }
+    # A typo must not read as an allow: authorization fails closed.
+    raise ValueError(f"Unknown policy: {policy_name}")
 
 
 def _get_module_permission_path(module_name: str | None) -> str | None:

@@ -581,8 +581,10 @@ async def delete_session(
         key=SESSION_COOKIE,
         value="",
         httponly=True,
+        samesite="lax",
         max_age=0,
         path=settings.OAUTH_COOKIE_PATH,
+        secure=settings.COOKIE_SECURE,
     )
 
     logger.info("User logged out")

@@ -57,6 +57,13 @@ for dir in $staged_dirs; do
         (cd helm && make format FILES="$helm_files")
         echo "$staged_files" | grep "^helm/" | xargs -I {} git add {}
       fi
+      # VALUES.md is generated from values.yaml: regenerate it in the same
+      # commit, as the ERD above, so the two files never differ.
+      if echo "$staged_files" | grep -qE "^helm/(values\.yaml|VALUES\.md\.gotmpl)$"; then
+        echo "Regenerating helm/VALUES.md..."
+        (cd helm && make docs)
+        git add helm/VALUES.md
+      fi
       ;;
     root)
       echo "Processing root files..."

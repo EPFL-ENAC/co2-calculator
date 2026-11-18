@@ -1,3 +1,38 @@
+## [1.4.23](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.22...v1.4.23) (2026-11-18)
+
+A security, install and dependency release. No migration, no change to the emission formulas.
+
+### Before deploying
+
+- **Each signing and encryption value must have 32 characters or more, and must not start with `change-me`.** This applies to `JWT_HMAC_KEY`, `SESSION_HMAC_KEY` and the four `CREDENTIALS_ENCRYPTION_*` and `FILES_ENCRYPTION_*` keys and salts. If one value is shorter, the backend stops at startup and the rollout does not complete. Dev passes. (#3185, #3250)
+- **The chart no longer creates the backend Secret.** Create it first and set `backend.existingSecret.name`, or the install stops. `backend.existingSecret.enabled` and `backend.secrets` are gone. The EPFL overlays already use an existing Secret. (#3250)
+
+### Security
+
+- Logout clears the session cookie with the same `SameSite` and `Secure` attributes it was issued with. (#3185)
+- Every backend CSV export and every chart CSV download neutralizes formula cells. (#3185)
+- A temporary upload is visible only to the user who uploaded it. (#3185)
+- An unknown policy name raises an error instead of allowing the query. (#3185)
+- GitHub Actions are pinned to commit SHAs, and the Storybook image runs as a non-root user. Registry scan findings show as code scanning alerts. (#3185, #3292)
+- Each image build runs `apk upgrade` again, so a cached layer no longer keeps a fixed CVE, for example musl CVE-2026-107891. (#3185)
+
+### Install outside EPFL
+
+- **The Helm chart installs outside EPFL.** The chart README, `helm/examples/` (values, the two Secrets and a Kustomize file) and a new install page cover Docker Compose, Skaffold, Helm and Kustomize. `helm/VALUES.md` lists each value. (#3250)
+- `make -C helm lint` runs in CI and in the root `make lint`. It renders the examples and checks the Secret keys, `API_VERSION`, the worker env and `VALUES.md`. (#3250)
+- Docker Compose reads the committed `backend/.env.example`, never your `backend/.env`, which can name a shared database or real services. (#3250)
+
+### Operations
+
+- **The worker now gets `backend.env`, and `worker.env` overrides it.** The worker does not inherit `RUN_PIPELINE_RECONCILER`, so it keeps running the reconciler. On dev, the worker gains 19 settings that it lacked, and no value it had changes. On prod, the worker also stops sending SQLAlchemy spans, like dev and stage. (#3250)
+- The chart default `API_VERSION` is `/v1`. The OpenTelemetry exporters default to `none`. The database wait image is `postgres:18-alpine`. The EPFL overlays already set the first two. (#3250)
+- The deploy action is v4.1.0. A release tag `vX.Y.Z` publishes the chart as `X.Y.Z`, with `appVersion` set to the tag, instead of `1.0.<run>`. Pin the chart by the app version from this release on. (#3250)
+- Dependencies: FastAPI 0.162.7, SQLAlchemy 2.1.8, psycopg 3.3.9, Authlib 1.9.6, pydantic 2.14.3, Vue 3.5.45, vue-router 5.5, Quasar 2.35.4. `make -C frontend audit` ignores the picomatch advisory GHSA-fc5q-39xc-vjpf until 2027-01-31, because no fixed version exists. (#3297, #3250)
+
+### Known issues
+
+The known issues of 1.4.22 still apply.
+
 ## [1.4.22](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.21...v1.4.22) (2026-11-05)
 
 An access-control, back-office and dependency release. No migration, no change to the emission formulas.

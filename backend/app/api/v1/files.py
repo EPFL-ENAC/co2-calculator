@@ -34,6 +34,7 @@ from app.core.logging import get_logger
 from app.core.security import check_permission
 from app.models.user import User
 from app.utils.permissions import has_permission
+from app.utils.temp_uploads import owns_temp_upload, temp_upload_folder
 
 logger = get_logger(__name__)
 # Every route here already requires get_current_user, and upload_temp_files
@@ -389,7 +390,7 @@ async def upload_temp_files(
     current_time = datetime.datetime.now(datetime.UTC)
     # generate unique name for the files' base folder in S3
     folder_name = str(current_time.timestamp()).replace(".", "")
-    folder_path = f"tmp/{folder_name}"
+    folder_path = f"{temp_upload_folder(current_user.id)}/{folder_name}"
     children = [
         await files_store.write_file(file, folder=folder_path) for file in files
     ]
@@ -409,7 +410,7 @@ async def delete_temp_files(
 
     **Required Permission**: `backoffice.configuration.edit`
 
-    Only files in /tmp/ folder can be deleted.
+    Only the caller's own temporary files can be deleted.
     """
     await check_permission(
         current_user,
@@ -428,9 +429,9 @@ async def delete_temp_files(
         logger.error(f"Invalid file path for deletion '{file_path}': {e}")
         raise HTTPException(status_code=400, detail="Invalid file path")
 
-    if not os.path.normpath(file_path).startswith("tmp/"):
+    if not owns_temp_upload(file_path, current_user.id):
         raise HTTPException(
-            status_code=403, detail="Can only delete files in /tmp/ folder"
+            status_code=403, detail="Can only delete your own temporary files"
         )
     # delete file at path
     await files_store.delete_file(file_path)
