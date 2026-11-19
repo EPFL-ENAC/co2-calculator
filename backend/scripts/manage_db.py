@@ -1,4 +1,5 @@
 import argparse
+import re
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
@@ -61,6 +62,16 @@ def get_default_db_url():
     return url_obj
 
 
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,62}")
+
+
+def safe_identifier(name: str | None) -> str:
+    """Refuse a name that is not a plain SQL identifier: DDL cannot bind it."""
+    if name is None or not _IDENTIFIER.fullmatch(name):
+        raise ValueError(f"Not a plain database identifier: {name!r}")
+    return name
+
+
 def drop_db(db_name):
     # This now returns a URL Object with the correct password and user 'postgres'
     default_db_url = get_default_db_url()
@@ -82,7 +93,8 @@ def drop_db(db_name):
         #     ),
         #     {"db_name": db_name},
         # )
-        conn.execute(text(f"DROP DATABASE IF EXISTS {db_name} with (force);"))
+        name = safe_identifier(db_name)
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE);'))
     engine.dispose()
 
 
@@ -95,9 +107,9 @@ def create_db(db_name):
 
     engine = create_engine(default_db_url, isolation_level="AUTOCOMMIT")
     with engine.connect() as conn:
-        # quoted_name ensures special characters don't break the SQL
         # We explicitly set OWNER to co2_user
-        conn.execute(text(f'CREATE DATABASE "{db_name}" OWNER "{app_user}"'))
+        name, owner = safe_identifier(db_name), safe_identifier(app_user)
+        conn.execute(text(f'CREATE DATABASE "{name}" OWNER "{owner}"'))
 
     engine.dispose()
 
