@@ -45,7 +45,8 @@ RUN node build/precompress.mjs dist/spa
 # ==============================================================================
 # Production Stage: Serve with unprivileged Nginx
 # ==============================================================================
-FROM nginxinc/nginx-unprivileged:stable-alpine-slim
+# nginx/, not nginxinc/: the image moved, and nginxinc/ stops at 1.30.6.
+FROM nginx/nginx-unprivileged:stable-alpine-slim
 
 # The alpine base lags Alpine's package repo and Trivy blocks the deploy on
 # every HIGH it finds there: take every fixed package at build time (#3000).

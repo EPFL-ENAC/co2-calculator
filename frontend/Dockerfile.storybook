@@ -33,7 +33,7 @@ RUN cd storybook && npm run build
 # ==============================================================================
 # Production Stage: Serve the built Storybook site with Nginx
 # ==============================================================================
-FROM nginxinc/nginx-unprivileged:stable-alpine-slim
+FROM nginx/nginx-unprivileged:stable-alpine-slim
 
 # Install wget for healthcheck. The base runs as uid 101 (nginx), apk needs root.
 USER root
