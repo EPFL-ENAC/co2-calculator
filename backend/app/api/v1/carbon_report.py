@@ -315,6 +315,7 @@ async def update_carbon_report_module_active(
 
     Inactive modules are excluded from the report's sums, stats and
     completion progress; the report stats are recomputed immediately.
+    409 on a Calculator report: Active applies to Simulator plans only.
     """
     report_service = CarbonReportService(db)
     report = await report_service.get(carbon_report_id)
@@ -322,6 +323,10 @@ async def update_carbon_report_module_active(
         raise HTTPException(status_code=404, detail="Carbon report not found")
 
     await require_report_access(db, current_user, report, "edit")
+    if report.carbon_project_id is None:
+        raise HTTPException(
+            status_code=409, detail="Active only applies to Simulator plans"
+        )
 
     module_service = CarbonReportModuleService(db)
     result = await module_service.update_is_active(
