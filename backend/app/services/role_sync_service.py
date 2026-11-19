@@ -111,6 +111,9 @@ class RoleSyncService:
         has been passed, so the external service is never hit for syncs
         that would be skipped anyway.
 
+        Rolls the session back before the provider call (#2160), so callers
+        must not hand it uncommitted writes.
+
         Args:
             user_id: User ID to sync
             role_provider: Role provider instance used to fetch live user data
@@ -141,30 +144,27 @@ class RoleSyncService:
                     user_id=user_id, outcome=RoleSyncOutcome.SKIPPED_TTL
                 )
 
-        # TTL gate passed – fetch fresh data from the external provider now
-        old_roles = user.roles or []
+        # TTL gate passed. Hand the connection back before the provider call
+        # (up to 10 s): an open transaction pins a PgBouncer server slot for
+        # all of it (#2160). The writes below run in a short new transaction.
+        institutional_id = user.institutional_id or ""
+        await self.session.rollback()
+        provider_error: RoleProviderNetworkError | None = None
+        provider_user: dict = {}
         try:
-            provider_user = await role_provider.get_user_by_user_id(
-                user.institutional_id or ""
-            )
+            provider_user = await role_provider.get_user_by_user_id(institutional_id)
         except RoleProviderNetworkError as e:
-            # Provider unreachable/unconfigured: keep what we have. Stamped
-            # (not left alone) so a burst of near-simultaneous calls doesn't
-            # all re-hit the provider — the next attempt waits one TTL period,
-            # same backoff the success path already gets (#2539).
-            logger.error(
-                "Role sync aborted - provider unavailable",
-                extra={"user_id": user_id, "error": str(e)},
-            )
-            _role_sync_skipped.add(
-                1, {"outcome": RoleSyncOutcome.SKIPPED_PROVIDER_UNAVAILABLE.value}
-            )
-            user.last_roles_sync_at = datetime.now(UTC)
-            await self.session.commit()
+            provider_error = e
+
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
             return RoleSyncResult(
-                user_id=user_id,
-                outcome=RoleSyncOutcome.SKIPPED_PROVIDER_UNAVAILABLE,
-                old_roles=old_roles,
+                user_id=user_id, outcome=RoleSyncOutcome.SKIPPED_USER_NOT_FOUND
+            )
+        old_roles = user.roles or []
+        if provider_error is not None:
+            return await self._handle_provider_unavailable(
+                user_id, user, old_roles, provider_error
             )
 
         new_roles = provider_user.get("roles", [])
@@ -225,6 +225,34 @@ class RoleSyncService:
             roles_changed=True,
             old_roles=old_roles,
             new_roles=new_roles,
+        )
+
+    async def _handle_provider_unavailable(
+        self,
+        user_id: int,
+        user: User,
+        old_roles: list[Role],
+        error: RoleProviderNetworkError,
+    ) -> RoleSyncResult:
+        """Provider unreachable/unconfigured: keep what we have.
+
+        Stamped (not left alone) so a burst of near-simultaneous calls doesn't
+        all re-hit the provider — the next attempt waits one TTL period, same
+        backoff the success path already gets (#2539).
+        """
+        logger.error(
+            "Role sync aborted - provider unavailable",
+            extra={"user_id": user_id, "error": str(error)},
+        )
+        _role_sync_skipped.add(
+            1, {"outcome": RoleSyncOutcome.SKIPPED_PROVIDER_UNAVAILABLE.value}
+        )
+        user.last_roles_sync_at = datetime.now(UTC)
+        await self.session.commit()
+        return RoleSyncResult(
+            user_id=user_id,
+            outcome=RoleSyncOutcome.SKIPPED_PROVIDER_UNAVAILABLE,
+            old_roles=old_roles,
         )
 
     async def _handle_suspicious_empty(

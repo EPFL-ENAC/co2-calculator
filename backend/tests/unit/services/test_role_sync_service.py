@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy import event
 
 from app.models.unit import Unit
 from app.models.user import (
@@ -17,6 +18,28 @@ from app.models.user import (
 from app.providers.role_provider import RoleProviderNetworkError
 from app.services.role_sync_service import RoleSyncOutcome, RoleSyncService
 from app.services.user_service import UserService
+
+_SYNC_STAMPS = ("last_roles_sync_at", "roles_empty_since")
+
+
+def _as_utc(target: User, *_args) -> None:
+    for name in _SYNC_STAMPS:
+        value = target.__dict__.get(name)
+        if value is not None and value.tzinfo is None:
+            target.__dict__[name] = value.replace(tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _sqlite_returns_aware_sync_stamps():
+    """SQLite drops tzinfo on reload; Postgres timestamptz does not. The
+    service re-fetches the user after the provider call (#2160), so the
+    harness must hand back what Postgres would.
+    """
+    event.listen(User, "load", _as_utc)
+    event.listen(User, "refresh", _as_utc)
+    yield
+    event.remove(User, "load", _as_utc)
+    event.remove(User, "refresh", _as_utc)
 
 
 @pytest.mark.asyncio
@@ -242,11 +265,7 @@ async def test_suspicious_empty_still_retries_once_the_ttl_elapses(db_session):
     service = RoleSyncService(db_session)
     await service.sync_user_roles(user.id, _provider_returning([]))
 
-    # Simulate the TTL period having elapsed since the backoff stamp. Mutate
-    # the same in-memory object rather than refresh()-ing it — SQLite hands
-    # back naive datetimes on an explicit reload, which is a test-harness
-    # quirk (Postgres in prod preserves tz), not something worth guarding in
-    # the service for.
+    # Simulate the TTL period having elapsed since the backoff stamp.
     user.last_roles_sync_at = datetime.now(UTC) - timedelta(minutes=20)
     await db_session.commit()
 
@@ -535,3 +554,28 @@ async def test_sync_units_removes_stale_associations(db_session):
     associations = list(result.all())
     assert len(associations) == 1
     assert associations[0][0].unit_id == unit2.id
+
+
+@pytest.mark.asyncio
+async def test_provider_call_runs_with_no_transaction_open(db_session):
+    """#2160: the provider call (EPFL API, up to 10 s) must not hold a DB
+    transaction — under PgBouncer transaction pooling that pins a server
+    slot for the whole call. The writes land afterwards.
+    """
+    user = await _make_user(db_session, [OWN_UNIT1_ROLE_RAW], last_sync=None)
+    seen_in_transaction: list[bool] = []
+    new_role = Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="unit2"))
+
+    async def _fetch(_institutional_id: str) -> dict:
+        seen_in_transaction.append(db_session.in_transaction())
+        return {"roles": [new_role]}
+
+    provider = AsyncMock()
+    provider.get_user_by_user_id = _fetch
+
+    result = await RoleSyncService(db_session).sync_user_roles(user.id, provider)
+
+    assert seen_in_transaction == [False]
+    assert result.outcome is RoleSyncOutcome.APPLIED
+    await db_session.refresh(user)
+    assert user.roles == [new_role]

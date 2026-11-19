@@ -3,6 +3,7 @@ import { test, expect } from 'playwright/test';
 import type { ModuleField } from '../../src/constant/moduleConfig';
 import {
   buildPrintColumns,
+  printTaxonomyEntries,
   renderPrintCell,
   type PrintCellContext,
   type PrintColumn,
@@ -180,4 +181,41 @@ test('renderPrintCell formats plain numbers with module format options', () => {
   const col = makeColumn({ name: 'fte', field: 'fte' });
 
   expect(renderPrintCell({ fte: 2.25 }, col, ctx)).toBe('2.3');
+});
+
+test('printTaxonomyEntries asks only for submodules with a kind field', () => {
+  const entries = printTaxonomyEntries([
+    {
+      id: 'with_kind',
+      moduleFields: [{ id: 'k', type: 'select', optionsId: 'kind' }],
+    },
+    { id: 'no_kind', moduleFields: [{ id: 'name', type: 'text' }] },
+  ]);
+
+  expect(entries).toEqual(['with_kind']);
+});
+
+test('printTaxonomyEntries skips server-searched kinds (#2160)', () => {
+  // Purchase's tree is ~17k nodes; its rows carry their labels instead.
+  const entries = printTaxonomyEntries([
+    {
+      id: 'searched',
+      moduleFields: [
+        { id: 'code', type: 'select', optionsId: 'kind', optionsSearch: true },
+      ],
+    },
+    {
+      id: 'plain',
+      moduleFields: [{ id: 'k', type: 'select', optionsId: 'kind' }],
+    },
+  ]);
+
+  expect(entries).toEqual(['plain']);
+});
+
+test('renderPrintCell falls back to the row labels without a taxonomy tree (#2160)', () => {
+  const col = makeColumn({ name: 'code', field: 'code', optionsId: 'kind' });
+  const row = { code: '43211503', labels: { code: 'Notebook computers' } };
+
+  expect(renderPrintCell(row, col, makeContext())).toBe('Notebook computers');
 });

@@ -12,7 +12,7 @@ import {
   type PlannerHeadcountRow,
 } from '@/utils/plannerHeadcountRows';
 import { fetchAllSubmoduleRows } from '@/utils/printSubmoduleRows';
-import type { PrintRow } from '@/utils/printTable';
+import { printTaxonomyEntries, type PrintRow } from '@/utils/printTable';
 
 export function useSimulationExplorePrintData() {
   const route = useRoute();
@@ -137,7 +137,6 @@ export function useSimulationExplorePrintData() {
           );
           continue;
         }
-        const taxonomyEntries: string[] = [];
         for (const sub of m.submodules) {
           tasks.push(
             fetchAllSubmoduleRows(m.type, sub.id, carbonReportId).then(
@@ -146,10 +145,8 @@ export function useSimulationExplorePrintData() {
               },
             ),
           );
-          if (sub.moduleFields.some((f) => f.optionsId === 'kind')) {
-            taxonomyEntries.push(sub.id);
-          }
         }
+        const taxonomyEntries = printTaxonomyEntries(m.submodules);
         // One batched call per module instead of one per submodule (#2049 T6).
         if (taxonomyEntries.length > 0 && factorYear != null) {
           tasks.push(
