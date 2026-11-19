@@ -181,8 +181,9 @@ const columns: QTableColumn[] = [
           >
             {{
               $t('documentation_editing_translation_description_link_text')
-            }} </a
-          >{{ $t('documentation_editing_translation_description_part_2') }}
+            }} </a>{{
+            $t('documentation_editing_translation_description_part_2')
+          }}
         </div>
         <q-table
           flat
