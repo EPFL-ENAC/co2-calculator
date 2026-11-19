@@ -18,7 +18,6 @@
     "preview": "node build/prepare-preview.mjs --env-local && npx vite preview --outDir dist/spa",
     "build": "quasar build",
     "postinstall": "quasar prepare",
-    "mock:auth": "node src/mock/mockauth.js",
     "gen-api-types": "node scripts/gen-api-types.mjs"
   },
   "dependencies": {
