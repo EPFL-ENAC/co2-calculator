@@ -69,6 +69,16 @@ check-api-version: ## Fail unless the backend renders API_VERSION=/v1
 		|| { echo "❌ API_VERSION is not /v1: every /api/v1 call would 404"; exit 1; }
 	@echo "✅ API_VERSION renders as /v1"
 
+# Regression check: backend.env had APP_VERSION "0.1.0", which replaced the
+# version that the image sets at build time: every cluster reported 0.1.0.
+.PHONY: check-app-version
+check-app-version: ## Fail if the chart sets APP_VERSION for the backend or the worker
+	@out=$$(helm template . $(REQUIRED) --set worker.enabled=true \
+		-s templates/backend-deployment.yaml -s templates/backend-worker-deployment.yaml) || exit 1; \
+	echo "$$out" | grep -q 'name: APP_VERSION$$' \
+		&& { echo "❌ the chart sets APP_VERSION: it replaces the version of the image"; exit 1; }; \
+	echo "✅ the backend and the worker keep the APP_VERSION of the image"
+
 # Regression check: the chart gave each empty frontend.env default to the
 # pod, and an empty variable wins over values.env of the institution folder:
 # the frontend stopped with "APP_INSTITUTION_NAME is required and empty".
@@ -129,7 +139,7 @@ lint-docs: ## Fail if VALUES.md is older than values.yaml
 ## 🧪 Combined linting
 ## -------------------------------
 .PHONY: lint
-lint: lint-helm lint-examples check-api-version check-worker-env check-frontend-env lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker and frontend env, VALUES.md)
+lint: lint-helm lint-examples check-api-version check-app-version check-worker-env check-frontend-env lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker and frontend env, VALUES.md)
 	@echo "🧭 All lint checks passed!"
 
 
