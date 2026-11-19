@@ -26,8 +26,9 @@ export interface SimulatorPlan {
   /** The grant proposal report's total in tonnes; null when the plan has no
    * grant section. Never summed with `total_tonnes_co2eq` (#1977). */
   grant_total_tonnes_co2eq: number | null;
-  /** Set when the PATCH deferred its prefill to a background job; poll it
-   * before trusting the plan years (backend plan #2050 Track F4). */
+  /** Set when the PATCH deferred its prefill to a background job, and by GET
+   * while that job is unfinished (#2778); poll it before trusting the plan
+   * years (backend plan #2050 Track F4). */
   prefill_job_id?: number | null;
 }
 
@@ -172,6 +173,31 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     } finally {
       prefillRunning.value = false;
     }
+  }
+
+  /**
+   * Pick up the prefill a plan reports on load, e.g. after a reload (#2778).
+   *
+   * Keeps `prefillRunning` set across every job the plan still reports — an
+   * older job can outlive the newest one — then refetches years and stats.
+   */
+  async function resumePrefill(planId: number, jobId: number): Promise<void> {
+    prefillRunning.value = true;
+    try {
+      let next: number | null | undefined = jobId;
+      while (next != null) {
+        const id: number = next;
+        await pollUntilPrefilled(() =>
+          api
+            .get(`project-plans/${planId}/prefill/${id}`)
+            .json<SimulatorPlanPrefillStatus>(),
+        );
+        next = (await getPlan(planId)).prefill_job_id;
+      }
+    } finally {
+      prefillRunning.value = false;
+    }
+    await Promise.all([fetchPlanYears(planId), fetchAggregateStats(planId)]);
   }
 
   /**
@@ -420,6 +446,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     markPlansStale,
     createPlan,
     getPlan,
+    resumePrefill,
     updatePlan,
     renamePlan,
     fetchPlanYears,
