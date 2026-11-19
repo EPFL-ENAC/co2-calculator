@@ -19,7 +19,7 @@ docker run -d --name "$NAME" -p 127.0.0.1:9466:8080 --read-only \
   -v "$PWD/institution-default:/usr/local/share/institution/default:ro" \
   -v "$PWD/institution-example:/institution:ro" \
   -v "$DIST:/usr/share/nginx/html:ro" \
-  nginxinc/nginx-unprivileged:stable-alpine-slim >/dev/null
+  nginx/nginx-unprivileged:stable-alpine-slim >/dev/null
 i=0
 until curl -sf "$URL/ready" >/dev/null; do
   i=$((i + 1)); [ "$i" -lt 40 ] || { docker logs "$NAME"; exit 1; }; sleep 0.25
