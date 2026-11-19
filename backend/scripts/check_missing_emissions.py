@@ -111,9 +111,7 @@ async def main() -> int:
     )
     args = parser.parse_args()
 
-    dsn = args.dsn or (get_settings().DB_URL or "")
-    if not dsn:
-        raise SystemExit("no DSN: pass --dsn or set DB_URL")
+    dsn = args.dsn or get_settings().DB_URL
     dsn = dsn.replace("postgresql+psycopg", "postgresql").replace(
         "postgresql+asyncpg", "postgresql"
     )

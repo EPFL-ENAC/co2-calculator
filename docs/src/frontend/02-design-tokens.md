@@ -13,7 +13,6 @@ central CSS folder. The `frontend/src/css/` tree is:
 
 ```
 frontend/src/css/
-├── 00-fonts/            # @font-face
 ├── 01-reset/            # normalize
 ├── 02-tokens/           # design tokens — the source of truth (options → decisions → components → quasar-bridge)
 ├── 03-layout/           # body, grid, container, modal
@@ -21,6 +20,11 @@ frontend/src/css/
 ├── 05-quasar-overrides/ # global overrides for Quasar's own classes (.q-btn, .q-table, …)
 └── app.scss             # cascade-layer order + imports
 ```
+
+The bundle declares no font. The `@font-face` rules of the family
+`InstitutionFont` are in `/theme.css`, which the container writes at startup
+from the `theme.conf` of the institution (#3244). See
+[Set up a new institution](../infra/08-new-institution.md).
 
 There is **no shared component CSS folder**. Rules of thumb:
 

@@ -359,4 +359,20 @@ export default {
     en: 'Export failed',
     fr: "Échec de l'exportation",
   },
+  logs_ops_environment: {
+    en: '{name} environment',
+    fr: 'Environnement {name}',
+  },
+  logs_ops_gitops: { en: 'GitOps (Argo CD)', fr: 'GitOps (Argo CD)' },
+  logs_ops_monitoring: {
+    en: 'Monitoring (Grafana)',
+    fr: 'Monitoring (Grafana)',
+  },
+  logs_ops_app_logs: { en: 'App logs', fr: "Logs de l'application" },
+  logs_ops_platform: { en: 'OpenShift', fr: 'OpenShift' },
+  logs_ops_link_application: { en: 'Application', fr: 'Application' },
+  logs_ops_link_dashboard: { en: 'Dashboard', fr: 'Tableau de bord' },
+  logs_ops_link_graphs: { en: 'Graphs', fr: 'Graphiques' },
+  logs_ops_link_logs: { en: 'Logs', fr: 'Logs' },
+  logs_ops_link_console: { en: 'Console', fr: 'Console' },
 } as const;

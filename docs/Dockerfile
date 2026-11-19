@@ -34,7 +34,7 @@ RUN uv run mkdocs build --strict --site-dir /dist
 
 # Stage 2: Serve with nginx (alpine: the debian variant ships ~100 OS
 # packages that dominate CVE scans and are unused for serving static files)
-FROM nginxinc/nginx-unprivileged:stable-alpine-slim
+FROM nginx/nginx-unprivileged:stable-alpine-slim
 
 # The alpine base lags Alpine's package repo and Trivy blocks the deploy on
 # every HIGH it finds there: take every fixed package at build time (#3000).

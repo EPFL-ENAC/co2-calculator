@@ -62,10 +62,16 @@ spec:
               protocol: TCP
           # Iterates frontend.env so adding a new env var (e.g. APP_*)
           # only requires a values.yaml entry — no template change.
+          # An empty value is not rendered: in the container, a variable of
+          # the environment wins over values.env of the institution folder,
+          # also when it is empty, so an empty default would erase the value
+          # of the folder.
           env:
             {{- range $key, $value := .Values.frontend.env }}
+            {{- if ne (toString $value) "" }}
             - name: {{ $key }}
               value: {{ $value | quote }}
+            {{- end }}
             {{- end }}
           {{- with .Values.frontend.livenessProbe }}
           livenessProbe:
@@ -84,7 +90,20 @@ spec:
               mountPath: /var/cache/nginx
             - name: run
               mountPath: /var/run
+            # Theme of the institution, and the files that replace the
+            # neutral defaults of the image (#3244).
+            - name: institution
+              mountPath: /institution
+              readOnly: true
       volumes:
+        # `helm lint` turns fail into a message and keeps rendering, so the
+        # else branch must still give valid YAML.
+        - name: institution
+          {{- with .Values.frontend.institutionAssets.volume }}
+          {{- toYaml . | nindent 10 }}
+          {{- else }}
+          {{- fail "frontend.institutionAssets.volume is required: the volume with the institution theme.conf" }}
+          {{- end }}
         - name: cache
           emptyDir: {}
         - name: run

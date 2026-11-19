@@ -1,0 +1,121 @@
+import { test, expect, type Page } from 'playwright/test';
+import loginMessages from '../../src/i18n/login';
+import { mockHomeBackend } from './setup/home-module-visibility-mocks';
+
+// index.html paints the login title before the JavaScript runs (#3244).
+// Aborting every script keeps #q-app empty, as on a slow first load.
+async function holdBackScripts(page: Page): Promise<void> {
+  await page.route(/\/assets\/.*\.js$/, (route) => route.abort());
+}
+
+test.describe('static first frame of index.html', () => {
+  // Catches a login page that stays blank until the bundle runs, or a title
+  // that drifts from login_title of src/i18n/login.ts.
+  test('shows the login title in the language of the URL', async ({ page }) => {
+    await holdBackScripts(page);
+    await page.goto('/en/login');
+    await expect(page.locator('#shell')).toBeVisible();
+    await expect(page.locator('#shell')).toHaveText(
+      loginMessages.login_title.en,
+    );
+    await page.goto('/fr/login');
+    await expect(page.locator('#shell')).toHaveText(
+      loginMessages.login_title.fr,
+    );
+  });
+
+  // Catches the product name flashing on a page that is not the login page.
+  test('stays empty outside the login page', async ({ page }) => {
+    await holdBackScripts(page);
+    for (const path of ['/en/unauthorized', '/']) {
+      await page.goto(path);
+      await expect(page.locator('#shell')).toBeAttached();
+      await expect(page.locator('#shell')).toHaveText('');
+    }
+  });
+
+  // Catches a blank page, or an app that starts with empty values, when
+  // /injectEnv.js does not load (blocked request, static host fallback).
+  test('says so when the configuration did not load', async ({ page }) => {
+    await page.route(/\/injectEnv\.js$/, (route) => route.abort());
+    for (const [path, language] of [
+      ['/en/login', 'en'],
+      ['/fr/some/page', 'fr'],
+      ['/', 'en'],
+    ] as const) {
+      await page.goto(path);
+      const shell = page.getByRole('alert');
+      await expect(shell).toBeVisible();
+      await expect(shell).toHaveText(loginMessages.config_missing[language]);
+    }
+  });
+
+  // Catches the login title shown to a signed-in visitor while the app
+  // goes home, and next to the reload prompt when a chunk fails.
+  test('clears for a signed-in visitor and on a failed chunk', async ({
+    page,
+  }) => {
+    await mockHomeBackend(page);
+    // The signed-in layout never arrives, so the app stays unmounted.
+    await page.route(/\/assets\/(Co2Header|HomePage)-[\w-]+\.js$/, (route) =>
+      route.abort(),
+    );
+    await page.goto('/en/login');
+    await expect(page.locator('.reload-prompt-notify')).toBeVisible();
+    await expect(page.locator('#shell')).toHaveText('');
+  });
+
+  // Catches a title left on screen under the mounted app (#q-app:empty rule).
+  test('hides once the app has mounted', async ({ page }) => {
+    // No backend runs against this webServer (see chunk-load-reload.spec.ts).
+    await page.route(/\/api\/v1\/session$/, (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: '{}',
+      }),
+    );
+    await page.goto('/en/login');
+    await expect(page.locator('.login__logo img')).toBeVisible();
+    // The shell must exist and hold the title, or toBeHidden proves nothing.
+    await expect(page.locator('#shell')).toBeAttached();
+    await expect(page.locator('#shell')).toHaveText(
+      loginMessages.login_title.en,
+    );
+    await expect(page.locator('#shell')).toBeHidden();
+  });
+
+  // Catches the app mounting before the browser showed the first frame
+  // (src/boot/first-frame.ts): the largest paint is then an element that the
+  // app draws, not the shell. Chromium reports the id of the painted element.
+  test('reaches the screen before the app mounts', async ({ page }) => {
+    await page.route(/\/api\/v1\/session$/, (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: '{}',
+      }),
+    );
+    await page.goto('/en/login');
+    await expect(page.locator('.login__logo img')).toBeVisible();
+    const largestPaintId = await page.evaluate(
+      () =>
+        new Promise<string>((resolve) => {
+          new PerformanceObserver((list) => {
+            const entries = list.getEntries() as (PerformanceEntry & {
+              id: string;
+            })[];
+            resolve(entries[entries.length - 1].id);
+          }).observe({ type: 'largest-contentful-paint', buffered: true });
+        }),
+    );
+    expect(largestPaintId).toBe('shell');
+  });
+
+  // Catches screen readers announcing the title twice (shell + login card).
+  test('is hidden from assistive technology', async ({ page }) => {
+    await holdBackScripts(page);
+    await page.goto('/en/login');
+    await expect(page.locator('#shell')).toHaveAttribute('aria-hidden', 'true');
+  });
+});

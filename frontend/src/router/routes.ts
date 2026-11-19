@@ -8,11 +8,12 @@ import { permissionGuard } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
 import { PermissionAction } from '@/stores/auth';
 import { isDevEnvironment } from './routeNames';
-// Landing path for every user: ship these with the entry bundle instead of
-// waiting for the guard chain (session → year → workspace) to resolve first.
+// The login page draws inside MainLayout, so the layout ships with the entry
+// bundle. The home page does not: authGuard preloads it once a session exists.
 import MainLayout from '@/layouts/MainLayout.vue';
 import WorkspacePage from '@/pages/app/WorkspacePage.vue';
-import HomePage from '@/pages/app/HomePage.vue';
+import { loadHomePage } from './authenticatedShell';
+import { loginPage } from './loginPage';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -184,7 +185,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'login',
             name: LOGIN_ROUTE_NAME,
-            component: () => import('@/pages/app/LoginPage.vue'),
+            component: loginPage.get,
             meta: {
               note: 'User authentication - Login page',
               breadcrumb: false,
@@ -219,7 +220,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: 'home',
                 name: HOME_ROUTE_NAME,
-                component: HomePage,
+                component: loadHomePage,
                 meta: {
                   requiresAuth: true,
                   note: 'Home - Main overview and navigation',

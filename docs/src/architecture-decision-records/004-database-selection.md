@@ -1,6 +1,15 @@
 # ADR-004: Use PostgreSQL for Production and SQLite for Development
 
-**Status**: ✅ Accepted
+**Status**: ✅ Accepted, amended 2026-11-18
+
+> Note: Amendment of 2026-11-18 (#3244). The SQLite fallback for
+> development is removed. `DB_URL` has no default, and the backend does
+> not start without it. Local development uses the PostgreSQL service of
+> Docker Compose, because the migrations use PostgreSQL types that SQLite
+> cannot build. SQLite with aiosqlite stays for the backend unit tests
+> only: `backend/pyproject.toml` sets an in-memory database, and the tests
+> create the tables without the migrations. The text below is the
+> original decision.
 
 ## Context
 
@@ -68,5 +77,5 @@ identical application code.
 - Operational overhead managing PostgreSQL (mitigated by using
   EPFL-managed service or AWS RDS)
 
-**Configuration** uses Pydantic settings with `DB_URL`
-Falls back to `sqlite+aiosqlite:///./co2_calculator.db`.
+**Configuration** uses Pydantic settings with `DB_URL`. Since the
+amendment, `DB_URL` is required and has no fallback.

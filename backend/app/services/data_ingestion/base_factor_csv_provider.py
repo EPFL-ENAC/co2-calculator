@@ -5,6 +5,7 @@ from typing import Any, TypedDict
 
 from pydantic import ValidationError
 
+from app.api.v1 import files
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.classification_translation import (
@@ -120,9 +121,7 @@ class BaseFactorCSVProvider(CSVIngestionProvider, ABC):
     @property
     def files_store(self) -> Any:
         if self._files_store is None:
-            from app.api.v1.files import make_files_store
-
-            self._files_store = make_files_store()
+            self._files_store = files.files_store
         return self._files_store
 
     async def validate_connection(self) -> bool:

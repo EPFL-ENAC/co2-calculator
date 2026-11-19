@@ -29,6 +29,10 @@ import {
   QCardSection,
   QCardActions,
   QSpace,
+  QTab,
+  QTabPanel,
+  QTabPanels,
+  QTabs,
 } from 'quasar';
 import svgMaterialIcons from 'quasar/icon-set/svg-material-icons.js';
 import { i18n } from '@/boot/i18n';
@@ -83,4 +87,10 @@ beforeMount(async ({ app }) => {
   // RecalculateEmissionsCard's toolbar spacer and confirm-dialog actions.
   app.component('QSpace', QSpace);
   app.component('QCardActions', QCardActions);
+  // EquipmentPowerFeedbackDialog (equipment-power-feedback-dialog.spec.ts)
+  // renders its comment and power request tabs.
+  app.component('QTabs', QTabs);
+  app.component('QTab', QTab);
+  app.component('QTabPanels', QTabPanels);
+  app.component('QTabPanel', QTabPanel);
 });

@@ -1,7 +1,7 @@
 ---
 status: delivered
 issue: 1234
-last_updated: 2026-05-19
+last_updated: 2026-11-18
 ---
 
 # 1234 — Pipeline operations console
@@ -35,8 +35,11 @@ strip, filters, expandable job DAG with decoded meta. Orphan parents
 
 ## Scope
 
-- ONE new backend list endpoint. Reuse — do not rebuild — `GET
-/v1/sync/pipelines/{id}` and `/stream` for drill-down/live.
+- ONE new backend list endpoint. For live updates, the page refetches
+  this list every 5 s while at least one row is not done. It does not
+  open `/v1/sync/pipelines/{id}/stream`. One stream per pipeline held one
+  DB connection each, and the backend closed them mid-query when the user
+  left the page.
 - No migration (all derived from `data_ingestion_jobs`).
 - No change to `/back-office/data-management`.
 - NOT bundling PR #1225 or the eager-pipeline-id work. This endpoint only
@@ -76,8 +79,9 @@ strip, filters, expandable job DAG with decoded meta. Orphan parents
 - **F4** `frontend/src/stores/pipelineOperationsConsole.ts` +
   `frontend/src/pages/back-office/PipelineOperationsConsolePage.vue`. Alert
   strip (clickable counters → filters), pipeline-grouped table (newest
-  first), expandable job DAG with decoded meta. Drill-down/live reuses
-  `usePipelineStream()` verbatim.
+  first), expandable job DAG with decoded meta. Live updates come from a
+  5 s refetch of the list while a row is not done. The page does not use
+  `usePipelineStream()`.
 - **F5** `cd frontend && make type-check` (vue-tsc — the gate husky runs;
   `rtk tsc` green ≠ this).
 

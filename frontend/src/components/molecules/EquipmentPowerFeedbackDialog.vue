@@ -33,7 +33,11 @@
           name="comment"
           :label="$t('equipment-power-feedback-tab-comment')"
         />
-        <q-tab name="power" :label="$t('equipment-power-feedback-tab-power')" />
+        <q-tab
+          v-if="hasFeedbackRecipient"
+          name="power"
+          :label="$t('equipment-power-feedback-tab-power')"
+        />
       </q-tabs>
 
       <q-separator />
@@ -77,7 +81,7 @@
         </q-tab-panel>
 
         <!-- Tab 2: Power change request -->
-        <q-tab-panel name="power">
+        <q-tab-panel v-if="hasFeedbackRecipient" name="power">
           <q-input
             v-model="requestText"
             type="textarea"
@@ -216,6 +220,10 @@ function onDeleteComment() {
   emit('delete');
   emit('update:modelValue', false);
 }
+
+// No recipient, no request tab: a mailto without an address opens an
+// empty draft (#3244, the value is empty unless the deployment sets it).
+const hasFeedbackRecipient = runtimeConfig.equipmentPowerFeedbackEmail !== '';
 
 const feedbackMailtoHref = computed(() => {
   const subject = $t('equipment-power-feedback-email-subject', {

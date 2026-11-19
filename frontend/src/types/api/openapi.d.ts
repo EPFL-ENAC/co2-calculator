@@ -176,23 +176,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/unit/{unit_id}/results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Unit Results */
-        get: operations["get_unit_results_v1_unit__unit_id__results_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/unit/{unit_id}/{year}/totals": {
         parameters: {
             query?: never;
@@ -2745,8 +2728,8 @@ export interface paths {
          *     Used by Kubernetes readinessProbe.
          *
          *     External provider health (Accred) lives in /health/deps (#2050 A1):
-         *     it must never gate readiness — a blip there is EPFL's incident, not
-         *     ours.
+         *     it must never gate readiness — a blip there is the provider's incident,
+         *     not ours.
          */
         get: operations["ready_ready_get"];
         put?: never;
@@ -2769,7 +2752,8 @@ export interface paths {
          * @description Operator-facing external-dependency health (Accred).
          *
          *     Not a Kubernetes probe target — Accred availability must never gate
-         *     pod readiness (#2050 A1); a blip there is EPFL's incident, not ours.
+         *     pod readiness (#2050 A1); a blip there is the provider's incident, not
+         *     ours.
          *     This reports the same signal for humans/monitoring instead, via a
          *     real status code (503 on failure) so alerting can key off it directly
          *     instead of parsing the body — safe here specifically because nothing
@@ -4597,12 +4581,12 @@ export interface components {
             level: number;
             /**
              * Parent Institutional Code
-             * @description Soft reference to parent unit id. No FK constraint — API data is trusted. Null only for EPFL root (level 1).
+             * @description Soft reference to parent unit id. No FK constraint — API data is trusted. Null only for the root unit (level 1).
              */
             parent_institutional_code?: string | null;
             /**
              * Parent Institutional Id
-             * @description Soft reference to parent unit cf. No FK constraint — API data is trusted. Null only for EPFL root (level 1).
+             * @description Soft reference to parent unit cf. No FK constraint — API data is trusted. Null only for the root unit (level 1).
              */
             parent_institutional_id?: string | null;
             /**
@@ -4697,12 +4681,12 @@ export interface components {
             id: number;
             /**
              * Name
-             * @description Unit name like 'ENAC-IT4R'
+             * @description Unit name like 'UNIT-IT'
              */
             name: string;
             /**
              * Institutional Id
-             * @description EPFL unit/unit ID
+             * @description Institutional unit ID
              */
             institutional_id: string;
             /**
@@ -5177,46 +5161,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoleSyncResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_unit_results_v1_unit__unit_id__results_get: {
-        parameters: {
-            query?: {
-                /** @description Number of records to skip */
-                skip?: number;
-                /** @description Maximum number of records to return */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                unit_id: number;
-            };
-            cookie?: {
-                auth_token?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */
@@ -7429,7 +7373,7 @@ export interface operations {
     search_locations_v1_locations_search_get: {
         parameters: {
             query: {
-                /** @description Search query string (minimum 2 characters) */
+                /** @description Search query string (2 to 255 characters) */
                 query: string;
                 /** @description Maximum number of results to return (default: 5, max: 20) */
                 limit?: number;

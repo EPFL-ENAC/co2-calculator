@@ -137,11 +137,12 @@ container from `frontend/Dockerfile.storybook`, pushes it to
 It does not publish a static Storybook site — the artifact is the
 container image plus the dispatch event.
 
-### `deploy-mkdocs.yml` — Docs (GitHub Pages, deprecated)
+### `deploy-mkdocs.yml` — Docs (GitHub Pages)
 
-**Trigger:** push/PR to `main`, push to `stage`/`ci-test/**`. Kept
-as a fallback for the `main` GitHub Pages mirror. Per-environment
-docs (`/docs` path) ship with the GitLab deploy.
+**Trigger:** push to `main`, pull request into `main`, by hand. A push
+to `main` publishes the docs to GitHub Pages. A pull request only
+builds the site. Each environment serves its own docs at `/docs`, from
+the GitLab deploy.
 
 ### `release-please.yml` — Tag and Release
 

@@ -6,7 +6,7 @@ def test_roles_serialization_and_deserialization():
         Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope()),
         Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="12345")),
     ]
-    user = UserBase(email="test@epfl.ch", user_id=None)
+    user = UserBase(email="test@example.org", user_id=None)
     user.roles = roles  # This sets roles_raw
 
     # Check serialization: roles should be dicts carrying the scope ``kind``
@@ -19,7 +19,7 @@ def test_roles_serialization_and_deserialization():
 
     # Check deserialization: roles should be Role objects
     user2 = UserBase.model_validate(
-        {"roles_raw": serialized, "email": "test@epfl.ch", "user_id": None}
+        {"roles_raw": serialized, "email": "test@example.org", "user_id": None}
     )
     assert all(isinstance(r, Role) for r in user2.roles)
     assert user2.roles[0].role == RoleName.CO2_SUPERADMIN

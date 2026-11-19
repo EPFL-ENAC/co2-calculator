@@ -13,7 +13,10 @@ the graceful half of the fix; role-level `tcp_keepalives_*` on the server
 covers the ungraceful half (OOMKill, SIGKILL past the grace period).
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
+from enacit4r_files.services.s3 import S3FilesStore
 from fastapi import FastAPI
 
 from app.db import engine
@@ -106,3 +109,16 @@ async def test_lifespan_hands_jobs_back_before_disposing_the_pool(
         pass
 
     assert observed == {"pool_still_open": True}
+
+
+async def test_lifespan_closes_the_shared_s3_client(quiet_lifespan, monkeypatch):
+    """The shared S3 store keeps one aiobotocore client for the process;
+    without `close()` aiohttp logs "Unclosed client session" at exit.
+    """
+    s3_service = MagicMock(close=AsyncMock())
+    monkeypatch.setattr("app.api.v1.files.files_store", S3FilesStore(s3_service))
+
+    async with lifespan(FastAPI()):
+        pass
+
+    s3_service.close.assert_awaited_once()

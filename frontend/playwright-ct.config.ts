@@ -1,9 +1,24 @@
 import { defineConfig, devices } from '@playwright/experimental-ct-vue';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { writeInstitutionFiles } from './build/institution.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// The tests run with the example institution of frontend/institution-example,
+// injected the same way as in the container, so CI and local runs are equal
+// (#3244).
+// Playwright CT copies publicDir into its build, so the files nginx serves in
+// the container (injectEnv.js, theme.css, institution/) go there.
+const institutionPublicDir = resolve(__dirname, 'playwright/.institution');
+// Every worker loads this file too: only the main process writes, or the
+// workers race on the same folder.
+if (!process.env.TEST_WORKER_INDEX) {
+  mkdirSync(institutionPublicDir, { recursive: true });
+  writeInstitutionFiles(institutionPublicDir);
+}
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -57,6 +72,7 @@ export default defineConfig({
      */
 
     ctViteConfig: {
+      publicDir: institutionPublicDir,
       resolve: {
         alias: {
           '@': resolve(__dirname, './src'),

@@ -22,7 +22,7 @@ class TestRoleProviderIntegration:
 
             provider = get_role_provider()
             userinfo = {
-                "email": "user@epfl.ch",
+                "email": "user@example.org",
                 "roles": [
                     f"{RoleName.CO2_USER_STD.value}@unit:100",
                     f"{RoleName.CO2_USER_PRINCIPAL.value}@unit:200",
@@ -40,7 +40,7 @@ class TestRoleProviderIntegration:
         """Test complete workflow with AccredRoleProvider."""
         with patch("app.providers.role_provider.settings") as mock_settings:
             mock_settings.ROLE_PROVIDER_TYPE = RoleProviderType.ACCRED
-            mock_settings.ACCRED_API_BASE_URL = "https://api-test.epfl.ch"
+            mock_settings.ACCRED_API_BASE_URL = "https://api-test.example.org"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
 

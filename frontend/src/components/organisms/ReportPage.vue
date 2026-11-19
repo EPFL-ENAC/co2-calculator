@@ -2,7 +2,7 @@
   <section class="page" :class="{ 'page--first': isFirst, 'page--flow': flow }">
     <header v-if="title || scope || pageNumber != null" class="page__header">
       <div class="page__title">
-        <q-img :src="epflLogo" :alt="$t('logo_alt')" width="75px" />
+        <q-img :src="INSTITUTION_LOGO_URL" :alt="$t('logo_alt')" width="75px" />
         <span class="q-ml-md text-h5 text-weight-medium">{{
           $t('calculator_title')
         }}</span>
@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import epflLogo from '@/assets/epfl-logo.svg';
+import { INSTITUTION_LOGO_URL } from '@/constant/institutionAssets';
 interface Props {
   title?: string;
   /** What the report covers, e.g. "SCI-STI-AB · 2025". Shown on every sheet. */

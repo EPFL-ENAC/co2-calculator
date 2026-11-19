@@ -11,9 +11,9 @@ async def test_get_by_connector_returns_saved_connection(db_session):
         ConnectorConnection(
             connector=ConnectorType.EPFL_TABLEAU,
             label="EPFL Tableau",
-            server_url="https://tableau.epfl.ch/",
+            server_url="https://tableau.example.org/",
             site_content_url="co2fp",
-            username="svc-calcco2-epfl-api",
+            username="svc-calcco2-api",
             client_id="cid",
             secret_id="sid",
             secret_value_encrypted="enc",
@@ -23,4 +23,4 @@ async def test_get_by_connector_returns_saved_connection(db_session):
     found = await repo.get_by_connector(ConnectorType.EPFL_TABLEAU)
     assert found is not None
     assert found.id == saved.id
-    assert found.server_url == "https://tableau.epfl.ch/"
+    assert found.server_url == "https://tableau.example.org/"

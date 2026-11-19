@@ -1,3 +1,64 @@
+## [1.5.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.5.0...v1.5.1) (2026-11-19)
+
+A fix of the version that the backend reports. No migration. Prod goes from 1.4.23 to 1.5.1 directly, so read the 1.5.0 section first.
+
+### Before deploying
+
+- **Delete `APP_VERSION` from the backend environment of each overlay.** The image sets it from the root `package.json`, and a value in the overlay replaces it. The EPFL stage and prod overlays set an old value by hand.
+- The "Before deploying" list of 1.5.0 applies to every cluster that did not run 1.5.0.
+
+### Fixes
+
+- The backend and the worker report the version of the image. The chart set `APP_VERSION` to `0.1.0`, so a cluster without its own value reported 0.1.0. `make -C helm lint` now fails if the chart sets it again.
+
+## [1.5.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.23...v1.5.0) (2026-11-19)
+
+The app names no institution any more: each deployment mounts one institution folder. The login page paints faster. No migration, no change to the emission formulas.
+
+### Before deploying
+
+A deployment that takes only the new images stops at startup. Read `docs/src/infra/09-upgrade-to-institution-values.md` first.
+
+- **Mount the institution folder.** Set `frontend.institutionAssets.volume`, for example to the ConfigMap of the `co2-institution-epfl` chart. The chart does not render without it. The folder must contain `theme.conf`. (#3244)
+- **Give the nine required values** in `values.env` of the folder or in the frontend environment: `APP_INSTITUTION_NAME`, `APP_INSTITUTION_NAME_FR_DE`, `APP_INSTITUTION_NAME_FR_A`, `APP_INSTITUTIONAL_ID_LABEL`, `APP_CONTACT_EMAIL`, `APP_USER_DOC_URL`, `APP_BACKOFFICE_DOC_URL`, `APP_STRATEGY_URL_EN` and `APP_STRATEGY_URL_FR`. The two doc URLs must end with `/`. (#3244)
+- **Give the two planner years**, `APP_PLANNER_MIN_YEAR` and `APP_PLANNER_MAX_YEAR`. The chart has no default for them any more. (#3244)
+- **Keep `APP_ENVIRONMENT` and `APP_DEMO_MODE` in the environment.** In `values.env` they stop the frontend. `APP_ENVIRONMENT` is required: the chart gives `production`. (#3244)
+- **Set `FRONTEND_URL` for the backend** to an absolute `http` or `https` URL. The backend does not start without one. `DB_URL` has no default any more. (#3244)
+- **Rename** `APP_ACCESS_MANAGEMENT_PROVIDER_URL` to `APP_ACCESS_MANAGEMENT_URL` and `APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL` to `APP_ACCESS_MANAGEMENT_ABOUT_URL`. Delete `APP_ACCESS_MANAGEMENT_PROVIDER_NAME`. (#3244)
+- The EPFL overlays do all of this: openshift-app-config #87 (dev), #89 (stage) and #90 (prod). Merge #90 before the prod tag.
+
+### Institution folder
+
+- One folder gives the values (`values.env`), the theme (`theme.conf`) and the files: logo, login illustration, icons and fonts. The image has a neutral default for each file. (#3244)
+- At startup, `entrypoint.sh` checks the folder. Any error stops the container, for example an unknown name, a name set twice or a URL without `http://` or `https://`. A link out of the folder and a bad theme value stop it too. Only the values that the app reads reach the browser. (#3244)
+- The dev server, the tests and Storybook run the same script, with the example folder `frontend/institution-example/`. (#3244)
+- The texts take the institution name and the ID label from the values. If the code names an institution or its tools, a CI job fails. (#3244)
+- New guides: `docs/src/infra/08-new-institution.md` and `docs/src/infra/09-upgrade-to-institution-values.md`. (#3244)
+
+### Faster first screen
+
+- The login page paints its title before the JavaScript runs. Lighthouse mobile on the login page goes from 86 to 100. On Slow 4G the login card is complete after 4.4 s instead of 6.0 s. (#3298)
+- The first screen loads 235 KB gzip instead of 327 KB. The header and sidebars load after the session call starts, in parallel with it. (#3298)
+- The image holds brotli and gzip copies of each text file. nginx serves brotli to browsers that accept it. (#3298)
+- A failed download after a deploy shows a notification with Reload and Later, not a dialog. (#3298)
+- The institution fonts are cached one year, and the other institution files send the same `ETag` on every pod. (#3244)
+
+### Fixes
+
+- The pipeline operations page polls the list every 5 s while a pipeline runs, instead of one stream per pipeline. (#3310)
+- The CSV providers share one files store, and the backend closes it at shutdown. The `Unclosed client session` errors stop. (#3311)
+- The images use `nginx/nginx-unprivileged`: `nginxinc/nginx-unprivileged` is archived. nginx 1.30.7 fixes six CVEs, three of them CRITICAL, among them CVE-2026-125283 with `try_files` and `alias`. (#3315)
+
+### Removed
+
+- The SQLite fallback of `DB_URL`. SQLite stays for the backend unit tests. (#3244)
+- `GET /v1/unit/{unit_id}/results`: no client called it. (#3244)
+
+### Known issues
+
+- Some texts still name EPFL tools: Archibus, Catalyse, VPO, ISIC-CHSP, UDP and TCF. Follow-up in #3245.
+- The travel map uses BigInt, which Safari 13.1 cannot run. The build target still lists that browser.
+
 ## [1.4.23](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.22...v1.4.23) (2026-11-18)
 
 A security, install and dependency release. No migration, no change to the emission formulas.

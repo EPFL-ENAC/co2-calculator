@@ -1,14 +1,22 @@
 @use 'options' as opt;
 
 // Brand Palette
+// Theme values (#3244): --theme-* comes from the theme.conf of the
+// institution. The fallback is the base design.
 $color-primary: opt.$tokens-colors-red-red-100 !default;
 $color-primary-hover: opt.$tokens-colors-red-red-200 !default;
 $color-secondary: opt.$tokens-colors-grey-scale-grey-200 !default;
-$color-surface: opt.$tokens-colors-base-white !default;
+$color-surface: var(--theme-surface, #{opt.$tokens-colors-base-white}) !default;
 $color-surface-muted: opt.$tokens-colors-grey-scale-grey-100 !default;
-$color-border: opt.$tokens-colors-grey-scale-grey-300 !default;
-$color-text: opt.$tokens-colors-base-black !default;
-$color-text-muted: opt.$tokens-colors-grey-scale-grey-600 !default;
+$color-border: var(
+  --theme-border,
+  #{opt.$tokens-colors-grey-scale-grey-300}
+) !default;
+$color-text: var(--theme-text, #{opt.$tokens-colors-base-black}) !default;
+$color-text-muted: var(
+  --theme-text-muted,
+  #{opt.$tokens-colors-grey-scale-grey-600}
+) !default;
 $color-text-on-primary: opt.$tokens-colors-base-white !default;
 
 // Breakpoints
@@ -16,7 +24,7 @@ $breakpoint-mobile-max: 599px !default;
 $breakpoint-desktop-min: 1024px !default;
 
 // Status Colors
-$color-validated: opt.$tokens-colors-canard !default;
+$color-validated: var(--theme-validated, #{opt.$tokens-colors-canard}) !default;
 $color-status-success: opt.$tokens-colors-status-green !default;
 $color-status-warning: opt.$tokens-colors-status-yellow !default;
 $color-status-error: opt.$tokens-colors-status-red !default;
@@ -137,9 +145,12 @@ $sidebar-tooltip-arrow-offset-x: -5px !default;
 
 // Link
 $link-underline-offset: opt.$tokens-spacing-2 !default;
-$link-color: opt.$tokens-colors-canard !default;
+$link-color: var(--theme-link, #{opt.$tokens-colors-canard}) !default;
 $link-underline-color: opt.$tokens-colors-base-black !default;
 $link-hover-color: opt.$tokens-colors-base-black !default;
-$link-hover-underline-color: opt.$tokens-colors-canard !default;
-$link-visited-color: opt.$tokens-colors-canard !default;
-$link-active-color: opt.$tokens-colors-canard !default;
+$link-hover-underline-color: var(
+  --theme-link,
+  #{opt.$tokens-colors-canard}
+) !default;
+$link-visited-color: var(--theme-link, #{opt.$tokens-colors-canard}) !default;
+$link-active-color: var(--theme-link, #{opt.$tokens-colors-canard}) !default;
