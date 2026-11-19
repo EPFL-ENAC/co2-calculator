@@ -36,6 +36,7 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 import pytest_asyncio
+from enacit4r_files.services.local import LocalFilesStore
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -104,6 +105,9 @@ async def pg_app(pg_dsn, monkeypatch, tmp_path):
 
     settings = get_settings()
     monkeypatch.setattr(settings, "FILES_STORAGE_PATH", str(tmp_path))
+    # Providers read the process-wide store, built at import time from the
+    # old path; swap it for one rooted at tmp_path (restored on teardown).
+    monkeypatch.setattr("app.api.v1.files.files_store", LocalFilesStore(str(tmp_path)))
     monkeypatch.setattr(settings, "FILES_ENCRYPTION_KEY", "")
     monkeypatch.setattr(settings, "FILES_ENCRYPTION_SALT", "")
 
@@ -161,14 +165,11 @@ async def _upload_and_dispatch(
 ) -> int:
     """Write the CSV straight into the (patched) storage root and dispatch.
 
-    Mirrors ``test_plan_310b_factor_reupload_endpoint_pg.py``: the real
-    ``/files/temp-upload`` endpoint holds a MODULE-LEVEL ``files_store``
-    singleton built at import time (``app/api/v1/files.py``), so
-    patching ``settings.FILES_STORAGE_PATH`` after import never reaches
-    it — only the factor provider's lazily-constructed ``files_store``
-    (built per-request from live settings) sees the patched path. Writing
-    the file directly sidesteps that singleton mismatch; ``/sync/dispatch``
-    is still the real API surface under test.
+    Mirrors ``test_plan_310b_factor_reupload_endpoint_pg.py``: the
+    fixture patches the shared ``app.api.v1.files.files_store`` to a
+    ``LocalFilesStore`` rooted at ``tmp_path``, so writing the file there
+    is what the provider reads; ``/sync/dispatch`` is still the real API
+    surface under test.
     """
     folder = tmp_path / "tmp" / "1" / "green_box"
     folder.mkdir(parents=True, exist_ok=True)

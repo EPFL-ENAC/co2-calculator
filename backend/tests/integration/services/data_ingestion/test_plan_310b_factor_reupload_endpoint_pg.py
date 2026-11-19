@@ -39,6 +39,7 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 import pytest_asyncio
+from enacit4r_files.services.local import LocalFilesStore
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -75,11 +76,10 @@ async def pg_app(pg_dsn, monkeypatch, tmp_path):
     file storage to ``tmp_path``.
 
     Three monkeypatches matter:
-    1. ``settings.FILES_STORAGE_PATH`` → tmp_path.  ``LocalFilesStore``
-       reads this lazily from ``make_files_store()``, which the factor
-       provider calls in its __init__.  Both the request-handler-side
-       provider and the run_sync_task-side provider pick up the new
-       path because we set this before the request is fired.
+    1. ``app.api.v1.files.files_store`` → a ``LocalFilesStore`` rooted at
+       tmp_path.  Both the request-handler-side provider and the
+       run_sync_task-side provider read that shared store at call time,
+       so both pick it up because we set it before the request is fired.
     2. ``app.tasks.ingestion_tasks.SessionLocal`` → test sessionmaker.
        ``run_sync_task`` opens its own job/data sessions via
        ``app.db.SessionLocal``; that ``from app.db import SessionLocal``
@@ -146,6 +146,9 @@ async def pg_app(pg_dsn, monkeypatch, tmp_path):
 
     settings = get_settings()
     monkeypatch.setattr(settings, "FILES_STORAGE_PATH", str(tmp_path))
+    # Providers read the process-wide store, built at import time from the
+    # old path; swap it for one rooted at tmp_path (restored on teardown).
+    monkeypatch.setattr("app.api.v1.files.files_store", LocalFilesStore(str(tmp_path)))
     # Disable LocalFilesStore Fernet encryption so the plaintext CSV
     # we write below isn't treated as ciphertext on read.  In production
     # FILES_ENCRYPTION_KEY is set and files are encrypted at rest;

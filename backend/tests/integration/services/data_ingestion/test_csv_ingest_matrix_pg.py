@@ -46,8 +46,8 @@ Each test is one falsifiable hypothesis under the cartesian product
 The tests use the real ``ModulePerYearCSVProvider`` so we exercise
 actual CSV parsing, factor lookup, and the ``BULK_PATH_PURE_ASYNC``
 chain-ownership contract.  ``files_store`` is faked via a patch on
-``make_files_store`` — the provider's lazy-init property reads from
-that import every time, so a single patch covers both the move-from-
+``app.api.v1.files.files_store`` — the provider's property reads that
+shared store at call time, so a single patch covers both the move-from-
 source and move-to-processed legs.
 
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
@@ -203,8 +203,8 @@ _SPECS: dict[str, _ModuleSpec] = {
 # ---------------------------------------------------------------------------
 
 
-def _make_fake_files_store_factory(csv_bytes: bytes):
-    """Build a ``make_files_store`` replacement that returns an in-memory fake.
+def _make_fake_files_store(csv_bytes: bytes):
+    """Build an in-memory fake to patch over ``app.api.v1.files.files_store``.
 
     The fake's two used methods are:
 
@@ -214,21 +214,12 @@ def _make_fake_files_store_factory(csv_bytes: bytes):
     * ``get_file(path) -> (bytes, "text/csv")`` — ignores ``path``
       entirely and returns the rendered CSV bytes.  The provider only
       calls this once during setup; we don't track call sites.
-
-    We return a *factory* (matching ``make_files_store``'s signature)
-    rather than a singleton so each ``files_store`` property access
-    inside the lazy-init path resolves to the same fake instance for a
-    given test (the property memoizes after first call).
     """
     fake = MagicMock()
     fake.move_file = AsyncMock(return_value=True)
     fake.get_file = AsyncMock(return_value=(csv_bytes, "text/csv"))
     fake.file_exists = AsyncMock(return_value=True)
-
-    def _factory():
-        return fake
-
-    return _factory
+    return fake
 
 
 def _render_csv(template_path: Path, *, unit_institutional_id: str) -> bytes:
@@ -272,7 +263,7 @@ async def _drive_csv_ingest(
     target_unit_id: int,
     year: int,
 ):
-    """Patch ``make_files_store`` and dispatch the real provider chain.
+    """Patch the shared ``files_store`` and dispatch the real provider chain.
 
     Stamps a synthetic ``file_path`` into the parent job's meta — the
     provider's ``_setup_and_validate`` calls ``move_file`` (no-op)
@@ -284,13 +275,10 @@ async def _drive_csv_ingest(
     if provider_class is None:
         raise AssertionError("ModulePerYearCSVProvider not registered")
 
-    fake_factory = _make_fake_files_store_factory(csv_bytes)
-
-    # ``make_files_store`` is imported at module level in ``base_csv_provider``;
-    # patch the symbol there so the lazy property init picks up the fake.
+    # Providers read the shared store at call time, so one patch reaches them.
     with patch(
-        "app.services.data_ingestion.base_csv_provider.make_files_store",
-        side_effect=fake_factory,
+        "app.api.v1.files.files_store",
+        new=_make_fake_files_store(csv_bytes),
     ):
         return await dispatch_csv_and_wait(
             session_factory=session_factory,

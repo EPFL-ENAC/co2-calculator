@@ -12,6 +12,7 @@ from typing import Any, TypedDict
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import col, select
 
+from app.api.v1 import files
 from app.core.logging import get_logger
 from app.models.data_ingestion import (
     EntityType,
@@ -91,9 +92,7 @@ class BaseReductionObjectiveCSVProvider(CSVIngestionProvider, ABC):
     @property
     def files_store(self) -> Any:
         if self._files_store is None:
-            from app.api.v1.files import make_files_store
-
-            self._files_store = make_files_store()
+            self._files_store = files.files_store
         return self._files_store
 
     @property
