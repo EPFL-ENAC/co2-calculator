@@ -33,6 +33,8 @@ export const PIPELINE_OPERATIONS_URL = '/en/back-office/pipeline-operations';
  */
 export interface PipelineListController {
   set(items: PipelineListItem[]): void;
+  /** How many times the page has requested the list so far. */
+  requestCount(): number;
 }
 
 /**
@@ -45,7 +47,9 @@ export async function mockPipelineList(
   page: Page,
 ): Promise<PipelineListController> {
   let current: PipelineListItem[] = [];
+  let requests = 0;
   await page.route(/\/api\/v1\/sync\/pipelines(\?[^/]*)?$/, async (route) => {
+    requests += 1;
     const body: PipelineListResponse = {
       items: current,
       total: current.length,
@@ -61,6 +65,9 @@ export async function mockPipelineList(
   return {
     set(items) {
       current = items;
+    },
+    requestCount() {
+      return requests;
     },
   };
 }
