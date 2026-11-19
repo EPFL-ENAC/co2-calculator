@@ -720,7 +720,7 @@ class FactorRepository:
                     classification[key] = fallback_value
 
         # Remap generic "kind"/"subkind" kwargs → handler-specific JSON keys.
-        # e.g. kind="EPFL" becomes classification["building_name"] == "EPFL"
+        # e.g. kind="BC" becomes classification["building_name"] == "BC"
         # because BuildingRoomModuleHandler.kind_field == "building_name".
         # Keys that are *already* concrete (e.g. "country_code") pass through
         # unchanged.

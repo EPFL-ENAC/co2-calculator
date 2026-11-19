@@ -5,7 +5,7 @@
  * The bug it pins (#459 follow-up): after the backend started emitting
  * affiliation-scoped keys (``backoffice.users/<aff>`` instead of bare
  * ``backoffice.users``), gating on ``hasUserPermission('backoffice.users',
- * 'view')`` hid the button for ACCRED sub-perimeter users — even though
+ * 'view')`` hid the button for provider sub-perimeter users — even though
  * they hold full backoffice grants on their affiliation. This helper
  * accepts bare keys (Super Admin / GlobalScope) and affiliation-scoped
  * ``backoffice.<page>/<aff>`` keys.

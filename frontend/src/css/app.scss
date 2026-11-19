@@ -2,14 +2,10 @@
 @import './02-tokens/quasar-bridge';
 
 // Establish the cascade order for the ITCSS-inspired architecture.
-@layer reset, fonts, tokens, quasar-base, layout, quasar-overrides, components, utilities;
+@layer reset, tokens, quasar-base, layout, quasar-overrides, components, utilities;
 
 @layer reset {
   @import './01-reset/normalize';
-}
-
-@layer fonts {
-  @import './00-fonts/fonts';
 }
 
 @layer tokens {

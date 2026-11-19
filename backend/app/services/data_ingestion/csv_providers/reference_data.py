@@ -293,8 +293,6 @@ class ReferenceDataCSVProvider(CSVIngestionProvider):
             }
 
         settings = get_settings()
-        if not settings.DB_URL:
-            raise ValueError("DB_URL is not configured")
         url = make_url(settings.DB_URL)
         if url.drivername.split("+")[0] != "postgresql":
             return await self._ingest_locations_sqlite(rows, det)

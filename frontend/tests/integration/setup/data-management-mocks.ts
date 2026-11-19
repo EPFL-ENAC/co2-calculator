@@ -430,7 +430,7 @@ export async function mockBackend(
     });
   });
 
-  // sync/units (Accred sync trigger)
+  // sync/units (units directory sync trigger)
   await page.route('**/api/v1/sync/units', async (route) => {
     if (overrides.onSyncUnits) {
       await overrides.onSyncUnits(route);

@@ -289,7 +289,7 @@ async function handleDialogCompleted() {
               {{ $t('data_management_reporting_year') }}
             </div>
             <!--
-              Issue #867 — the standalone "Sync units from Accred" button
+              Issue #867 — the standalone "Sync units" button
               was removed.  Year creation now auto-enqueues the unit_sync
               pipeline; the page subscribes to it via SSE and shows real
               progress / success / error notifications driven by the

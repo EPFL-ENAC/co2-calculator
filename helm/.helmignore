@@ -1,0 +1,7 @@
+# Not part of the published chart: the local cluster loop (with its example
+# Secrets and the example institution), the examples and the tooling.
+skaffold/
+skaffold.yaml
+examples/
+Makefile
+VALUES.md.gotmpl

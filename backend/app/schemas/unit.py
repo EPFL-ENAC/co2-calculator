@@ -10,9 +10,9 @@ class UnitWithUserRole(BaseModel):
 
     id: int = Field(..., description="DB ID")
     name: str = Field(
-        ..., min_length=1, max_length=255, description="Unit name like 'ENAC-IT4R'"
+        ..., min_length=1, max_length=255, description="Unit name like 'UNIT-IT'"
     )
-    institutional_id: str = Field(..., description="EPFL unit/unit ID")
+    institutional_id: str = Field(..., description="Institutional unit ID")
     current_user_role: str = Field(
         ..., description="Current user's role within this unit"
     )

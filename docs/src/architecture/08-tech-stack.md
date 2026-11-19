@@ -14,7 +14,7 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 - **Open Source**: GPL-3.0 license, EPFL owns the code
 - **Architecture**: Stateless web application (SPA + API), horizontally scalable
 - **Deployment**: [docker-compose](https://docs.docker.com/compose/) (local/dev), [Kubernetes](https://kubernetes.io/) / [Helm](https://helm.sh/) (production)
-- **Database**: [PostgreSQL](https://www.postgresql.org/) (production), [SQLite](https://www.sqlite.org/index.html) (development fallback)
+- **Database**: [PostgreSQL](https://www.postgresql.org/) (production), [SQLite](https://www.sqlite.org/index.html) (backend unit tests only)
 - **Authentication**: JWT-based RBAC, pluggable for OIDC/OAuth2
 
 ---
@@ -100,9 +100,12 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 ## Database Configuration
 
-### Development (Default)
+### Development
 
-SQLite with aiosqlite driver at `./co2_calculator.db`.
+The PostgreSQL service of Docker Compose (`make run-db`). `DB_URL` has no
+default, and the migrations need PostgreSQL. The backend unit tests use
+an in-memory SQLite database
+([ADR-004](../architecture-decision-records/004-database-selection.md)).
 
 ### Production (Recommended)
 
@@ -142,7 +145,7 @@ Helm chart in `helm/` with:
 - Frontend deployment (2+ replicas, HPA optional)
 - nginx-ingress controller (EPFL standard)
 - TLS via cert-manager
-- External PostgreSQL (recommended) or local SQLite (dev/testing)
+- External PostgreSQL
 
 **Security**: Non-root containers, read-only filesystems, no privilege escalation.
 

@@ -1,6 +1,6 @@
 """Regression tests for #89: cookie-authenticated writes must prove their origin.
 
-`SameSite=Lax` treats every `*.epfl.ch` sibling as same-site, so it cannot tell
+`SameSite=Lax` treats every `*.example.org` sibling as same-site, so it cannot tell
 our frontend from a compromised neighbour. `RequestOriginMiddleware` is what
 does. Each case below passes only because the middleware is in the stack.
 
@@ -19,7 +19,9 @@ from starlette.routing import Route
 from app.core.config import Settings
 from app.core.request_origin import RequestOriginMiddleware, build_allowed_origins
 
-ALLOWED = frozenset({"https://co2-calculator.epfl.ch", "https://second.epfl.ch"})
+ALLOWED = frozenset(
+    {"https://co2-calculator.example.org", "https://second.example.org"}
+)
 AUTH_COOKIES = {"auth_token": "irrelevant-the-middleware-never-decodes-it"}
 
 
@@ -74,7 +76,7 @@ def test_cross_site_fetch_site_is_rejected(client: TestClient) -> None:
 
 def test_matching_origin_passes(client: TestClient) -> None:
     response = client.post(
-        "/write", headers={"Origin": "https://co2-calculator.epfl.ch"}
+        "/write", headers={"Origin": "https://co2-calculator.example.org"}
     )
     assert response.status_code == 200
 
@@ -87,7 +89,7 @@ def test_foreign_origin_is_rejected(client: TestClient) -> None:
 def test_origin_suffix_lookalike_is_rejected(client: TestClient) -> None:
     """Guards the comparison against ever becoming a substring/startswith test."""
     response = client.post(
-        "/write", headers={"Origin": "https://co2-calculator.epfl.ch.evil.com"}
+        "/write", headers={"Origin": "https://co2-calculator.example.org.evil.com"}
     )
     assert response.status_code == 403
 
@@ -99,13 +101,13 @@ def test_opaque_null_origin_is_rejected(client: TestClient) -> None:
 
 
 def test_additional_origin_passes(client: TestClient) -> None:
-    response = client.post("/write", headers={"Origin": "https://second.epfl.ch"})
+    response = client.post("/write", headers={"Origin": "https://second.example.org"})
     assert response.status_code == 200
 
 
 def test_referer_is_used_when_origin_absent(client: TestClient) -> None:
     response = client.post(
-        "/write", headers={"Referer": "https://co2-calculator.epfl.ch/units/3"}
+        "/write", headers={"Referer": "https://co2-calculator.example.org/units/3"}
     )
     assert response.status_code == 200
 
@@ -155,8 +157,8 @@ def test_rejection_logs_a_single_capped_line(client: TestClient, caplog) -> None
 
 def test_allowlist_is_built_from_frontend_url() -> None:
     settings = Settings(
-        FRONTEND_URL="https://co2-calculator.epfl.ch",
-        CSRF_ADDITIONAL_ORIGINS=" https://second.epfl.ch , ",
+        FRONTEND_URL="https://co2-calculator.example.org",
+        CSRF_ADDITIONAL_ORIGINS=" https://second.example.org , ",
     )
     assert build_allowed_origins(settings) == ALLOWED
 
@@ -164,10 +166,10 @@ def test_allowlist_is_built_from_frontend_url() -> None:
 def test_allowlist_normalizes_default_ports_and_drops_junk() -> None:
     """`https://host:443` and `https://host` are the same origin to a browser."""
     settings = Settings(
-        FRONTEND_URL="https://co2-calculator.epfl.ch:443/app/",
+        FRONTEND_URL="https://co2-calculator.example.org:443/app/",
         CSRF_ADDITIONAL_ORIGINS="not-a-url,http://localhost:9000",
     )
     assert build_allowed_origins(settings) == {
-        "https://co2-calculator.epfl.ch",
+        "https://co2-calculator.example.org",
         "http://localhost:9000",
     }

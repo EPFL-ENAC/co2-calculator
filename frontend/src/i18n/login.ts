@@ -7,6 +7,11 @@ export default {
     en: 'CO₂ Calculator',
     fr: 'Calculateur de CO₂',
   },
+  // Shown by index.html, without the app, when /injectEnv.js did not load.
+  config_missing: {
+    en: 'The application could not load its configuration. Reload the page.',
+    fr: "L'application n'a pas pu charger sa configuration. Rechargez la page.",
+  },
   login_button_submit: {
     en: 'Login',
     fr: 'Se connecter',
@@ -20,8 +25,8 @@ export default {
     fr: 'Rôle de test',
   },
   login_accred_unavailable_message: {
-    en: 'EPFL Accred is unavailable. Please try again later.',
-    fr: 'EPFL Accred est indisponible. Veuillez réessayer plus tard.',
+    en: 'The access management service is unavailable. Please try again later.',
+    fr: 'Le service de gestion des accès est indisponible. Veuillez réessayer plus tard.',
   },
   session_expired_notice: {
     en: 'Your session has expired. Please log in again.',

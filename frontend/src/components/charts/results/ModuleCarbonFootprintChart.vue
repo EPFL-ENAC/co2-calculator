@@ -319,7 +319,7 @@ function updateScopeGraphics(
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 1',
-              font: '11px SuisseIntl',
+              font: '11px InstitutionFont',
             },
             silent: true,
           },
@@ -336,7 +336,7 @@ function updateScopeGraphics(
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 2',
-              font: '11px SuisseIntl',
+              font: '11px InstitutionFont',
             },
             silent: true,
           },
@@ -353,7 +353,7 @@ function updateScopeGraphics(
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 3',
-              font: '11px SuisseIntl',
+              font: '11px InstitutionFont',
             },
             silent: true,
           },
@@ -428,7 +428,7 @@ function updateScopeGraphics(
             style: {
               fill: '#000000',
               text: t('charts-additional-category'),
-              font: 'italic 11px SuisseIntl',
+              font: 'italic 11px InstitutionFont',
             },
             silent: true,
           },

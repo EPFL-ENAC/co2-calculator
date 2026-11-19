@@ -30,9 +30,10 @@ include:
       helm_chart_path: helm
       helm_chart_repository: ghcr.io/epfl-enac/co2-calculator/helm
       # Smoke-test the render. The chart only reads an existing Secret, so
-      # it needs a Secret name. Real deploys name the real Secret.
+      # it needs a Secret name, and it refuses to render without the
+      # institution volume (#3244). Real deploys name the real ones.
       helm_chart_render_args: |
-        --set backend.existingSecret.name=ci-existing-secret
+        --set backend.existingSecret.name=ci-existing-secret --set frontend.institutionAssets.volume.configMap.name=ci-institution
       # GIT_SHA: the frontend's APP_VERSION for GlitchTip and the backend's
       # GIT_SHA (#2436). Every image also uses it to re-run its `apk upgrade`
       # layer on each build.

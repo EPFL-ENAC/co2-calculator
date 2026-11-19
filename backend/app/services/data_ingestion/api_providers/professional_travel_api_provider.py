@@ -113,7 +113,7 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
                 if (not departure_date) or (departure_date.year != self.config["year"]):
                     continue
 
-                # SCIPER is optional (#1153): a traveler with no EPFL SCIPER
+                # SCIPER is optional (#1153): a traveler with no SCIPER
                 # still gets ingested, tagged with the external-traveler
                 # sentinel instead of being dropped.
                 sciper_raw = record.get("SCIPER")

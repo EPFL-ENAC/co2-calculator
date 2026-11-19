@@ -28,7 +28,7 @@ understand why certain choices were made.
 | [ADR-001](./001-python-package-manager.md) | Use uv for Python packages   | ✅ Accepted | 10-100x faster than pip, lock files       |
 | [ADR-002](./002-frontend-framework.md)     | Use Vue 3 + Quasar           | ✅ Accepted | Team expertise, rapid development         |
 | [ADR-003](./003-backend-framework.md)      | Use FastAPI                  | ✅ Accepted | Async-native, automatic docs, type safety |
-| [ADR-004](./004-database-selection.md)     | PostgreSQL + SQLite fallback | ✅ Accepted | ACID compliance, zero-config dev          |
+| [ADR-004](./004-database-selection.md)     | PostgreSQL, SQLite for tests | ✅ Accepted | ACID compliance, zero-config dev          |
 
 ### Security & Authorization
 

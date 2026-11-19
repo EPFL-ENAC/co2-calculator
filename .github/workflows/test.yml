@@ -158,6 +158,14 @@ jobs:
         # Vite is smart: if node_modules/.cache exists, this will be significantly faster
         run: npm run build
 
+      # The nginx job below runs Docker, which this container lacks.
+      - name: Upload the built app for the nginx test
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frontend-dist
+          path: ./frontend/dist/spa
+          retention-days: 1
+
       - name: Run frontend tests components
         run: npm run test-ct
 
@@ -168,3 +176,32 @@ jobs:
           flags: frontend
           directory: ./frontend
           fail_ci_if_error: false
+
+  # The compression and the headers of nginx.conf on the real nginx image:
+  # a wrong Content-Encoding breaks every page, and no other test sees it.
+  test-frontend-nginx:
+    name: Frontend nginx
+    needs: test-frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Download the built app
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: frontend-dist
+          path: ./frontend/dist/spa
+
+      - name: Compress as the image does
+        run: node build/precompress.mjs dist/spa
+
+      - name: Run the nginx test
+        run: sh docker/test-nginx.sh dist/spa

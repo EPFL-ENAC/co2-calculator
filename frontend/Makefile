@@ -88,6 +88,7 @@ audit: ## Run npm security audit
 type-check: ## Run TypeScript type checking
 	@set -e; \
 	node scripts/check-icon-strings.mjs; \
+	node scripts/check-theme-keys.mjs; \
 	npx vue-tsc --noEmit -p tsconfig.typecheck.json
 
 
@@ -132,6 +133,7 @@ serve: ## Serve the built SPA locally (requires `make localbuild` first)
 .PHONY: lighthouse
 lighthouse: localbuild ## Run Lighthouse audit locally (mirrors CI: builds SPA, injects bypass flag, audits 24 routes)
 	@set -e; \
+	node build/prepare-preview.mjs --env-local; \
 	node -e "const fs=require('fs'),p='dist/spa/index.html',h=fs.readFileSync(p,'utf8');fs.writeFileSync(p,h.replace('</head>','<script>window.__LIGHTHOUSE_BYPASS__=true;<\/script></head>'))"; \
 	npm install lighthouse-plugin-ecoindex-core --no-save; \
 	npx --yes lhci collect \

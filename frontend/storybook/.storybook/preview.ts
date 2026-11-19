@@ -3,7 +3,7 @@ import { setup } from '@storybook/vue3';
 import { createPinia, setActivePinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { Quasar, Dialog, Loading, Notify } from 'quasar';
+import { Quasar, Loading, Notify } from 'quasar';
 import svgMaterialIcons from 'quasar/icon-set/svg-material-icons.js';
 import {
   QHeader,
@@ -142,7 +142,6 @@ setup((app) => {
   app.use(Quasar, {
     iconSet: svgMaterialIcons,
     plugins: {
-      Dialog,
       Loading,
       Notify,
     },

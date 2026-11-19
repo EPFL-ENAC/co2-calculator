@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import epflLogo from '@/assets/epfl-logo.svg';
+import { INSTITUTION_LOGO_URL } from '@/constant/institutionAssets';
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
@@ -14,7 +14,7 @@ const { t } = useI18n();
 
 interface Props {
   mode?: 'test' | 'prod';
-  /** `?reason=` the backend redirected here with (e.g. Accred down). */
+  /** `?reason=` the backend redirected here with (e.g. roles provider down). */
   reason?: string | null;
 }
 
@@ -76,10 +76,14 @@ const buttonLabel = computed(() => {
       <!-- Logo + Title -->
       <div class="q-gutter-sm flex flex-center column">
         <q-img
-          :src="epflLogo"
+          :src="INSTITUTION_LOGO_URL"
           :alt="$t('login_logo_alt')"
           class="login__logo"
           width="125px"
+          loading="eager"
+          fetchpriority="high"
+          no-transition
+          no-spinner
         />
         <h2 class="text-weight-medium">{{ $t('login_title') }}</h2>
       </div>

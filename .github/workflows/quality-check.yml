@@ -12,6 +12,18 @@ on:
     branches: ["ci-test/**"]
 
 jobs:
+  # #3244: another institution runs the same images, so no EPFL, Accred or
+  # Entra value may be written in the code. Exceptions and their reasons are
+  # in scripts/institution-words-allowlist.txt.
+  institution-words:
+    name: No institution words in the code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check for EPFL, Accred and Entra
+        run: make check-institution-words
+
   frontent-quality:
     name: Frontent Lint/Type Check
     runs-on: ubuntu-latest

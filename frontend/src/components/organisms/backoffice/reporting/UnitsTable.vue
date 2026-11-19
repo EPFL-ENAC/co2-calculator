@@ -13,7 +13,7 @@ interface UnitReportingData {
   unit_name: string; // EN: Unit / FR: Unité
   affiliation: string; // Affiliation filter value
   validation_status: string; // e.g. "3/7"
-  principal_user: string; // Source: ACCRED
+  principal_user: string; // Source: the roles provider
   last_update: string; // Date of last validation
   highest_result_category: string; // Module name with max tCO₂-eq
   total_carbon_footprint: number; // (tCO₂-eq)

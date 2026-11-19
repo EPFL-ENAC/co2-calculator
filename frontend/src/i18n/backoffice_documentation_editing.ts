@@ -16,8 +16,8 @@ export default {
     fr: 'Mettre à jour les textes',
   },
   documentation_editing_translation_description_link_url: {
-    en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/translation-update/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/translation-update/',
+    en: '%backoffice_doc_url%translation-update/',
+    fr: '%backoffice_doc_url%translation-update/',
   },
   documentation_editing_translation_description_part_2: {
     en: '.',
@@ -36,8 +36,8 @@ export default {
     fr: 'Mettre à jour la documentation',
   },
   documentation_editing_documentation_description_link_url: {
-    en: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/doc-update/',
-    fr: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/doc-update/',
+    en: '%backoffice_doc_url%doc-update/',
+    fr: '%backoffice_doc_url%doc-update/',
   },
   documentation_editing_documentation_description_part_2: {
     en: '.',

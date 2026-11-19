@@ -34,8 +34,8 @@ export default {
     fr: '03 septembre 2026',
   },
   calculator_update_1_body: {
-    en: 'The CO₂ Calculator was updated on 3 September 2026 to reflect EPFL’s emissions based on the knowledge and data available at that time. Any updates to the data or emission factors, as new information becomes available, will be documented and communicated here.',
-    fr: 'Le calculateur a été mis à jour le 3 septembre 2026 afin de refléter les émissions de l’EPFL sur la base des connaissances et des données disponibles à cette date. Toute mise à jour des données ou des facteurs d’émission, à mesure que de nouvelles informations seront disponibles, sera consignée et communiquée ici.',
+    en: 'The CO₂ Calculator was updated on 3 September 2026 to reflect %institution%’s emissions based on the knowledge and data available at that time. Any updates to the data or emission factors, as new information becomes available, will be documented and communicated here.',
+    fr: 'Le calculateur a été mis à jour le 3 septembre 2026 afin de refléter les émissions %institution_fr_de% sur la base des connaissances et des données disponibles à cette date. Toute mise à jour des données ou des facteurs d’émission, à mesure que de nouvelles informations seront disponibles, sera consignée et communiquée ici.',
   },
   calculator_update_2_title: {
     en: '',

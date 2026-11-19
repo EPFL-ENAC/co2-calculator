@@ -55,7 +55,7 @@ test('a session payload hydrates the user', async ({ page, mount }) => {
     await route.fulfill({
       json: {
         ...ANONYMOUS_PAYLOAD,
-        user: { id: 7, email: 'someone@epfl.ch', roles_raw: [] },
+        user: { id: 7, email: 'someone@example.org', roles_raw: [] },
       },
     });
   });

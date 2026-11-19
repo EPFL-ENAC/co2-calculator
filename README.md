@@ -34,11 +34,11 @@ make help
 The repo contains several `.env.example` files. For local development only one
 needs editing:
 
-| File                  | Created by `make install`         | What to do                                                                                            |
-| --------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `backend/.env`        | ✅ (from `backend/.env.example`)  | **Required:** uncomment the `localhost` `DB_URL` line (PostgreSQL — SQLite cannot run the migrations) |
-| `.database.env`       | ✅ (from `.database.env.example`) | Nothing — credentials for the Dockerized PostgreSQL, already matching the `DB_URL` above              |
-| `frontend/.env.local` | ❌ (copy `frontend/.env.example`) | Optional — only needed for Sentry/GlitchTip and other `APP_*` extras; the app runs fine without it    |
+| File                  | Created by `make install`         | What to do                                                                                           |
+| --------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `backend/.env`        | ✅ (from `backend/.env.example`)  | Nothing for a local run: `DB_URL` and `FRONTEND_URL` are required and the example gives local values |
+| `.database.env`       | ✅ (from `.database.env.example`) | Nothing — credentials for the Dockerized PostgreSQL, already matching the `DB_URL` above             |
+| `frontend/.env.local` | ❌ (copy `frontend/.env.example`) | Optional — only needed for Sentry/GlitchTip and other `APP_*` extras; the app runs fine without it   |
 
 Keep the defaults from `backend/.env.example` — in particular `DEBUG=True`,
 which enables the test login used below. No OAuth/OIDC or Accred credentials
