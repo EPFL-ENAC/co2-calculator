@@ -173,7 +173,9 @@ Scopes determine which **data records** a user can see:
 
 - **Global** — see everything (super admin, backoffice metier).
 - **Unit** — see records for assigned units (principals).
-- **Own** — see only records the user created (standard users).
+- **Own** — standard users. In professional travel, they see the trips
+  where they are the traveler (`user_institutional_id`). In external
+  cloud and AI, they see every row of the unit, by design.
 
 `get_data_filters()` translates the scope into structured filters:
 
@@ -344,7 +346,8 @@ The `authz/resource/access` policy implements:
 1. **API trips are read-only** — cannot be edited by anyone (`provider == "api"`).
 2. **Super admin** — can edit all non-API trips (global scope).
 3. **Principals** — can edit manual/CSV trips in their assigned units.
-4. **Standard users** — can edit only their own manual trips.
+4. **Standard users** — can edit only the manual trips where they are
+   the traveler.
 
 ```python
 decision = await query_policy("authz/resource/access", {
