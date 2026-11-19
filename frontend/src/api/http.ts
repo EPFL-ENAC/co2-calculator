@@ -21,6 +21,19 @@ export const API_ME_URL = 'session';
 export const API_LOGOUT_URL = 'session';
 export const loginPageName = '/en/login';
 
+// The backend's 503 detail when it cannot reach the database (#3218).
+const DB_UNAVAILABLE_DETAIL = 'database_unavailable';
+
+/** The JSON `detail` of an error response, or undefined for a non-JSON body. */
+async function readDetail(res: Response): Promise<unknown> {
+  try {
+    const body = (await res.clone().json()) as { detail?: unknown };
+    return body.detail;
+  } catch {
+    return undefined;
+  }
+}
+
 const isSessionCheck = (u: string, m: string) =>
   /\/session(?:\?.*)?$/.test(u) && m.toUpperCase() === 'GET';
 
@@ -195,6 +208,20 @@ export const api = ky.create({
             ? `/unauthorized?${queryString}`
             : '/unauthorized';
           location.replace(redirectUrl);
+        } else if (
+          res.status === 503 &&
+          (await readDetail(res)) === DB_UNAVAILABLE_DETAIL
+        ) {
+          // A database outage, not a bug (#3218): the DbServerUnreachable
+          // alert covers it, so no GlitchTip event. The caller still gets
+          // the HTTPError: nothing here resets the form that sent it.
+          Notify.create({
+            color: 'warning',
+            message: i18n.global.t('database_unavailable_notice'),
+            position: 'top',
+            timeout: 10000,
+            actions: [{ icon: matClose, color: 'white' }],
+          });
         } else if (!res.ok) {
           // Capture 5xx in GlitchTip. 4xx is usually client/business-logic
           // (validation, "not found", etc.) and not worth exception noise;

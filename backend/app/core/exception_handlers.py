@@ -17,6 +17,11 @@ from app.db import explain_db_wait
 
 logger = get_logger(__name__)
 
+# The frontend keys its "service unavailable, retry" message on this code.
+DB_UNAVAILABLE_DETAIL = "database_unavailable"
+# PgBouncer's default server_login_retry is 15 s: 30 s spans two attempts.
+DB_UNAVAILABLE_RETRY_AFTER_S = "30"
+
 
 async def permission_denied_handler(
     request: Request,
@@ -111,10 +116,13 @@ async def db_unavailable_handler(request: Request, exc: Exception) -> JSONRespon
         )
     if not unavailable:
         raise exc
+    # One line, no traceback: an outage is not a code path to debug, and
+    # handle_error has already logged which layer ran out (explain_db_wait).
     logger.error(
-        "Database unavailable, answering 503",
-        exc_info=exc,
+        "Database unavailable, answering 503: %s",
+        exc,
         extra={
+            "event": "db_unavailable",
             "exception_type": type(exc).__name__,
             "path": request.url.path,
             "method": request.method,
@@ -122,5 +130,6 @@ async def db_unavailable_handler(request: Request, exc: Exception) -> JSONRespon
     )
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={"detail": "Database temporarily unavailable"},
+        content={"detail": DB_UNAVAILABLE_DETAIL},
+        headers={"Retry-After": DB_UNAVAILABLE_RETRY_AFTER_S},
     )
