@@ -595,4 +595,16 @@ export default {
     en: 'No matching options',
     fr: 'Aucune option correspondante',
   },
+  session_unavailable_title: {
+    en: 'The CO₂ Calculator cannot be reached',
+    fr: 'Le Calculateur CO₂ est injoignable',
+  },
+  session_unavailable_message: {
+    en: 'Your session could not be checked. You have not been signed out: try again in a moment.',
+    fr: "Votre session n'a pas pu être vérifiée. Vous n'avez pas été déconnecté·e : réessayez dans un instant.",
+  },
+  session_unavailable_retry: {
+    en: 'Try again',
+    fr: 'Réessayer',
+  },
 };

@@ -1,6 +1,6 @@
 ---
 status: delivered
-last_updated: 2026-09-25
+last_updated: 2026-11-10
 summary: "One httponly session cookie renewed server-side at half-life with a hard cap from the OIDC auth_time claim replaces the access + refresh pair; the client never refreshes and GET /session answers 200 with user null when anonymous."
 ---
 
@@ -96,3 +96,14 @@ required anyway; the stale `refresh_token` expires within 24 h. An old
 frontend bundle left open reads the anonymous 200 as "no user" and shows
 the login page; its refresh attempt on an expired cookie meets a 405 and
 ends on the login page too.
+
+## Amendment (2026-11-10, #2983)
+
+Renewal moved out of `get_current_user` into `GET /v1/session` alone,
+and the SPA's router guard calls that route again once its last check is
+over an hour old. Renewing on every request wrote one audit row and
+queued one role sync per parallel call, and a data call answered after
+logout re-set the cookie. The cost: a tab that stays on one page for a
+whole half-life (24 h) with no navigation is not renewed and meets the
+session-expired redirect at `exp`. Details in
+[plan 2983](../implementation-plans/2983-session-cookie-followups.md).

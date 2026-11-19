@@ -17,8 +17,8 @@ Trust boundaries (see plan
 3. cookie -> backend: ``decode_jwt`` validates signature, algorithm and
    ``exp``. Any identity in an ``auth_token`` cookie is trusted only after
    that check passes AND the JWT ``type`` is ``access``. The cookie is
-   renewed server-side in ``get_optional_user`` once past half its idle
-   window (#2943); there is no refresh endpoint and no refresh cookie.
+   renewed server-side by ``GET /session`` once past half its idle window
+   (#2943, #2983); there is no refresh endpoint and no refresh cookie.
 
 The ``/v1/session`` resource is GET (bootstrap, 200 with ``user: null``
 when anonymous) and DELETE (logout). The IdP-touching routes stayed at
@@ -39,6 +39,7 @@ from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Cookie,
     Depends,
     HTTPException,
@@ -57,7 +58,9 @@ from app.core.security import (
     SESSION_COOKIE,
     decode_jwt,
     get_optional_user,
+    get_session_claims,
     issue_session_cookie,
+    renew_session_if_due,
 )
 from app.models.audit import AuditChangeTypeEnum
 from app.models.user import RoleName, User, UserProvider
@@ -520,7 +523,10 @@ if settings.DEBUG:
 @session_router.get("", response_model=SessionRead, response_model_exclude_none=True)
 async def get_session(
     request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
     user: User | None = Depends(get_optional_user),
+    claims: dict | None = Depends(get_session_claims),
     db: AsyncSession = Depends(get_db),
 ) -> SessionRead:
     """Return the session bootstrap payload (whoami + workspace context).
@@ -534,6 +540,10 @@ async def get_session(
     Beyond the user, the response bundles the units the caller can access and
     the globally-configured years, so the frontend hydrates its whole auth/
     workspace context in a single request instead of three.
+
+    This is the one route that renews the cookie (#2983), and it does so
+    last: a request that fails before that line carries no cookie and
+    queues no audit row.
     """
     # scope["client"], not the X-Forwarded-For header: uvicorn resolves it
     # against FORWARDED_ALLOW_IPS by walking the chain from the right, so a
@@ -557,13 +567,17 @@ async def get_session(
     # explicitly (the /users/units route relies on FastAPI's response_model
     # coercion, which isn't in play when we build SessionRead ourselves).
     unit_rows = await UnitService(db).get_user_units(user)
-    return SessionRead(
+    session = SessionRead(
         user=UserRead.model_validate(user),
         units=[UnitWithUserRole.model_validate(row) for row in unit_rows],
         configured_years=await list_configured_years(db, user),
         min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
         client_ip=client_ip,
     )
+    if claims is None:
+        raise ValueError("A session user without session claims")
+    renew_session_if_due(claims, user, request, response, background_tasks)
+    return session
 
 
 @session_router.delete("")

@@ -10,15 +10,17 @@ export async function authGuard(to: RouteLocationNormalized) {
 
   const auth = useAuthStore();
 
-  // Load user (+ units + configured years) if needed, in a single bootstrap call.
-  if (!auth.hasChecked && !auth.loading) {
+  // Load user (+ units + configured years) in one call, and again once the
+  // last check is old: that call is also what renews the cookie (#2983).
+  if (auth.sessionCheckDue() && !auth.loading) {
     try {
       await auth.bootstrap();
-    } catch (e) {
-      console.error('Failed to load user:', e);
-      // No need to do anything else: the guard logic below will redirect if needed
+    } catch (e: unknown) {
+      console.error('Failed to load session:', e);
     }
   }
+  // Not "logged out": App.vue shows the retry notice (#2983).
+  if (auth.sessionUnavailable) return false;
   const redirectTo = { params: to.params };
 
   // Requires auth?
