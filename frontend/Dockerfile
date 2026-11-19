@@ -37,10 +37,16 @@ COPY . .
 # the bundle as APP_VERSION via quasar.config.js build.env.
 RUN npm run build
 
+# Write the .gz and .br files that nginx sends as they are (see nginx.conf),
+# so the pod does not compress each response. Here because the pod root is
+# read-only.
+RUN node build/precompress.mjs dist/spa
+
 # ==============================================================================
 # Production Stage: Serve with unprivileged Nginx
 # ==============================================================================
-FROM nginxinc/nginx-unprivileged:stable-alpine-slim
+# nginx/, not nginxinc/: the image moved, and nginxinc/ stops at 1.30.6.
+FROM nginx/nginx-unprivileged:stable-alpine-slim
 
 # The alpine base lags Alpine's package repo and Trivy blocks the deploy on
 # every HIGH it finds there: take every fixed package at build time (#3000).
@@ -58,11 +64,15 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Runtime env injection. The base image's stock entrypoint runs every
-# /docker-entrypoint.d/*.sh before exec'ing nginx. Numbered 40 to land after
-# the base image's own 10–30 init scripts. See docker/entrypoint.sh for what
-# it writes and why.
-COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-inject-env.sh
+# Values, institution assets and theme, written at startup. The base image's
+# stock entrypoint runs every /docker-entrypoint.d/*.sh before exec'ing nginx.
+# Numbered 40 to land after the base image's own 10–30 init scripts. A failure
+# stops the container. See docker/entrypoint.sh for what it writes and why.
+COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-entrypoint.sh
+# Neutral logo, icons, illustration and Geist fonts. The mounted folder
+# replaces any of them, so a deployment works without its own files.
+COPY institution-default /usr/local/share/institution/default
+ENV INSTITUTION_DEFAULT_DIR=/usr/local/share/institution/default
 
 # Copy built static files. (Source maps are not generated — see
 # `sourcemap: false` in quasar.config.js for the reason.)

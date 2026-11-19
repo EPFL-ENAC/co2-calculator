@@ -4,8 +4,10 @@ import asyncio
 import ipaddress
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 import httpx
+from enacit4r_files.services.s3 import S3FilesStore
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
@@ -18,6 +20,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.internal import router as internal_router
 from app.api.router import api_router
+from app.api.v1 import files
 from app.core.config import RoleProviderType, UnitProviderType, get_settings
 from app.core.exception_handlers import (
     db_unavailable_handler,
@@ -130,6 +133,21 @@ def _trusts_every_address(entry: str) -> bool:
         return False
 
 
+def assert_frontend_url(settings) -> None:
+    """Require an absolute http(s) FRONTEND_URL at boot.
+
+    The OAuth redirects and the allowed origin of the CSRF check read it. A
+    value without a scheme boots, then every write returns 403. Checked here,
+    not in Settings, so alembic and the scripts do not need it.
+    """
+    url = urlsplit(settings.FRONTEND_URL)
+    if url.scheme in ("http", "https") and url.netloc:
+        return
+    raise RuntimeError(
+        f"FRONTEND_URL must be an absolute http(s) URL, got {settings.FRONTEND_URL!r}"
+    )
+
+
 def assert_accred_settings(settings) -> None:
     """Require Accred credentials at boot whenever a provider selects Accred.
 
@@ -166,8 +184,6 @@ def assert_poller_isolation(settings) -> None:
     failed with "source no longer exists" while the file sat untouched in S3.
     """
     if not settings.LOCAL_ENVIRONMENT or not settings.RUN_BACKGROUND_POLLER:
-        return
-    if settings.DB_URL is None:
         return
     host = make_url(settings.DB_URL).host
     if host in _LOCAL_DB_HOSTS:
@@ -208,6 +224,7 @@ def assert_trace_sampler() -> None:
 async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_security_settings(settings)
+    assert_frontend_url(settings)
     assert_proxy_trust_settings()
     assert_accred_settings(settings)
     assert_poller_isolation(settings)
@@ -318,6 +335,10 @@ async def lifespan(app: FastAPI):
     in_flight = await cancel_background_tasks()
     if in_flight:
         logger.info("Handed back %s in-flight job(s)", in_flight)
+    # The shared S3 client lives for the process; close it so aiohttp
+    # does not report an unclosed session at exit.
+    if isinstance(files.files_store, S3FilesStore):
+        await files.files_store.s3_service.close()
     reconciler_task = getattr(app.state, "pipeline_reconciler_task", None)
     if reconciler_task:
         logger.info("Cancelling pipeline reconciler")
@@ -413,7 +434,7 @@ app = FastAPI(
     * **Permission-Based Authorization** - Fine-grained access control with
       calculated permissions
     * **OPA Policies** - Policy-based resource filtering and access control
-    * **Multi-tenancy** - Support for multiple EPFL units with scope-based
+    * **Multi-tenancy** - Support for multiple organizational units with scope-based
       data filtering
     * **RESTful API** - Clean and consistent API design
 
@@ -655,8 +676,8 @@ async def ready():
     Used by Kubernetes readinessProbe.
 
     External provider health (Accred) lives in /health/deps (#2050 A1):
-    it must never gate readiness — a blip there is EPFL's incident, not
-    ours.
+    it must never gate readiness — a blip there is the provider's incident,
+    not ours.
     """
     state = _fresh_db_state()
     verdict = _readiness(state)
@@ -705,7 +726,8 @@ async def health_deps():
     """Operator-facing external-dependency health (Accred).
 
     Not a Kubernetes probe target — Accred availability must never gate
-    pod readiness (#2050 A1); a blip there is EPFL's incident, not ours.
+    pod readiness (#2050 A1); a blip there is the provider's incident, not
+    ours.
     This reports the same signal for humans/monitoring instead, via a
     real status code (503 on failure) so alerting can key off it directly
     instead of parsing the body — safe here specifically because nothing

@@ -49,6 +49,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from enacit4r_files.services.local import LocalFilesStore
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -278,7 +279,7 @@ def _stage_csv_under_files_store(
     fixture_path: Path,
 ) -> str:
     """Copy a trimmed fixture CSV into ``<tmp_path>/tmp/`` and patch the
-    settings so ``LocalFilesStore`` resolves relative paths against
+    shared ``files_store`` with a ``LocalFilesStore`` rooted at
     ``tmp_path``.
 
     Returns the relative path (e.g. ``"tmp/travel_planes_smoke.csv"``)
@@ -295,6 +296,9 @@ def _stage_csv_under_files_store(
     """
     settings = get_settings()
     monkeypatch.setattr(settings, "FILES_STORAGE_PATH", str(tmp_path))
+    # Providers read the process-wide store, built at import time from the
+    # old path; swap it for one rooted at tmp_path (restored on teardown).
+    monkeypatch.setattr("app.api.v1.files.files_store", LocalFilesStore(str(tmp_path)))
     monkeypatch.setattr(settings, "FILES_ENCRYPTION_KEY", "")
     monkeypatch.setattr(settings, "FILES_ENCRYPTION_SALT", "")
 

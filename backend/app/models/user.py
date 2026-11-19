@@ -366,7 +366,7 @@ class User(UserBase, table=True):
     institutional_id: str = Field(
         unique=True,
         index=True,
-        description="Provider-assigned user code (SCIPER for EPFL)",
+        description="Provider-assigned user code (for example a SCIPER)",
     )
     provider: UserProvider = Field(
         default=UserProvider.DEFAULT.value,

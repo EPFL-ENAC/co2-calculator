@@ -15,9 +15,14 @@ RUN cd storybook && npm ci --ignore-scripts
 
 # Copy source code (be selective to avoid copying node_modules)
 COPY src/ ./src/
-COPY public/ ./public/
 COPY storybook/ ./storybook/
 COPY index.html tsconfig.json quasar.config.js quasar.extensions.json ./
+# The Storybook build writes injectEnv.js, theme.css and the institution
+# folder with the container script, from the example institution (#3244).
+COPY build/ ./build/
+COPY docker/ ./docker/
+COPY institution-default/ ./institution-default/
+COPY institution-example/ ./institution-example/
 
 # Prepare Quasar (generates .quasar/)
 RUN npx quasar prepare
@@ -28,7 +33,7 @@ RUN cd storybook && npm run build
 # ==============================================================================
 # Production Stage: Serve the built Storybook site with Nginx
 # ==============================================================================
-FROM nginxinc/nginx-unprivileged:stable-alpine-slim
+FROM nginx/nginx-unprivileged:stable-alpine-slim
 
 # Install wget for healthcheck. The base runs as uid 101 (nginx), apk needs root.
 USER root

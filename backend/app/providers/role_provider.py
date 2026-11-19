@@ -1,7 +1,7 @@
 """Role provider plugin system for flexible role management.
 
 This module provides an abstract base class and implementations for fetching
-user roles from different sources (JWT claims, EPFL Accred API, etc.).
+user roles from different sources (JWT claims, Accred API, etc.).
 """
 
 from abc import ABC, abstractmethod
@@ -434,9 +434,9 @@ class TestRoleProvider(RoleProvider):
 
 
 class AccredRoleProvider(RoleProvider):
-    """Accred role provider that fetches roles from EPFL Accred API.
+    """Accred role provider that fetches roles from Accred API.
 
-    Calls the EPFL Accred authorizations endpoint to fetch user authorizations
+    Calls the Accred authorizations endpoint to fetch user authorizations
     and maps them to CO2 application roles based on:
     - authorization.name matching a ``RoleName`` value (all share
       ``ROLE_NAME_PREFIX``, currently "calco2.")
@@ -495,7 +495,7 @@ class AccredRoleProvider(RoleProvider):
         return str(user_id)
 
     async def get_roles(self, userinfo: dict[str, Any]) -> list[Role]:
-        """Fetch roles from EPFL Accred API.
+        """Fetch roles from Accred API.
 
         Args:
             userinfo: OAuth userinfo dict (not used in accred provider)
@@ -512,7 +512,7 @@ class AccredRoleProvider(RoleProvider):
             return []
 
     async def get_user_by_user_id(self, user_id: str) -> dict[str, Any]:
-        """Fetch user info from EPFL Accred API.
+        """Fetch user info from Accred API.
 
         Args:
             user_id: User ID to query
@@ -522,7 +522,7 @@ class AccredRoleProvider(RoleProvider):
         api_url, api_username, api_key = self._require_credentials(user_id)
 
         try:
-            # Call EPFL Accred user endpoint
+            # Call Accred user endpoint
             # /v1/accreds?persid=352707&onlymainaccred=true
             # /v1/persons/101116
             url = f"{api_url}/persons/{user_id}"
@@ -586,7 +586,7 @@ class AccredRoleProvider(RoleProvider):
         )
 
     async def get_roles_by_user_id(self, user_id: str) -> list[Role]:
-        """Fetch roles from EPFL Accred API.
+        """Fetch roles from Accred API.
 
         Args:
             user_id: User ID to query authorizations
@@ -596,7 +596,7 @@ class AccredRoleProvider(RoleProvider):
         api_url, api_username, api_key = self._require_credentials(user_id)
 
         try:
-            # Call EPFL Accred authorizations endpoint
+            # Call Accred authorizations endpoint
             url = f"{api_url}/authorizations"
             params: dict[str, str | int] = {
                 "persid": user_id,
@@ -757,7 +757,7 @@ def get_role_provider(
             logger.info("Using JwtClaimsRoleProvider (JWT claims)")
             return JwtClaimsRoleProvider()
         case RoleProviderType.ACCRED | UserProvider.ACCRED:
-            logger.info("Using AccredRoleProvider (EPFL Accred API)")
+            logger.info("Using AccredRoleProvider (Accred API)")
             return AccredRoleProvider()
         case RoleProviderType.TEST | UserProvider.TEST:
             logger.info("Using TestRoleProvider (for testing)")

@@ -51,7 +51,7 @@ def _accred_client_answering(status_code: int) -> AsyncMock:
     mock_client = AsyncMock()
     mock_client.__aenter__.return_value = mock_client
     mock_client.get.return_value = httpx.Response(
-        status_code, request=httpx.Request("GET", "https://api.epfl.ch/v1/x")
+        status_code, request=httpx.Request("GET", "https://api.example.org/v1/x")
     )
     return mock_client
 
@@ -60,7 +60,7 @@ def _accred_client_answering(status_code: int) -> AsyncMock:
 def mock_settings():
     """Fixture providing mock settings."""
     settings = Mock()
-    settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
+    settings.ACCRED_API_BASE_URL = "https://api.example.org"
     settings.ACCRED_API_USERNAME = "test_user"
     settings.ACCRED_API_KEY = "test_key"
     settings.ROLE_PROVIDER_TYPE = RoleProviderType.JWT
@@ -77,7 +77,7 @@ def mock_logger():
 def sample_userinfo() -> dict[str, Any]:
     """Fixture providing sample userinfo dict."""
     return {
-        "email": "user@epfl.ch",
+        "email": "user@example.org",
         "user_id": 352707,
         "roles": [
             f"{RoleName.CO2_USER_STD.value}@unit:12345",
@@ -120,7 +120,7 @@ class TestJwtClaimsRoleProvider:
     async def test_parse_roles_with_global_scope(self):
         """Test parsing roles with global scope."""
         userinfo = {
-            "email": "admin@epfl.ch",
+            "email": "admin@example.org",
             "roles": [f"{RoleName.CO2_SUPERADMIN.value}@global"],
         }
         provider = JwtClaimsRoleProvider()
@@ -132,7 +132,7 @@ class TestJwtClaimsRoleProvider:
     @pytest.mark.asyncio
     async def test_parse_roles_no_roles_in_jwt(self):
         """Test handling of missing roles in JWT."""
-        userinfo = {"email": "user@epfl.ch"}
+        userinfo = {"email": "user@example.org"}
         provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
@@ -141,7 +141,7 @@ class TestJwtClaimsRoleProvider:
     @pytest.mark.asyncio
     async def test_parse_roles_empty_roles_list(self):
         """Test handling of empty roles list."""
-        userinfo = {"email": "user@epfl.ch", "roles": []}
+        userinfo = {"email": "user@example.org", "roles": []}
         provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
@@ -151,7 +151,7 @@ class TestJwtClaimsRoleProvider:
     async def test_skip_non_string_role(self):
         """Test that non-string roles are skipped."""
         userinfo = {
-            "email": "user@epfl.ch",
+            "email": "user@example.org",
             "roles": [
                 123,  # Invalid: not a string
                 f"{RoleName.CO2_USER_STD.value}@unit:12345",
@@ -169,7 +169,7 @@ class TestJwtClaimsRoleProvider:
     async def test_skip_role_without_scope(self):
         """Test that roles without @ scope are skipped."""
         userinfo = {
-            "email": "user@epfl.ch",
+            "email": "user@example.org",
             "roles": [
                 f"{RoleName.CO2_USER_STD.value}",  # Invalid: no @
                 f"{RoleName.CO2_USER_STD.value}@unit:12345",
@@ -187,7 +187,7 @@ class TestJwtClaimsRoleProvider:
     async def test_skip_role_with_invalid_scope_format(self):
         """Test that roles with invalid scope format are skipped."""
         userinfo = {
-            "email": "user@epfl.ch",
+            "email": "user@example.org",
             "roles": [
                 f"{RoleName.CO2_USER_STD.value}@invalid",  # Invalid: no colon in scope
                 f"{RoleName.CO2_USER_STD.value}@unit:12345",
@@ -205,7 +205,7 @@ class TestJwtClaimsRoleProvider:
     async def test_parse_role_with_whitespace(self):
         """Test that whitespace in roles is trimmed."""
         userinfo = {
-            "email": "user@epfl.ch",
+            "email": "user@example.org",
             "roles": [f" {RoleName.CO2_USER_STD.value} @ unit : 12345 "],
         }
         provider = JwtClaimsRoleProvider()
@@ -220,7 +220,7 @@ class TestJwtClaimsRoleProvider:
     async def test_parse_multiple_roles_with_different_units(self):
         """Test parsing multiple roles with different unit scopes."""
         userinfo = {
-            "email": "user@epfl.ch",
+            "email": "user@example.org",
             "roles": [
                 f"{RoleName.CO2_USER_STD.value}@unit:12345",
                 f"{RoleName.CO2_USER_PRINCIPAL.value}@unit:67890",
@@ -250,7 +250,7 @@ class TestAccredRoleProvider:
     def accred_provider(self):
         """Fixture providing an AccredRoleProvider instance."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
+            mock_settings.ACCRED_API_BASE_URL = "https://api.example.org"
             mock_settings.ACCRED_API_USERNAME = "test_user"
             mock_settings.ACCRED_API_KEY = "test_key"
             provider = AccredRoleProvider()
@@ -695,7 +695,7 @@ class TestAccredRoleProvider:
         counter = _RecordingCounter()
         monkeypatch.setattr(role_provider_module, "_accred_request_failures", counter)
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
+            mock_settings.ACCRED_API_BASE_URL = "https://api.example.org"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = None
             provider = AccredRoleProvider()
@@ -817,7 +817,7 @@ class TestGetRoleProvider:
         """Test that AccredRoleProvider is returned for 'accred' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
             mock_settings.ROLE_PROVIDER_TYPE = RoleProviderType.ACCRED
-            mock_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
+            mock_settings.ACCRED_API_BASE_URL = "https://api.example.org"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
 

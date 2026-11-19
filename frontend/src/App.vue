@@ -5,9 +5,15 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { runtimeConfig } from '@/config/runtime';
 import DemoInstanceNotice from '@/pages/DemoInstanceNotice.vue';
 import { dismissDemoNotice, isDemoNoticeDismissed } from '@/utils/demoMode';
+
+const { t } = useI18n();
+// The tab title names the institution, so it is set at runtime (#3244).
+// setLanguageCookieGuard sets it again when the language changes.
+document.title = t('app_document_title');
 
 const showDemoNotice = ref(runtimeConfig.demoMode && !isDemoNoticeDismissed());
 

@@ -70,7 +70,7 @@ Why we don't drive the real ``ModulePerYearCSVProvider`` end-to-end
 ==================================================================
 
 ``BaseCSVProvider.process_csv_in_batches`` reaches the file via
-``app.api.v1.files.make_files_store`` and ``_validate_file_path``,
+``app.api.v1.files.files_store`` and ``_validate_file_path``,
 which reject absolute paths and require the ``files_store`` itself —
 machinery the unit suite covers exhaustively in
 ``backend/tests/unit/services/data_ingestion/test_module_per_year_csv_
@@ -589,14 +589,14 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
         s.add_all(
             [
                 BuildingRoom(
-                    building_location="EPFL",
+                    building_location="UNIV",
                     building_name="BC",
                     room_name="BC-150",
                     room_type="office",
                     room_surface_square_meter=50.0,
                 ),
                 BuildingRoom(
-                    building_location="EPFL",
+                    building_location="UNIV",
                     building_name="AAB",
                     room_name="AAB-010",
                     room_type="office",
@@ -870,8 +870,8 @@ async def test_building_rooms_csv_ingest_drives_chain(pg_dsn):
 # ── 8. building/rooms CSV unknown-room rejection (#2253) ───────────────
 
 
-def _make_fake_files_store_factory(csv_bytes: bytes):
-    """``make_files_store`` replacement returning an in-memory fake, so the
+def _make_fake_files_store(csv_bytes: bytes):
+    """In-memory fake for ``app.api.v1.files.files_store``, so the
     real provider parses ``csv_bytes`` without touching disk.  Same shape as
     ``test_csv_ingest_matrix_pg.py``'s helper — the rooms DET is not in that
     matrix (its formula needs the ``BuildingRoom`` ref-data lookup), which is
@@ -881,11 +881,7 @@ def _make_fake_files_store_factory(csv_bytes: bytes):
     fake.move_file = AsyncMock(return_value=True)
     fake.get_file = AsyncMock(return_value=(csv_bytes, "text/csv"))
     fake.file_exists = AsyncMock(return_value=True)
-
-    def _factory():
-        return fake
-
-    return _factory
+    return fake
 
 
 @pytest.mark.asyncio
@@ -925,8 +921,8 @@ async def test_building_rooms_csv_unknown_room_is_rejected_as_row_error(pg_dsn):
     ).encode("utf-8")
 
     with patch(
-        "app.services.data_ingestion.base_csv_provider.make_files_store",
-        side_effect=_make_fake_files_store_factory(csv_bytes),
+        "app.api.v1.files.files_store",
+        new=_make_fake_files_store(csv_bytes),
     ):
         parent, _ = await dispatch_csv_and_wait(
             session_factory=Sf,

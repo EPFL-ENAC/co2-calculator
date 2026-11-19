@@ -52,3 +52,6 @@ yarn-error.log*
 /storybook-static/
 /storybook/storybook-static/
 .lighthouseci/
+
+# Institution files written for the component tests (playwright-ct.config.ts)
+/playwright/.institution

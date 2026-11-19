@@ -54,22 +54,39 @@ lint-examples: ## Fail if an example Secret lacks a key the pods read
 	[ -z "$$short" ] || { echo "❌ skaffold/templates/secrets.yaml has values under 32 characters:" $$short; exit 1; }; \
 	echo "✅ the Skaffold signing and encryption values have 32 characters or more"
 
+# What the chart refuses to render without: the backend Secret name and the
+# institution volume (#3244). For the checks that render the chart defaults.
+REQUIRED = --set backend.existingSecret.name=x --set frontend.institutionAssets.volume.configMap.name=x
+
 # Regression check: "/api/v1" made every API call 404, because FastAPI
 # strips the API_DOCS_PREFIX root path before it routes.
 .PHONY: check-api-version
 check-api-version: ## Fail unless the backend renders API_VERSION=/v1
 	@# Chart defaults, not examples/values.yaml: the example sets API_VERSION
 	@# itself for the older published chart, and would hide a reverted default.
-	@helm template . --set backend.existingSecret.name=x -s templates/backend-deployment.yaml \
+	@helm template . $(REQUIRED) -s templates/backend-deployment.yaml \
 		| grep -A1 'name: API_VERSION' | grep -q 'value: "/v1"' \
 		|| { echo "❌ API_VERSION is not /v1: every /api/v1 call would 404"; exit 1; }
 	@echo "✅ API_VERSION renders as /v1"
+
+# Regression check: the chart gave each empty frontend.env default to the
+# pod, and an empty variable wins over values.env of the institution folder:
+# the frontend stopped with "APP_INSTITUTION_NAME is required and empty".
+.PHONY: check-frontend-env
+check-frontend-env: ## Fail if the frontend gets an empty env value, or loses a set one
+	@out=$$(helm template . $(REQUIRED) --set frontend.env.APP_CONTACT_EMAIL=a@example.org \
+		-s templates/frontend-deployment.yaml) || exit 1; \
+	echo "$$out" | grep -q 'value: ""' \
+		&& { echo "❌ the frontend gets an empty env value: it erases values.env"; exit 1; }; \
+	echo "$$out" | grep -A1 'name: APP_CONTACT_EMAIL$$' | grep -q 'value: "a@example.org"' \
+		|| { echo "❌ the frontend lacks a frontend.env value that is set"; exit 1; }
+	@echo "✅ the frontend gets only the frontend.env values that are set"
 
 # Regression check: the worker read worker.env only, so every deployment
 # copied backend.env into it by hand and the copies drifted.
 .PHONY: check-worker-env
 check-worker-env: ## Fail unless the worker gets backend.env under worker.env, keeps the reconciler, no duplicate name
-	@out=$$(helm template . --set backend.existingSecret.name=x --set worker.enabled=true \
+	@out=$$(helm template . $(REQUIRED) --set worker.enabled=true \
 		--set backend.env.CHECK_ONLY_BACKEND=b --set backend.env.CHECK_SHARED=b \
 		--set worker.env.CHECK_SHARED=w --set backend.env.RUN_PIPELINE_RECONCILER=false \
 		-s templates/backend-worker-deployment.yaml) || exit 1; \
@@ -112,7 +129,7 @@ lint-docs: ## Fail if VALUES.md is older than values.yaml
 ## 🧪 Combined linting
 ## -------------------------------
 .PHONY: lint
-lint: lint-helm lint-examples check-api-version check-worker-env lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker env, VALUES.md)
+lint: lint-helm lint-examples check-api-version check-worker-env check-frontend-env lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker and frontend env, VALUES.md)
 	@echo "🧭 All lint checks passed!"
 
 

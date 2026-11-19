@@ -216,10 +216,12 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 # Dev serves /v1/auth/login-test (DEBUG build), so no cookie copying: each
 # VU logs in as the TEST-provider PERF_ROLE. Seeded-user minting is local-only
 # (PERF_USERS_FILE off), and write scenarios enqueue real jobs on dev's workers.
-PERF_DEV_HOST ?= https://co2-calculator-dev.epfl.ch/api
+# No default: set it to the dev deployment's API base (with the /api prefix).
+PERF_DEV_HOST ?=
 
 .PHONY: perf-dev
-perf-dev: ## Read-only load against dev, clef en main: make perf-dev [PERF_USERS=50] [PERF_CLASSES=ModuleReadUser]
+perf-dev: ## Read-only load against dev, clef en main: make perf-dev PERF_DEV_HOST=https://<dev-host>/api [PERF_USERS=50] [PERF_CLASSES=ModuleReadUser]
+	$(if $(PERF_DEV_HOST),,$(error PERF_DEV_HOST is not set: give the dev API base, e.g. PERF_DEV_HOST=https://<dev-host>/api))
 	@case "$(PERF_CLASSES)" in ""|*Create*|*Plan*|*Upload*) \
 		test -n "$$PERF_ALLOW_WRITES" || { echo "PERF_CLASSES='$(PERF_CLASSES)' would write real data on dev (empty = every scenario); set PERF_ALLOW_WRITES=1 to confirm"; exit 1; };; \
 	esac
@@ -263,13 +265,15 @@ perf-ladder: ## Warm-up + stages for one config, then perf-summary: make perf-la
 
 # Prometheus through the dev Grafana's datasource proxy. Auth comes only from
 # the environment: GRAFANA_SESSION (browser cookie) or GRAFANA_TOKEN.
-GRAFANA_URL ?= https://grafana-dev-route-grafana-dev.apps.ocpitsd0001.xaas.epfl.ch
+# No default: set it to the dev cluster's Grafana URL.
+GRAFANA_URL ?=
 GRAFANA_DATASOURCE_UID ?= 73a57e8b-7679-4a18-915c-292f143448c7
 PERF_NAMESPACE ?= svc1751d-co2-calculator-dev
 PERF_SUMMARY_TAGS ?=
 
 .PHONY: perf-summary
 perf-summary: ## Backend CPU ms/request per stage from Prometheus: make perf-summary PERF_SUMMARY_TAGS="dev_x_100 dev_x_600"
+	$(if $(GRAFANA_URL),,$(error GRAFANA_URL is not set: give the dev cluster's Grafana URL))
 	@test -n "$(PERF_SUMMARY_TAGS)" || { echo "PERF_SUMMARY_TAGS is required, e.g. PERF_SUMMARY_TAGS=\"dev_pool70_base_100 dev_pool70_base_600\""; exit 1; }
 	$(UV) run python -m tests.performance.infra_summary --reports $(PERF_REPORT_DIR) \
 		--grafana-url $(GRAFANA_URL) --datasource-uid $(GRAFANA_DATASOURCE_UID) \

@@ -144,7 +144,7 @@ let spanId = randomHex(8); // 16 hex chars
 
 // Who is logged in, attached to every event so a report can be tied to the
 // backend spans of the same person. Deliberately our own `User.id`, never the
-// sciper: a sciper identifies a person across every EPFL system, this id means
+// sciper: a sciper identifies a person across every system of the institution, this id means
 // nothing outside our database. Cleared on logout — the store watches for it.
 //
 // `ip` comes from `GET /v1/session` — the browser cannot discover its own

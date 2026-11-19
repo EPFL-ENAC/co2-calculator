@@ -132,12 +132,12 @@ export default {
     fr: 'population',
   },
   results_objectives_population_forecast: {
-    en: 'EPFL population forecast',
-    fr: 'Prévision de la population EPFL',
+    en: '%institution% population forecast',
+    fr: 'Prévision de la population %institution%',
   },
   results_objectives_population_axis: {
-    en: 'EPFL population',
-    fr: 'Population EPFL',
+    en: '%institution% population',
+    fr: 'Population %institution%',
   },
   results_kg_co2eq_per_km: {
     en: 'kg CO₂-eq/km',
@@ -357,17 +357,17 @@ export default {
     en: 'Study',
     fr: 'Étude',
   },
-  results_objectives_2040_epfl_button: {
-    en: 'EPFL',
-    fr: 'EPFL',
+  results_objectives_2040_institution_button: {
+    en: '%institution%',
+    fr: '%institution%',
   },
   results_objectives_2040_unit_button: {
     en: 'My unit',
     fr: 'Mon unité',
   },
-  results_objectives_epfl_chart_title: {
-    en: 'EPFL carbon footprint goals over the years',
-    fr: 'Objectifs CO2 de l’EPFL au fil des années',
+  results_objectives_institution_chart_title: {
+    en: '%institution% carbon footprint goals over the years',
+    fr: 'Objectifs CO2 %institution_fr_de% au fil des années',
   },
   results_objectives_total: {
     en: 'Total carbon footprint',
@@ -377,13 +377,13 @@ export default {
     en: 'My unit carbon footprint by category over the years',
     fr: 'Empreinte carbone de mon unité par catégorie au fil des années',
   },
-  results_objectives_epfl_no_data_title: {
-    en: 'EPFL objectives not available yet',
-    fr: 'Objectifs EPFL pas encore disponibles',
+  results_objectives_institution_no_data_title: {
+    en: '%institution% objectives not available yet',
+    fr: 'Objectifs %institution% pas encore disponibles',
   },
-  results_objectives_epfl_no_data_message: {
-    en: 'EPFL reduction objectives data has not been loaded yet.',
-    fr: "Les données d'objectifs de réduction EPFL ne sont pas encore chargées.",
+  results_objectives_institution_no_data_message: {
+    en: '%institution% reduction objectives data has not been loaded yet.',
+    fr: "Les données d'objectifs de réduction %institution% ne sont pas encore chargées.",
   },
   results_objectives_unit_no_validated_title: {
     en: 'Validate modules to see reduction objectives',
@@ -800,8 +800,8 @@ export default {
     fr: 'Total',
   },
   'charts-epf-tick': {
-    en: 'EPFL',
-    fr: 'EPFL',
+    en: '%institution%',
+    fr: '%institution%',
   },
   'charts-objective-tick': {
     en: '2030 objective',
@@ -820,16 +820,16 @@ export default {
     fr: 'Catégories additionnelles',
   },
   results_additional_subtitle: {
-    en: "These emissions are calculated based on EPFL's general assumptions and use only headcount and buildings information as unit-specific data.",
-    fr: "Ces émissions sont calculées sur la base des hypothèses générales de l’EPFL et utilisent uniquement les données de l'unité: personnel et bâtiments.",
+    en: "These emissions are calculated based on %institution%'s general assumptions and use only headcount and buildings information as unit-specific data.",
+    fr: "Ces émissions sont calculées sur la base des hypothèses générales %institution_fr_de% et utilisent uniquement les données de l'unité: personnel et bâtiments.",
   },
   results_additional_headcount_card_title: {
     en: 'Commuting, food and waste',
     fr: 'Pendularité, alimentation et déchets',
   },
   results_additional_headcount_card_subtitle: {
-    en: "These emissions are calculated based on EPFL's general assumptions and use only the number of staff as laboratory-specific data.",
-    fr: 'Ces émissions sont calculées à partir des hypothèses générales de l’EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.',
+    en: "These emissions are calculated based on %institution%'s general assumptions and use only the number of staff as laboratory-specific data.",
+    fr: 'Ces émissions sont calculées à partir des hypothèses générales %institution_fr_de% et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.',
   },
   results_additional_buildings_card_title: {
     en: 'Construction and renovation',

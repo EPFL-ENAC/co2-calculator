@@ -47,19 +47,22 @@ function findUnescapedAt(source: string): { line: number; context: string }[] {
 }
 
 test('findUnescapedAt flags the known breakages and accepts the escape', () => {
-  expect(findUnescapedAt("en: 'contact co2calculator@epfl.ch'")).toHaveLength(
-    1,
-  );
   expect(
-    findUnescapedAt("en: 'contact co2calculator{‘@’}epfl.ch'"),
+    findUnescapedAt("en: 'contact co2calculator@example.org'"),
   ).toHaveLength(1);
   expect(
-    findUnescapedAt('en: "contact co2calculator{\'@\'}epfl.ch"'),
+    findUnescapedAt("en: 'contact co2calculator{‘@’}example.org'"),
+  ).toHaveLength(1);
+  expect(
+    findUnescapedAt('en: "contact co2calculator{\'@\'}example.org"'),
   ).toHaveLength(0);
 });
 
 test("every @ in src/i18n is escaped as {'@'}", () => {
-  const files = readdirSync(I18N_DIR).filter((file) => file.endsWith('.ts'));
+  // index.ts is the loader, not translations: its code handles "@" itself.
+  const files = readdirSync(I18N_DIR).filter(
+    (file) => file.endsWith('.ts') && file !== 'index.ts',
+  );
   expect(files.length).toBeGreaterThan(0);
 
   const failures = files.flatMap((file) =>

@@ -31,7 +31,7 @@ from app.services.data_ingestion.api_providers.base_tableau_api_provider import 
     CaptionSpec,
 )
 
-SERVER_URL = "https://tableau.epfl.ch/"
+SERVER_URL = "https://tableau.example.org/"
 SECRET_VALUE = "secretvalue1234567890123456789012"
 
 
@@ -54,7 +54,7 @@ class _StubTableauProvider(BaseTableauApiProvider):
 def _crypto_env(monkeypatch):
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
-    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "example.org")
     crypto.get_settings.cache_clear()
     url_safety.get_settings.cache_clear()
     get_settings.cache_clear()

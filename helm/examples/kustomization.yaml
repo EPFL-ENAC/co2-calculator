@@ -12,14 +12,14 @@ helmCharts:
   - name: co2-calculator
     releaseName: co2
     repo: oci://ghcr.io/epfl-enac/co2-calculator/helm
-    # Chart versions are build numbers. They do not follow the release tags.
-    version: 1.0.1797
+    # The chart version is the app release, without the leading "v".
+    version: 1.4.23
     valuesFile: values.yaml
-# Pin the three images to one release tag.
+# Pin the three images to the same release tag.
 images:
   - name: ghcr.io/epfl-enac/epfl/co2-calculator/backend
-    newTag: v1.4.21
+    newTag: v1.4.23
   - name: ghcr.io/epfl-enac/epfl/co2-calculator/frontend
-    newTag: v1.4.21
+    newTag: v1.4.23
   - name: ghcr.io/epfl-enac/epfl/co2-calculator/docs
-    newTag: v1.4.21
+    newTag: v1.4.23

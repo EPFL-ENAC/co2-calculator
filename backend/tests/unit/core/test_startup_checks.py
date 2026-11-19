@@ -15,6 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
 from app.main import (
+    assert_frontend_url,
     assert_poller_isolation,
     assert_proxy_trust_settings,
     assert_security_settings,
@@ -30,7 +31,7 @@ def _settings(**overrides) -> SimpleNamespace:
         "SESSION_HMAC_KEY": "s" * 64,
         "CREDENTIALS_ENCRYPTION_KEY": "c" * 64,
         "CREDENTIALS_ENCRYPTION_SALT": "t" * 64,
-        "CONNECTOR_ALLOWED_HOST_SUFFIXES": "epfl.ch",
+        "CONNECTOR_ALLOWED_HOST_SUFFIXES": "example.org",
         "FILES_ENCRYPTION_KEY": "f" * 64,
         "FILES_ENCRYPTION_SALT": "a" * 64,
     }
@@ -164,11 +165,11 @@ def _poller_settings(**overrides) -> SimpleNamespace:
 
 def test_local_poller_against_shared_db_refuses_to_boot():
     settings = _poller_settings(
-        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app"
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.test:5432/app"
     )
     with pytest.raises(RuntimeError) as exc:
         assert_poller_isolation(settings)
-    assert "co2-dev.postgresql.dbaas.intranet.epfl.ch" in str(exc.value)
+    assert "co2-dev.postgresql.dbaas.intranet.test" in str(exc.value)
     assert "RUN_BACKGROUND_POLLER" in str(exc.value)
 
 
@@ -188,7 +189,7 @@ def test_local_poller_against_local_db_boots(db_url):
 def test_shared_db_allowed_when_poller_disabled():
     settings = _poller_settings(
         RUN_BACKGROUND_POLLER=False,
-        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app",
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.test:5432/app",
     )
     assert_poller_isolation(settings)  # must not raise
 
@@ -197,7 +198,7 @@ def test_deployed_pods_are_exempt():
     # Pods legitimately poll a remote DB; the guard is local-only.
     settings = _poller_settings(
         LOCAL_ENVIRONMENT=False,
-        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.epfl.ch:5432/app",
+        DB_URL="postgresql://app:pw@co2-dev.postgresql.dbaas.intranet.test:5432/app",
     )
     assert_poller_isolation(settings)  # must not raise
 
@@ -270,3 +271,18 @@ def test_sql_ratio_without_the_sdk_refuses_to_boot(monkeypatch):
 def test_other_samplers_skip_the_trace_sampler_check(monkeypatch):
     monkeypatch.setenv("OTEL_TRACES_SAMPLER", "always_on")
     assert_trace_sampler()  # must not raise
+
+
+@pytest.mark.parametrize(
+    "url", ["", " ", "co2.example.org", "//co2.example.org", "ftp://co2.example.org"]
+)
+def test_frontend_url_without_http_scheme_refuses_to_boot(url):
+    with pytest.raises(RuntimeError, match="FRONTEND_URL must be an absolute"):
+        assert_frontend_url(SimpleNamespace(FRONTEND_URL=url))
+
+
+@pytest.mark.parametrize(
+    "url", ["http://localhost:9000", "https://co2.example.org", "http://localhost"]
+)
+def test_absolute_frontend_url_boots(url):
+    assert_frontend_url(SimpleNamespace(FRONTEND_URL=url))

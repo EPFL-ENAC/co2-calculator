@@ -21,6 +21,12 @@ frontend:
     # Adds the /login-test page. "development" is the GlitchTip label of
     # local runs, apart from the deployed "dev".
     APP_ENVIRONMENT: development
+  # The example institution of frontend/institution-example, as the
+  # ConfigMap that skaffold/templates/institution.yaml makes.
+  institutionAssets:
+    volume:
+      configMap:
+        name: co2-institution
   podDisruptionBudget:
     enabled: false
 database:

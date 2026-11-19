@@ -1,0 +1,24 @@
+{{- /*
+The example institution for the local cluster, as one ConfigMap that the
+app chart mounts at /institution. The files come from
+frontend/institution-example through the symlink skaffold/institution, so
+the local cluster, the dev server and the tests use the same folder.
+*/ -}}
+{{- $text := list ".env" ".conf" ".svg" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: co2-institution
+data:
+  {{- range $path, $_ := .Files.Glob "institution/*" }}
+  {{- if has (ext $path) $text }}
+  {{ base $path }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
+  {{- end }}
+binaryData:
+  {{- range $path, $_ := .Files.Glob "institution/*" }}
+  {{- if not (has (ext $path) $text) }}
+  {{ base $path }}: {{ $.Files.Get $path | b64enc }}
+  {{- end }}
+  {{- end }}

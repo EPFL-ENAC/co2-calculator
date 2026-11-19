@@ -20,23 +20,23 @@ def _set(monkeypatch, suffixes):
 
 
 def test_allows_https_matching_suffix(monkeypatch):
-    _set(monkeypatch, "epfl.ch")
-    assert url_safety.validate_external_url("https://tableau.epfl.ch/") == (
-        "https://tableau.epfl.ch/"
+    _set(monkeypatch, "example.org")
+    assert url_safety.validate_external_url("https://tableau.example.org/") == (
+        "https://tableau.example.org/"
     )
 
 
 @pytest.mark.parametrize(
     "url",
     [
-        "http://tableau.epfl.ch/",  # not https
+        "http://tableau.example.org/",  # not https
         "https://tableau.evil.com/",  # host not allowed
-        "https://evil-epfl.ch/",  # suffix not on a dot boundary
+        "https://evil-example.org/",  # suffix not on a dot boundary
         "https://169.254.169.254/",  # cloud metadata
     ],
 )
 def test_rejects_unsafe(monkeypatch, url):
-    _set(monkeypatch, "epfl.ch")
+    _set(monkeypatch, "example.org")
     with pytest.raises(ValueError):
         url_safety.validate_external_url(url)
 
@@ -44,4 +44,4 @@ def test_rejects_unsafe(monkeypatch, url):
 def test_fails_closed_when_allowlist_empty(monkeypatch):
     _set(monkeypatch, "")
     with pytest.raises(ValueError):
-        url_safety.validate_external_url("https://tableau.epfl.ch/")
+        url_safety.validate_external_url("https://tableau.example.org/")

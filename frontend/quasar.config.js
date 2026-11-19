@@ -12,33 +12,12 @@ import { defineConfig } from '#q-app';
 import path from 'path';
 import fs from 'node:fs';
 import { execSync } from 'node:child_process';
+import { institutionPlugin, loadEnvLocal } from './build/institution.mjs';
+import loginMessages from './src/i18n/login.ts';
 
-// Load .env.local into process.env for `quasar dev` / local `quasar build`.
-// Quasar doesn't auto-load .env files into the Node-side config (Vite only
-// exposes VITE_ prefixed vars on the client). This loader makes APP_*
-// variables from .env.local available to build.env below, so devs can put
-// their Sentry DSN etc. in a gitignored file instead of shell-exporting
-// every time. Lines like KEY=value (with optional quotes); `#` comments OK.
-(() => {
-  const envLocal = path.resolve(__dirname, '.env.local');
-  if (!fs.existsSync(envLocal)) return;
-  for (const raw of fs.readFileSync(envLocal, 'utf8').split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
-    if (!m) continue;
-    let v = m[2].trim();
-    if (
-      (v.startsWith('"') && v.endsWith('"')) ||
-      (v.startsWith("'") && v.endsWith("'"))
-    ) {
-      v = v.slice(1, -1);
-    }
-    // Don't override values already exported in the shell — explicit shell
-    // env wins over .env.local (matches Vite/CRA convention).
-    if (process.env[m[1]] === undefined) process.env[m[1]] = v;
-  }
-})();
+// `quasar dev` reads the INSTITUTION_* paths and the APP_* overrides of
+// .env.local (see build/institution.mjs).
+loadEnvLocal();
 
 // Bundle identity. Baked into build.env so Sentry's `release` tag matches the
 // source maps uploaded to GlitchTip — otherwise stack traces stay minified.
@@ -64,6 +43,34 @@ const APP_VERSION = (() => {
 })();
 const APP_BUILD_TIME = new Date().toISOString();
 
+// Run in this order; error reporting must start before the router.
+// first-frame is last: it waits for the static first frame, just before mount.
+const BOOT_FILES = ['sentry', 'matomo', 'i18n', 'router', 'first-frame'];
+
+// Quasar import()s each boot file only after the entry has run, which costs
+// one more round trip. A modulepreload per boot chunk fetches it with the entry.
+const bootPreloadPlugin = {
+  name: 'boot-modulepreload',
+  apply: 'build',
+  // `post`: Vite has injected the entry tags, so loaded chunks are visible.
+  transformIndexHtml: { order: 'post', handler: bootPreloadLinks },
+};
+
+function bootPreloadLinks(html, { bundle }) {
+  const chunks = Object.values(bundle).filter((c) => c.type === 'chunk');
+  const links = BOOT_FILES.map((name) => {
+    const re = new RegExp(`[\\\\/]src[\\\\/]boot[\\\\/]${name}\\.[jt]s$`);
+    const chunk = chunks.find((c) => c.moduleIds.some((id) => re.test(id)));
+    if (!chunk)
+      throw new Error(`boot-modulepreload: no chunk for boot/${name}`);
+    return chunk.fileName;
+  })
+    // A boot file inside a chunk index.html already loads needs no link.
+    .filter((file) => !html.includes(`/${file}"`))
+    .map((file) => `<link rel="modulepreload" crossorigin href="/${file}">`);
+  return html.replace('</head>', `${[...new Set(links)].join('')}</head>`);
+}
+
 export default defineConfig(function () {
   return {
     eslint: {
@@ -81,7 +88,7 @@ export default defineConfig(function () {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['sentry', 'matomo', 'i18n', 'router', 'icons'],
+    boot: BOOT_FILES,
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
@@ -91,10 +98,18 @@ export default defineConfig(function () {
     // https://github.com/quasarframework/quasar/tree/dev/extras
     extras: [],
 
+    // The static first frame of index.html shows the login title before the
+    // bundle loads, or a message when /injectEnv.js did not load. It reads
+    // the texts from i18n, so each string has one home.
+    // JSON is a JavaScript literal; "<" is escaped so no text ends the script.
+    htmlVariables: {
+      shellTextJson: JSON.stringify({
+        title: loginMessages.login_title,
+        configMissing: loginMessages.config_missing,
+      }).replace(/</g, '\\u003c'),
+    },
+
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
-    // Exposed to index.html as <%= appVersion %> so unhashed public/ files
-    // (favicon.ico) get a cache-busting query without anyone remembering.
-    htmlVariables: { appVersion: APP_VERSION },
 
     build: {
       target: {
@@ -127,48 +142,8 @@ export default defineConfig(function () {
         // APP_BUILD_TIME). Sentry release tag keys off APP_VERSION.
         APP_VERSION,
         APP_BUILD_TIME,
-        // Sentry/GlitchTip dev fallbacks. In production these come from
-        // /injectEnv.js (written by docker/entrypoint.sh from the pod's
-        // env vars — see helm/values.yaml frontend.env). In dev they come
-        // from .env.local (loaded above) or the shell. Empty string means
-        // src/boot/sentry.ts skips Sentry.init.
-        APP_SENTRY_DSN: process.env.APP_SENTRY_DSN || '',
-        APP_ENVIRONMENT: process.env.APP_ENVIRONMENT || '',
-        // MapLibre raster-tile URL (see src/components/molecules/TripsMap.vue).
-        // Default to OSM tile.openstreetmap.org; override per-pod via
-        // /injectEnv.js if a paid/internal tile source is provisioned.
-        APP_MAP_TILE_STYLE_URL: process.env.APP_MAP_TILE_STYLE_URL || '',
-        // Access-management provider (label + portal URL) shown in the
-        // calculator's access popover (see src/config/runtime.ts). No code
-        // default; set per-pod via /injectEnv.js to rebrand for an institution.
-        APP_ACCESS_MANAGEMENT_PROVIDER_NAME:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_NAME || '',
-        APP_ACCESS_MANAGEMENT_PROVIDER_URL:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL || '',
-        APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL:
-          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_ABOUT_URL || '',
-        APP_ROLES_DOC_URL: process.env.APP_ROLES_DOC_URL || '',
-        // Recipient for the Equipment power-feedback mailto (see
-        // src/config/runtime.ts). Empty string in dev falls back to the default
-        // in runtimeConfig; in production it comes from /injectEnv.js.
-        APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
-          process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
-        // Matomo analytics (see src/utils/matomo.ts). Empty in dev falls back to
-        // the endpoint default in runtimeConfig; the site id has no default, so
-        // an empty value keeps tracking off. In production both come from
-        // /injectEnv.js.
-        APP_MATOMO_URL: process.env.APP_MATOMO_URL || '',
-        APP_MATOMO_SITE_ID: process.env.APP_MATOMO_SITE_ID || '',
-        // Project-planner year horizon (see src/config/runtime.ts). Empty in
-        // dev falls back to the defaults in runtimeConfig; in production it
-        // comes from /injectEnv.js.
-        APP_PLANNER_MIN_YEAR: process.env.APP_PLANNER_MIN_YEAR || '',
-        APP_PLANNER_MAX_YEAR: process.env.APP_PLANNER_MAX_YEAR || '',
-        // Demo instance (see src/config/runtime.ts). APP_DEMO_MODE=true
-        // replaces the app with a notice linking to APP_PRODUCTION_URL; in
-        // production both come from /injectEnv.js.
-        APP_DEMO_MODE: process.env.APP_DEMO_MODE || '',
-        APP_PRODUCTION_URL: process.env.APP_PRODUCTION_URL || '',
+        // Every other APP_* value is a runtime value: it reaches the bundle
+        // through /injectEnv.js, also in dev (see build/institution.mjs).
       },
       // ignorePublicFolder: true,
       minify: true,
@@ -209,6 +184,10 @@ export default defineConfig(function () {
         // build so the homepage badge is visible under `quasar dev` too. No
         // dist or no meta → nothing injected, badge stays hidden.
         viteConf.plugins = viteConf.plugins || [];
+        // Dev-only: /injectEnv.js, /theme.css and /institution/* the way
+        // nginx serves them in the container (#3244).
+        viteConf.plugins.push({ ...institutionPlugin(), apply: 'serve' });
+        viteConf.plugins.push(bootPreloadPlugin);
         viteConf.plugins.push({
           name: 'co2-first-load-dev',
           apply: 'serve',
@@ -254,6 +233,22 @@ export default defineConfig(function () {
         viteConf.optimizeDeps ??= {};
         viteConf.optimizeDeps.exclude ??= [];
         viteConf.optimizeDeps.exclude.push('maplibre-gl');
+
+        // Merge the ~40 small chunks the entry needs into `vendor` and the
+        // entry. `$initial` keeps page-only libraries (echarts, maplibre) lazy.
+        viteConf.build.rolldownOptions ??= {};
+        viteConf.build.rolldownOptions.output ??= {};
+        viteConf.build.rolldownOptions.output.codeSplitting = {
+          groups: [
+            {
+              name: 'vendor',
+              test: /node_modules/,
+              tags: ['$initial'],
+              priority: 2,
+            },
+            { name: 'app', tags: ['$initial'], priority: 1 },
+          ],
+        };
       },
     },
 
@@ -278,14 +273,7 @@ export default defineConfig(function () {
       // Quasar's own component icons (dropdown arrows, sort carets, close
       // buttons) as inline SVG — they default to webfont ligature names.
       iconSet: 'svg-material-icons',
-      plugins: [
-        'Dialog',
-        'Loading',
-        'Notify',
-        'LocalStorage',
-        'SessionStorage',
-        'Meta',
-      ],
+      plugins: ['Loading', 'Notify', 'LocalStorage', 'SessionStorage', 'Meta'],
       cssAddon: false,
       // override css!
       // config: {

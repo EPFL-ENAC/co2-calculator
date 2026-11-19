@@ -15,16 +15,16 @@ async def test_save_encrypts_blank_keeps_and_read_hides_secret(db_session, monke
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
     # SSRF guard fails closed by default (empty allowlist); the service always
     # validates server_url, so the happy path needs it configured too.
-    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "example.org")
     crypto.get_settings.cache_clear()
     url_safety.get_settings.cache_clear()
 
     service = ConnectorConnectionService(db_session)
     base = ConnectorConnectionCreate(
         label="EPFL Tableau",
-        server_url="https://tableau.epfl.ch/",
+        server_url="https://tableau.example.org/",
         site_content_url="co2fp",
-        username="svc-calcco2-epfl-api",
+        username="svc-calcco2-api",
         client_id="cid",
         secret_id="sid",
         secret_value="the-real-secret",
@@ -54,16 +54,16 @@ async def test_save_connection_advances_updated_at(db_session, monkeypatch):
     """
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
-    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "example.org")
     crypto.get_settings.cache_clear()
     url_safety.get_settings.cache_clear()
 
     service = ConnectorConnectionService(db_session)
     base = ConnectorConnectionCreate(
         label="EPFL Tableau",
-        server_url="https://tableau.epfl.ch/",
+        server_url="https://tableau.example.org/",
         site_content_url="co2fp",
-        username="svc-calcco2-epfl-api",
+        username="svc-calcco2-api",
         client_id="cid",
         secret_id="sid",
         secret_value="the-real-secret",
@@ -88,7 +88,7 @@ async def test_save_connection_advances_updated_at(db_session, monkeypatch):
 async def test_save_rejects_disallowed_server_url(db_session, monkeypatch):
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
-    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "example.org")
     crypto.get_settings.cache_clear()
     url_safety.get_settings.cache_clear()
 
@@ -116,14 +116,14 @@ async def test_encrypt_and_decrypt_dispatch_via_to_thread(db_session, monkeypatc
     """
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
-    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "example.org")
     crypto.get_settings.cache_clear()
     url_safety.get_settings.cache_clear()
 
     service = ConnectorConnectionService(db_session)
     base = ConnectorConnectionCreate(
         label="EPFL Tableau",
-        server_url="https://tableau.epfl.ch/",
+        server_url="https://tableau.example.org/",
         username="u",
         client_id="c",
         secret_id="s",
