@@ -1,3 +1,16 @@
+## [1.5.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.5.0...v1.5.1) (2026-11-19)
+
+A fix of the version that the backend reports. No migration. Prod goes from 1.4.23 to 1.5.1 directly, so read the 1.5.0 section first.
+
+### Before deploying
+
+- **Delete `APP_VERSION` from the backend environment of each overlay.** The image sets it from the root `package.json`, and a value in the overlay replaces it. The EPFL stage and prod overlays set an old value by hand.
+- The "Before deploying" list of 1.5.0 applies to every cluster that did not run 1.5.0.
+
+### Fixes
+
+- The backend and the worker report the version of the image. The chart set `APP_VERSION` to `0.1.0`, so a cluster without its own value reported 0.1.0. `make -C helm lint` now fails if the chart sets it again.
+
 ## [1.5.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.4.23...v1.5.0) (2026-11-19)
 
 The app names no institution any more: each deployment mounts one institution folder. The login page paints faster. No migration, no change to the emission formulas.
