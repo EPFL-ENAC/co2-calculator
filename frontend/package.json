@@ -47,7 +47,7 @@
     "eslint-plugin-vue": "=10.12.1",
     "globals": "=17.14.0",
     "openapi-typescript": "=7.13.0",
-    "prettier": "=3.9.10",
+    "prettier": "=3.10.0",
     "sass": "=1.108.2",
     "stylelint": "^17.16.0",
     "stylelint-config-recommended-vue": "^2.0.0",
