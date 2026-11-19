@@ -89,8 +89,8 @@ Two values lose their EPFL default. If `APP_MATOMO_SITE_ID` is set,
 `APP_MATOMO_URL` is required. If `APP_DEMO_MODE` is `true`,
 `APP_PRODUCTION_URL` is required. The planner years
 `APP_PLANNER_MIN_YEAR` and `APP_PLANNER_MAX_YEAR` lose their chart default
-and are required, because an institution gives them in `values.env` and a
-chart default in the environment would replace them. For the same reason,
+and are required. An institution gives them in `values.env`, and a chart
+default in the environment replaces a value of that file. For the same reason,
 `APP_ENVIRONMENT` and `APP_DEMO_MODE` keep their chart default and are
 refused in `values.env`. The backend loses its defaults for `DB_URL`
 and `FRONTEND_URL`. The Helm default of `FRONTEND_URL` is empty, so a
@@ -175,9 +175,26 @@ The deployment mounts its folder at `/institution`. At startup,
 `/tmp/institution`. The defaults are `frontend/institution-default/`, in
 the image at `/usr/local/share/institution/default`. Then the script
 copies the files of the mounted folder on top. nginx serves
-`/tmp/institution` at `/institution/` with revalidation. A second
+`/tmp/institution` at `/institution/`. A second
 `Content-Security-Policy` stops script in a file that a browser opens as
-a page, for example an SVG of the institution. The files:
+a page, for example an SVG of the institution.
+
+Each font has a second, versioned name, for example
+`font-bold.1879745468.woff2`, with the `cksum` of its content. That
+content never changes, so browsers keep the file one year, and
+`theme.css` points at it. The fonts are about 55 KB of the folder. The
+other files keep their fixed name and are revalidated on each use. A
+versioned logo was measured and rejected. The login preloads need its URL
+before the app starts. So `injectEnv.js` had to load synchronously, and
+that added 150 to 200 ms to the simulated first paint of the login page.
+
+The script also sets the time of each written file from its checksum.
+nginx builds the `ETag` from the file time and the size, so every pod
+and every restart give the same `ETag` for the same content. Without
+this, each pod start gave new validators, and a browser that reached
+another pod downloaded every file again.
+
+The files:
 
 ```
 values.env         (optional, see Values)
@@ -335,7 +352,7 @@ locally, a developer sets `INSTITUTION_DIR` to the EPFL folder.
   wait for the fonts, and Lighthouse gives it 1.50 s against 1.96 s before.
 - The logo is now a file of the deployment, not a part of the bundle. The
   browser asks for it only after the app starts. The logo of the login
-  page loads eagerly and without a fade, and it paints with the first text
+  page loads eagerly and without a fade. It paints with the first text
   (149 ms against 148 ms before this change, 294 ms without these settings).
   The mobile simulation of Lighthouse still counts the logo as the largest
   paint and gives 4.2 s against 1.96 s, score 86 against 98. With the

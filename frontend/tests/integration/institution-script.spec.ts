@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -81,7 +82,7 @@ test('a folder with only theme.conf gets every default asset', () => {
   expect(result.stdout).toContain(`logo.svg: from ${DEFAULT_DIR}`);
   const css = readFileSync(join(out, 'theme.css'), 'utf8');
   expect(css).toContain('--theme-accent: #0050a0;');
-  expect(css).toContain('url("/institution/font-bold.woff2")');
+  expect(css).toMatch(/url\("\/institution\/font-bold\.[0-9]+\.woff2"\)/);
 });
 
 test('a file of the mounted folder replaces its default', () => {
@@ -103,7 +104,7 @@ test('theme.conf points the fonts at a font server', () => {
   expect(result.status, result.stderr).toBe(0);
   const css = readFileSync(join(out, 'theme.css'), 'utf8');
   expect(css).toContain('url("https://fonts.example.org/Regular.woff2")');
-  expect(css).toContain('url("/institution/font-medium.woff2")');
+  expect(css).toMatch(/url\("\/institution\/font-medium\.[0-9]+\.woff2"\)/);
 });
 
 // Each value is pasted into CSS, so only one shape per kind passes.
@@ -353,4 +354,48 @@ test('a link inside the folder, as a ConfigMap makes, is read', () => {
   expect(readFileSync(join(out, 'institution/logo.svg'), 'utf8')).toContain(
     'mounted',
   );
+});
+
+const mtime = (file: string) => statSync(join(out, file)).mtimeMs;
+const fontUrl = (name: string) =>
+  new RegExp(`url\\("(/institution/${name}\\.[0-9]+\\.woff2)"\\)`).exec(
+    readFileSync(join(out, 'theme.css'), 'utf8'),
+  )?.[1] ?? '';
+
+// A versioned font is cached one year: it must name exactly this content.
+test('theme.css points at a versioned copy of each font', () => {
+  theme('accent: #0050a0\n');
+  expect(run().status).toBe(0);
+  for (const name of ['font-regular', 'font-medium', 'font-bold']) {
+    const url = fontUrl(name);
+    expect(url, name).not.toBe('');
+    expect(readFileSync(join(out, url.slice(1)))).toEqual(
+      readFileSync(join(out, 'institution', name + '.woff2')),
+    );
+  }
+});
+
+test('a new font gets a new versioned URL', () => {
+  theme('accent: #0050a0\n');
+  expect(run().status).toBe(0);
+  const before = fontUrl('font-bold');
+  write('font-bold.woff2', 'not the default font');
+  expect(run().status).toBe(0);
+  expect(fontUrl('font-bold')).not.toBe(before);
+});
+
+// nginx builds the ETag from the file time: a pod start time made every
+// pod and every restart send new validators, and browsers downloaded again.
+test('the file times come from the content, not from the start', () => {
+  theme('accent: #0050a0\n');
+  expect(run().status).toBe(0);
+  const files = ['injectEnv.js', 'theme.css', 'institution/logo.svg'];
+  const first = files.map(mtime);
+  rmSync(out, { recursive: true, force: true });
+  mkdirSync(out);
+  expect(run().status).toBe(0);
+  expect(files.map(mtime)).toEqual(first);
+  write('logo.svg', '<svg id="new"/>');
+  expect(run().status).toBe(0);
+  expect(mtime('institution/logo.svg')).not.toBe(first[2]);
 });

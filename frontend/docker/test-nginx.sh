@@ -63,6 +63,21 @@ case_ "route br" /some/route "br, gzip" 200 br text/html "$SHORT" Accept-Encodin
 case_ "injectEnv br" /injectEnv.js "br, gzip" 200 gzip $JST "$SHORT" Accept-Encoding
 case_ "png br" /institution/favicon-32x32.png br 200 "" image/png "$SHORT" ""
 fetch "$JS.br" br; expect "direct .br" status 404
+# A versioned font is kept one year, every fixed name revalidated.
+FONT=$(curl -s "$URL/theme.css" | sed -n 's|.*url("\(/institution/font-bold\.[0-9]*\.woff2\)").*|\1|p')
+[ -n "$FONT" ] || { echo "FAIL versioned font: none in theme.css"; exit 1; }
+echo "ok   versioned font: $FONT"
+case_ "font versioned" "$FONT" "" 200 "" font/woff2 "$LONG" ""
+case_ "font fixed" /institution/font-bold.woff2 "" 200 "" font/woff2 "$SHORT" ""
+case_ "logo fixed" /institution/logo.svg "" 200 "" image/svg+xml "$SHORT" ""
+# The same content gives the same ETag after a restart, as on another pod.
+fetch /institution/logo.svg ""; ETAG=$(header ETag)
+docker restart "$NAME" >/dev/null
+i=0
+until curl -sf "$URL/ready" >/dev/null; do
+  i=$((i + 1)); [ "$i" -lt 40 ] || { docker logs "$NAME"; exit 1; }; sleep 0.25
+done
+fetch /institution/logo.svg ""; expect "logo after restart" ETag "$ETAG"
 # A missing file gets index.html with the 404 status: the body is brotli,
 # so the header must say so.
 fetch /assets/missing-AAAAAAAA.js br

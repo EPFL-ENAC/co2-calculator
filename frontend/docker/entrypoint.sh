@@ -95,6 +95,22 @@ fail() {
   exit 1
 }
 
+# The checksum of a file: POSIX cksum, in busybox and on macOS alike.
+checksum() {
+  cksum < "$1" | cut -d ' ' -f 1
+}
+
+# nginx builds the ETag and Last-Modified from the file time. A file written
+# here would get the pod start time, so each pod and each restart gave new
+# validators and every browser downloaded the file again. The time comes
+# from the content instead: same content, same validators on every pod.
+stamp() {
+  sum=$(checksum "$1")
+  TZ=UTC touch -t "$(printf '%04d%02d%02d%02d%02d.%02d' \
+    $((2001 + sum % 30)) $((1 + sum / 30 % 12)) $((1 + sum / 360 % 28)) \
+    $((sum / 10080 % 24)) $((sum / 241920 % 60)) $((sum / 14515200 % 60)))" "$1"
+}
+
 # ------------------------------------------------------------------------------
 # 1. Values: injectEnv.js
 # ------------------------------------------------------------------------------
@@ -238,6 +254,7 @@ if ! printenv | awk -v env_file="${ENV_FILE}" -v app_names="$(echo ${APP_NAMES})
   fail "invalid APP_* values, see the lines above"
 fi
 chmod 644 "${tmp}"
+stamp "${tmp}"
 mv -f "${tmp}" "${OUT_DIR}/injectEnv.js"
 
 # ------------------------------------------------------------------------------
@@ -301,7 +318,13 @@ fi
 # Build the folder next to the old one, then swap: nginx and the dev server
 # never serve a half-copied folder. The log names the source of each file, so
 # a deployment that forgets an override shows it.
+#
+# Each font also gets a versioned name, font-bold.<checksum>.woff2, whose
+# content never changes: nginx lets browsers keep it one year, and
+# theme.css points at it. The other files are small and keep their fixed
+# name, revalidated with a validator that is the same on every pod.
 tmp_dir=$(mktemp -d "${OUT_DIR}/institution.XXXXXX")
+font_urls=""
 for file in ${ASSET_FILES}; do
   source="${DEFAULT_DIR}"
   if [ -e "${INSTITUTION_DIR}/${file}" ]; then
@@ -312,6 +335,14 @@ for file in ${ASSET_FILES}; do
     source="${INSTITUTION_DIR}"
   fi
   cp "${source}/${file}" "${tmp_dir}/${file}"
+  stamp "${tmp_dir}/${file}"
+  case "${file}" in
+    font-*.woff2)
+      versioned="${file%.woff2}.$(checksum "${tmp_dir}/${file}").woff2"
+      ln "${tmp_dir}/${file}" "${tmp_dir}/${versioned}"
+      font_urls="${font_urls} ${file%.woff2}=/institution/${versioned}"
+      ;;
+  esac
   echo "[entrypoint] ${file}: from ${source}"
 done
 chmod -R a+rX "${tmp_dir}"
@@ -332,7 +363,7 @@ mv "${tmp_dir}" "${OUT_DIR}/institution"
 # A value is pasted into CSS, so each kind accepts one shape only and
 # everything else is refused: a hex color, a length, a font URL.
 tmp=$(mktemp "${OUT_DIR}/theme.css.XXXXXX")
-if ! awk '
+if ! awk -v font_urls="${font_urls}" '
   BEGIN {
     split("accent accent-hover accent-light accent-lighter " \
           "text text-muted surface border link highlight " \
@@ -345,10 +376,13 @@ if ! awk '
     weight["font-regular"] = 400
     weight["font-medium"] = 500
     weight["font-bold"] = 700
-    for (i in fonts) {
-      kind[fonts[i]] = "font"
-      # Without a URL, the font is the file of the same name in the assets.
-      font[fonts[i]] = "/institution/" fonts[i] ".woff2"
+    for (i in fonts) kind[fonts[i]] = "font"
+    # Without a URL, the font is the versioned file of the same name in the
+    # assets: "font-regular=/institution/font-regular.<checksum>.woff2".
+    n = split(font_urls, pairs, " ")
+    for (i = 1; i <= n; i++) {
+      eq = index(pairs[i], "=")
+      font[substr(pairs[i], 1, eq - 1)] = substr(pairs[i], eq + 1)
     }
   }
 
@@ -421,6 +455,7 @@ if ! awk '
   fail "invalid theme file ${INSTITUTION_DIR}/theme.conf"
 fi
 chmod 644 "${tmp}"
+stamp "${tmp}"
 mv -f "${tmp}" "${OUT_DIR}/theme.css"
 
 echo "[entrypoint] wrote injectEnv.js, institution/ and theme.css in ${OUT_DIR}"
