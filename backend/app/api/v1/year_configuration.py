@@ -351,6 +351,37 @@ def _changes_activation(config: dict[str, Any]) -> bool:
     return False
 
 
+def _incomplete_module_names(
+    config: dict[str, Any],
+    job_lookup: dict[
+        tuple[int | None, int | None, int | None, int | None], SyncJobSummary
+    ],
+) -> list[str]:
+    """Names of the enabled modules missing a mandatory upload, by id."""
+    enriched = copy.deepcopy(config)
+    _enrich_config_with_jobs(enriched, job_lookup)
+    _enrich_config_with_incomplete_flags(enriched)
+    ids = sorted(
+        int(key)
+        for key, module in enriched.get("modules", {}).items()
+        if isinstance(module, dict) and module.get("incomplete")
+    )
+    return [ModuleTypeEnum(module_id).name for module_id in ids]
+
+
+async def _raise_if_year_incomplete(
+    db: AsyncSession, year: int, config: dict[str, Any]
+) -> None:
+    """#2787: refuse to open a year while an enabled module is incomplete."""
+    latest_jobs = await DataIngestionRepository(db).get_latest_jobs_by_year(year)
+    names = _incomplete_module_names(config, _build_job_lookup(latest_jobs))
+    if names:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot open the year, incomplete modules: {', '.join(names)}",
+        )
+
+
 def _deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge patch into base (returns a new dict).
 
@@ -679,6 +710,8 @@ async def create_year_configuration(
     config_data = (
         payload.config if payload and payload.config else generate_default_year_config()
     )
+    if payload and payload.is_started:
+        await _raise_if_year_incomplete(db, year, config_data)
     # Issue #867 — collapse the old two-click flow ("Create year" then
     # "Sync units from Accred") into a single observable pipeline.  The
     # endpoint auto-enqueues a ``unit_sync`` ``DataIngestionJob`` with
@@ -892,6 +925,13 @@ async def update_year_configuration(
             status_code=status.HTTP_409_CONFLICT,
             detail="Module activation is locked once the year has started",
         )
+
+    # Only the closed -> open transition is guarded; closing stays allowed.
+    if payload.is_started and not result.is_started:
+        merged = result.config
+        if payload.config is not None:
+            merged = _deep_merge(result.config, payload.config)
+        await _raise_if_year_incomplete(db, year, merged)
 
     # Get old snapshot for audit
     old_snapshot = {

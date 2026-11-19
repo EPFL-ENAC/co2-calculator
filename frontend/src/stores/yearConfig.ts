@@ -6,7 +6,7 @@ import {
   type SubmoduleConfig as ModuleUploadConfig,
   type SubmoduleConfig as StaticSubmoduleConfig,
 } from '@/constant/backoffice-module-config';
-import { type Module } from '@/constant/modules';
+import { MODULES_LIST, type Module } from '@/constant/modules';
 
 export interface FileMetadata {
   path: string;
@@ -600,10 +600,15 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
    */
   const anyModuleIncomplete = computed(() => {
     if (!config.value) return false;
-    const modules = config.value.config?.modules ?? {};
-    const anyModule = Object.values(modules).some((m) => !!m?.incomplete);
-    return anyModule || isReductionObjectiveIncomplete.value;
+    return (
+      incompleteModules.value.length > 0 || isReductionObjectiveIncomplete.value
+    );
   });
+
+  /** #2787 — the modules that block opening the year, in calculator order. */
+  const incompleteModules = computed<Module[]>(() =>
+    MODULES_LIST.filter((m) => !!getModuleConfig(m)?.incomplete),
+  );
 
   function getModuleConfig(module: Module): ModuleConfig | null {
     const moduleTypeIdMap = buildModuleTypeIdMapping();
@@ -637,6 +642,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     // Computed
     startedYears,
     anyModuleIncomplete,
+    incompleteModules,
     isReductionObjectiveIncomplete,
     unifiedModuleConfig,
     visibleModules,
