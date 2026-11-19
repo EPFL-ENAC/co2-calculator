@@ -5,6 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.data_entry_permissions import (
     ALWAYS_WRITABLE_FIELDS,
     can_delete,
+    clears_reference_percentage,
     is_policy_exempt,
     provenance_of,
     writable_fields_for_row,
@@ -484,9 +485,8 @@ class CarbonReportModuleWorkflow:
             )
         if not is_policy_exempt(data_entry_type):
             module_type = ModuleTypeEnum(carbon_report_module.module_type_id)
-            allowed = writable_fields_for_row(
-                module_type, data_entry_type, existing_entry.source
-            )
+            provenance = provenance_of(existing_entry.source, existing_data)
+            allowed = writable_fields_for_row(module_type, data_entry_type, provenance)
             # Diffs the caller's literal item_data, not update_payload — the
             # latter can carry dependent-field resets from
             # clear_dependent_fields_on_kind_change() (e.g. Purchase's
@@ -499,7 +499,11 @@ class CarbonReportModuleWorkflow:
             changed_locked_fields = [
                 field
                 for field, value in item_data.items()
-                if field not in allowed and existing_data.get(field) != value
+                if existing_data.get(field) != value
+                and (
+                    field not in allowed
+                    or clears_reference_percentage(provenance, field, value)
+                )
             ]
             if changed_locked_fields:
                 raise HTTPException(
@@ -613,7 +617,7 @@ class CarbonReportModuleWorkflow:
             carbon_report_module, data_entry_type, current_user
         )
         if not is_policy_exempt(data_entry_type) and not can_delete(
-            provenance_of(entry.source)
+            provenance_of(entry.source, entry.data)
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

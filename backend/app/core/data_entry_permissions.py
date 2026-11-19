@@ -10,8 +10,14 @@ already the correct field scope for that (see plan).
 
 Both branches — IMPORTED (locked) and USER (a user's own row) — are field-
 level whitelists per the literal #951 issue table, confirmed 2026-08-13.
+
+#2646 adds a third branch, REFERENCE: a Simulator Plan row priced as a
+percentage of a reference-year row. It is module-independent, so it lives
+outside the matrix (see docs/src/implementation-plans/
+2646-planner-reference-row-edit-rights.md).
 """
 
+from collections.abc import Mapping
 from enum import Enum
 
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
@@ -34,9 +40,11 @@ from app.schemas.data_entry import BaseModuleHandler
 #     data_entry_type_id as the regular calculator module (building,
 #     energy_combustion, equipment kinds, ...) — it is NOT a planner-kind
 #     type (80+) and is_policy_exempt() doesn't catch it. It's the user's own
-#     plan data (percentage slider, deletable), not externally imported —
-#     must resolve to USER (code review 2026-08-13, real regression: every
-#     prefilled plan module's rows were locking up under IMPORTED).
+#     plan data, not externally imported — never IMPORTED (code review
+#     2026-08-13, real regression: every prefilled plan module's rows were
+#     locking up). A snapshot row that carries a percentage resolves to
+#     REFERENCE instead (#2646, see provenance_of); a plain copy
+#     (professional travel) stays USER.
 _USER_BRANCH_SOURCES = frozenset(
     {
         DataEntrySourceEnum.USER_MANUAL.value,
@@ -48,13 +56,45 @@ _USER_BRANCH_SOURCES = frozenset(
 
 
 class Provenance(str, Enum):
-    # source is None, USER_MANUAL, *_MODULE_UNIT_SPECIFIC, or PLANNER_SNAPSHOT
+    # source is None, USER_MANUAL, *_MODULE_UNIT_SPECIFIC, or a PLANNER_SNAPSHOT
+    # plain copy
     USER = "user"
     # backoffice per-year ingests: CSV/API_MODULE_PER_YEAR, EXTERNAL_INTEGRATION
     IMPORTED = "imported"
+    # #2646: a PLANNER_SNAPSHOT row priced as a percentage of a reference-year
+    # row (the "% of reference year" slider)
+    REFERENCE = "reference"
 
 
-def provenance_of(source: int | None) -> Provenance:
+# The two provenances the PERMISSIONS matrix is keyed by. REFERENCE is one
+# module-independent rule (REFERENCE_WRITABLE_FIELDS), not a matrix row.
+_MATRIX_PROVENANCES = (Provenance.USER, Provenance.IMPORTED)
+
+# The planner scaling field the slider writes. It is not a DTO field on any
+# module (it rides through DataEntryUpdate.unflatten_payload into ``data``),
+# so it can't live in the PERMISSIONS matrix, which _validate_registry checks
+# against update DTOs.
+REFERENCE_PERCENTAGE_FIELD = "percentage_of_reference_year"
+
+# #2646: a reference row's kgCO2eq is the reference row's kgCO2eq times the
+# percentage (DataEntryEmissionService._get_percentage_override_kg) — its own
+# fields never reach the result, so editing them would change what the row
+# shows without changing what it counts. Only the percentage is writable.
+REFERENCE_WRITABLE_FIELDS = frozenset({REFERENCE_PERCENTAGE_FIELD})
+
+
+def provenance_of(source: int | None, data: Mapping[str, object]) -> Provenance:
+    """Bucket a row into its edit-rights branch.
+
+    ``data`` is the PERSISTED ``DataEntry.data``: a snapshot row is a
+    reference row for as long as it carries a percentage, which is exactly
+    when the emission compute prices it from the reference year.
+    """
+    if (
+        source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+        and data.get(REFERENCE_PERCENTAGE_FIELD) is not None
+    ):
+        return Provenance.REFERENCE
     if source is None or source in _USER_BRANCH_SOURCES:
         return Provenance.USER
     return Provenance.IMPORTED
@@ -63,29 +103,40 @@ def provenance_of(source: int | None) -> Provenance:
 # create/delete are not stored per module: per the #951 matrix, user rows are
 # ALWAYS manually addable and deletable, imported rows NEVER are — no module
 # is an exception. Only which fields are updatable varies per module.
+# Reference rows are written by the plan prefill, never typed in, and stay
+# deletable: they are the user's own scenario, and a deleted row counts the
+# same as one left at 0%.
 def can_create(provenance: Provenance) -> bool:
     return provenance == Provenance.USER
 
 
 def can_delete(provenance: Provenance) -> bool:
-    return provenance == Provenance.USER
+    return provenance != Provenance.IMPORTED
+
+
+def clears_reference_percentage(
+    provenance: Provenance, field: str, value: object
+) -> bool:
+    """Whether a write would unlink a reference row from its reference year.
+
+    The percentage is writable but not clearable: without it the row would
+    drop back to the USER branch, which unlocks the very fields #2646 locks.
+    """
+    return (
+        provenance == Provenance.REFERENCE
+        and field == REFERENCE_PERCENTAGE_FIELD
+        and value is None
+    )
 
 
 ALWAYS_WRITABLE_FIELDS = frozenset({"note"})
-
-# Planner snapshot rows keep the USER whitelist of their calculator type but
-# additionally own the planner scaling field their slider writes — it is not
-# a DTO field on any module (it rides through DataEntryUpdate.unflatten_payload
-# into ``data``), so it can't live in the PERMISSIONS matrix, which
-# _validate_registry checks against update DTOs.
-PLANNER_SNAPSHOT_WRITABLE_FIELDS = frozenset({"percentage_of_reference_year"})
 
 # Data-entry types that never go through this policy layer: planner-kind
 # types (planner_headcount/planner_purchase*, enum >= 80), and system-derived
 # rows created as a side effect of another mutation (embodied energy, from
 # room changes). Neither is in the #951 matrix. Planner PREFILLED rows are
-# NOT exempt — they reuse calculator types and resolve to the USER branch
-# (plus PLANNER_SNAPSHOT_WRITABLE_FIELDS above).
+# NOT exempt — they reuse calculator types and resolve to the REFERENCE
+# branch (or USER for a plain copy).
 SYSTEM_MANAGED_TYPES = frozenset({DataEntryTypeEnum.building_embodied_energy})
 
 
@@ -276,7 +327,10 @@ def editable_fields(
     """Resolve the updatable field set: submodule-specific entry wins over
     the module-wide (``None``) one. Raises ``KeyError`` when neither exists
     — a coverage gap, not a silent lock (see ``_validate_registry``).
+    A reference row has the same set in every module.
     """
+    if provenance == Provenance.REFERENCE:
+        return REFERENCE_WRITABLE_FIELDS
     specific_key = (module_type, data_entry_type, provenance)
     if specific_key in PERMISSIONS:
         return PERMISSIONS[specific_key] or frozenset()
@@ -292,24 +346,21 @@ def editable_fields(
 def writable_fields_for_row(
     module_type: ModuleTypeEnum,
     data_entry_type: DataEntryTypeEnum,
-    source: int | None,
+    provenance: Provenance,
 ) -> frozenset[str]:
-    """The full updatable field set for one row: provenance whitelist, the
-    always-writable metadata, and the planner scaling field on snapshot rows.
+    """The full updatable field set for one row: its provenance whitelist
+    plus the always-writable metadata.
     """
-    fields = (
-        editable_fields(module_type, data_entry_type, provenance_of(source))
+    return (
+        editable_fields(module_type, data_entry_type, provenance)
         | ALWAYS_WRITABLE_FIELDS
     )
-    if source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value:
-        fields |= PLANNER_SNAPSHOT_WRITABLE_FIELDS
-    return fields
 
 
 def submodule_policies(
     data_entry_type: DataEntryTypeEnum,
 ) -> DataEntryPolicies | None:
-    """Both provenance branches for one submodule, for the frontend
+    """Every provenance branch for one submodule, for the frontend
     (``SubmoduleResponse.data_entry_policies``). ``None`` for exempt types —
     #951 policy doesn't apply to them.
     """
@@ -333,7 +384,11 @@ def submodule_policies(
         )
         for provenance in list(Provenance)
     }
-    return DataEntryPolicies(user=branches["user"], imported=branches["imported"])
+    return DataEntryPolicies(
+        user=branches["user"],
+        imported=branches["imported"],
+        reference=branches["reference"],
+    )
 
 
 def find_uncovered_types(
@@ -354,7 +409,7 @@ def find_uncovered_types(
 
 def _validate_registry() -> None:
     """Import-time self-check: every non-exempt (module, submodule) in the
-    real module registry must resolve for both provenances, every field
+    real module registry must resolve for both matrix provenances, every field
     name granted must be a real field on that submodule's update DTO, and
     every DataEntryTypeEnum member must be covered (exempt or registered)
     — a coverage gap or a typo'd field name fails at import, not in
@@ -374,7 +429,7 @@ def _validate_registry() -> None:
                 continue
             handler = BaseModuleHandler.get_by_type(data_entry_type)
             valid_fields = set(handler.update_dto.model_fields)
-            for provenance in list(Provenance):
+            for provenance in _MATRIX_PROVENANCES:
                 fields = editable_fields(module_type, data_entry_type, provenance)
                 unknown = fields - valid_fields
                 if unknown:

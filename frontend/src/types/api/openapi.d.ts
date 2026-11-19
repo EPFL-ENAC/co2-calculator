@@ -3228,11 +3228,12 @@ export interface components {
         ConnectorType: "EPFL_TABLEAU";
         /**
          * DataEntryPolicies
-         * @description #951: both provenance branches for one submodule.
+         * @description #951: every provenance branch for one submodule.
          */
         DataEntryPolicies: {
             user: components["schemas"]["RowPolicy"];
             imported: components["schemas"]["RowPolicy"];
+            reference: components["schemas"]["RowPolicy"];
         };
         /**
          * DataEntryResponse
@@ -4376,7 +4377,7 @@ export interface components {
              * @default false
              */
             has_more: boolean;
-            /** @description Edit rights per row provenance (user/imported) */
+            /** @description Edit rights per row provenance (user/imported/reference) */
             data_entry_policies?: components["schemas"]["DataEntryPolicies"] | null;
         };
         /**

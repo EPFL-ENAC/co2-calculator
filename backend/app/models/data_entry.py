@@ -80,6 +80,10 @@ class DataEntrySourceEnum(int, Enum):
     The line is per-year vs unit-specific, not manual vs uploaded: a
     unit-specific upload is the operator's own data. Adding a new member
     here that should read as "user" means updating both.
+
+    #2646: a PLANNER_SNAPSHOT row that carries a percentage of the reference
+    year is its own "reference" branch on both sides (``provenance_of`` /
+    ``branchOf``) — only the percentage and the note are writable.
     """
 
     USER_MANUAL = 0  # Manual entry via UI — user-owned, editable

@@ -208,6 +208,8 @@ export interface ModuleItem {
   id?: number;
   /** #951: row provenance — see utils/dataEntryPolicy branchOf/isFieldEditable. */
   source?: number | null;
+  /** Planner reference rows only (#2646): the "% of reference year" value. */
+  percentage_of_reference_year?: number | null;
 }
 
 export interface Submodule {
