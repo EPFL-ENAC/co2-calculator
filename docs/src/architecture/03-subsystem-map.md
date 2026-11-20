@@ -19,7 +19,7 @@ flowchart TB
     subgraph OCP["EPFL OpenShift · co2-calculator namespace"]
         Route[Route · TLS edge]
         FE[Frontend<br/>Vue 3 + Quasar SPA<br/>nginx · 2 replicas]
-        Docs[Docs<br/>MkDocs · nginx]
+        Docs[Docs<br/>Zensical · nginx]
 
         subgraph BE["Backend · FastAPI + Uvicorn · 2 replicas (HPA)"]
             API[API routers<br/>/api/v1/*]
@@ -100,7 +100,7 @@ by the app Helm chart.
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Frontend**        | Vue 3 + Quasar SPA served by unprivileged Nginx. One app with in-app sections `/app`, `/back-office`, `/system`. 2 replicas.       |
 | **Backend**         | FastAPI + Uvicorn (Python 3.14). Auth, business logic, persistence and background jobs in a single process. 2 replicas (HPA 2–10). |
-| **Docs**            | This MkDocs site, static, served by Nginx. 1 replica.                                                                              |
+| **Docs**            | This Zensical site, static, served by Nginx. 1 replica.                                                                            |
 | **Migration Job**   | Helm hook running `alembic upgrade head` before each release (with a `wait-for-postgres` init).                                    |
 | **db-dump CronJob** | Scheduled `pg_dump` of the database to the `db-dumps` PVC (deployed via GitOps).                                                   |
 

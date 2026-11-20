@@ -1,10 +1,9 @@
-"""Auto-index generator hook for MkDocs.
+"""Write the generated section indexes before Zensical builds the site.
 
-Walks documentation sections and emits virtual `INDEX.md` files via
-`mkdocs_gen_files`. Implementation-plans index is grouped by frontmatter
-`status` (delivered / in-progress / abandoned); other sections get an
-alphabetical TOC. Files lacking frontmatter fall under "Uncategorized" so
-`mkdocs build --strict` keeps passing before sibling backfill lands.
+Zensical runs no MkDocs plugins, so this is a plain pre-build step (see
+build.sh). It writes `_index.md` files into `src/`, gitignored. The
+implementation-plans index is grouped by frontmatter `status`; other
+sections get an alphabetical list.
 
 Frontmatter schema (all optional)::
 
@@ -19,86 +18,20 @@ Frontmatter schema (all optional)::
 
 from __future__ import annotations
 
-import logging
 import re
+import tomllib
 from pathlib import Path
 from typing import Any
 
-import mkdocs_gen_files
+import frontmatter
 
-try:
-    import frontmatter as _frontmatter
-
-    def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-        post = _frontmatter.loads(text)
-        return dict(post.metadata), post.content
-except ImportError:  # minimal fallback parser
-    _FM_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n(.*)\Z", re.DOTALL)
-
-    def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-        match = _FM_RE.match(text)
-        if not match:
-            return {}, text
-        meta: dict[str, Any] = {}
-        for line in match.group(1).splitlines():
-            if ":" not in line or line.lstrip().startswith("#"):
-                continue
-            key, _, value = line.partition(":")
-            meta[key.strip()] = value.strip().strip("\"'")
-        return meta, match.group(2)
-
-
-# Anchor paths to this script's directory so the script works in both layouts:
-#   - local repo: <repo>/docs/gen_indexes.py with src/ as sibling
-#   - Docker:     /app/gen_indexes.py with src/ as sibling (Dockerfile flattens docs/)
-# The mkdocs.yml docs_dir: src declares the same sibling relationship.
 DOCS_DIR = Path(__file__).resolve().parent
 DOCS_SRC = DOCS_DIR / "src"
 PLANS_DIR = DOCS_SRC / "implementation-plans"
 
-# Filename for generated section/plan indexes. Differs from `index.md` by more
-# than case so it does not collide with hand-authored `index.md` files on
-# case-insensitive filesystems (macOS/Windows).
+# Differs from `index.md` by more than case, so it does not collide with a
+# hand-written `index.md` on case-insensitive filesystems (macOS/Windows).
 GENERATED_INDEX_NAME = "_index.md"
-
-
-def _repo_url() -> str:
-    """Return the configured GitHub repo URL (no trailing slash).
-
-    Reads `repo_url` from the active MkDocs config so fork builds and
-    renamed remotes produce correct issue links. Falls back to upstream
-    when run outside a build (e.g. ad-hoc invocation).
-    """
-    fallback = "https://github.com/epfl-enac/co2-calculator"
-    try:
-        repo_url = str(
-            mkdocs_gen_files.FilesEditor.current().config.repo_url or fallback
-        )
-    except Exception:  # pragma: no cover - non-build invocation
-        repo_url = fallback
-    return repo_url.rstrip("/")
-
-
-_ISSUE_PREFIX_RE = re.compile(r"^\s*#?\s*(\d+)")
-
-
-def _issue_cell(issue: Any, repo_url: str) -> str:
-    """Render `issue` as a GitHub link when it has a numeric prefix.
-
-    Display preserves the frontmatter value (e.g. ``310-b``) so sub-issue
-    identifiers stay legible; the link target uses only the numeric prefix
-    because GitHub issue URLs are integer-keyed.
-    """
-    text = str(issue or "").strip().lstrip("#")
-    if not text:
-        return ""
-    match = _ISSUE_PREFIX_RE.match(text)
-    if not match:
-        return text
-    return f"[#{text}]({repo_url}/issues/{match.group(1)})"
-
-
-log = logging.getLogger("mkdocs.plugins.gen_indexes")
 
 STATUS_ORDER = ("delivered", "in-progress", "abandoned", "uncategorized")
 STATUS_LABEL = {
@@ -107,6 +40,22 @@ STATUS_LABEL = {
     "abandoned": "Abandoned",
     "uncategorized": "Uncategorized",
 }
+
+_ISSUE_PREFIX_RE = re.compile(r"^\s*#?\s*(\d+)")
+
+
+def _repo_url() -> str:
+    config = tomllib.loads((DOCS_DIR / "zensical.toml").read_text(encoding="utf-8"))
+    return str(config["project"]["repo_url"]).rstrip("/")
+
+
+def _issue_cell(issue: Any, repo_url: str) -> str:
+    """Show the frontmatter value (`310-b`), link the numeric prefix."""
+    text = str(issue or "").strip().lstrip("#")
+    match = _ISSUE_PREFIX_RE.match(text)
+    if not match:
+        return text
+    return f"[#{text}]({repo_url}/issues/{match.group(1)})"
 
 
 def _title_from(meta: dict[str, Any], body: str, fallback: str) -> str:
@@ -118,116 +67,82 @@ def _title_from(meta: dict[str, Any], body: str, fallback: str) -> str:
     return fallback
 
 
-def _section_index(section: str) -> None:
-    """Emit alphabetical TOC for a section under docs_dir."""
-    section_dir = DOCS_SRC / section
-    if not section_dir.is_dir():
-        return
+def _section_index(section: str) -> str:
     rows = []
-    skip_names = {"index.md", "index_.md", GENERATED_INDEX_NAME.lower()}
-    for md in sorted(section_dir.glob("*.md")):
-        if md.name.lower() in skip_names:
+    for md in sorted((DOCS_SRC / section).glob("*.md")):
+        if md.name.lower() in {"index.md", GENERATED_INDEX_NAME}:
             continue
-        meta, body = _parse_frontmatter(md.read_text(encoding="utf-8"))
-        title = _title_from(meta, body, md.stem)
+        post = frontmatter.loads(md.read_text(encoding="utf-8"))
+        title = _title_from(post.metadata, post.content, md.stem)
         rows.append(f"- [{title}]({md.name})")
     lines = [f"# {section.replace('-', ' ').title()} index", ""]
     lines.extend(rows or ["_No pages yet._"])
-    with mkdocs_gen_files.open(f"{section}/{GENERATED_INDEX_NAME}", "w") as f:
-        f.write("\n".join(lines) + "\n")
+    return "\n".join(lines) + "\n"
 
 
-def _plans_index() -> None:
-    """Emit grouped index for implementation-plans (lives under docs_dir/src)."""
-    if not PLANS_DIR.is_dir():
-        return
+def _plan_entry(md: Path) -> tuple[str, dict[str, Any]]:
+    post = frontmatter.loads(md.read_text(encoding="utf-8"))
+    status = str(post.metadata.get("status", "")).strip().lower() or "uncategorized"
+    if status not in STATUS_ORDER:
+        # A typo'd status would vanish into "Uncategorized" unnoticed.
+        raise SystemExit(
+            f"{md.name}: unknown plan status {status!r}, use one of "
+            + ", ".join(STATUS_ORDER[:-1])
+        )
+    summary = str(post.metadata.get("summary", "")).replace("|", "\\|")
+    return status, {
+        "title": _title_from(post.metadata, post.content, md.stem),
+        "issue": post.metadata.get("issue", ""),
+        "last_updated": post.metadata.get("last_updated", ""),
+        "summary": summary,
+        "filename": md.relative_to(PLANS_DIR).as_posix(),
+    }
+
+
+def _plans_index() -> str:
     groups: dict[str, list[dict[str, Any]]] = {key: [] for key in STATUS_ORDER}
-    # Archived plans are abandoned ones moved out of the way. They still
-    # belong in the index: an idea that was tried and rejected is worth
-    # finding before someone proposes it again.
+    # Archived plans stay in the index: an idea that was tried and rejected
+    # is worth finding before someone proposes it again.
     plan_files = sorted(PLANS_DIR.glob("*.md")) + sorted(
         (PLANS_DIR / "archive").glob("*.md")
     )
     for md in plan_files:
-        meta, body = _parse_frontmatter(md.read_text(encoding="utf-8"))
-        status = str(meta.get("status", "")).strip().lower() or "uncategorized"
-        if status not in groups:
-            # A typo'd or invented status would otherwise vanish into
-            # "Uncategorized" unnoticed. --strict turns this into an error.
-            log.warning(
-                "%s: unknown plan status %r — use one of %s",
-                md.name,
-                status,
-                ", ".join(k for k in STATUS_ORDER if k != "uncategorized"),
-            )
-            status = "uncategorized"
-        groups[status].append(
-            {
-                "title": _title_from(meta, body, md.stem),
-                "issue": meta.get("issue", ""),
-                "last_updated": meta.get("last_updated", ""),
-                "summary": meta.get("summary", ""),
-                "filename": md.relative_to(PLANS_DIR).as_posix(),
-            }
-        )
+        if md.name == GENERATED_INDEX_NAME:
+            continue
+        status, entry = _plan_entry(md)
+        groups[status].append(entry)
 
     repo_url = _repo_url()
+    total = sum(len(v) for v in groups.values())
     lines = [
         "# Implementation plans",
         "",
-        f"Plans live in `docs/src/implementation-plans/`. {sum(len(v) for v in groups.values())} total.",
+        f"Plans live in `docs/src/implementation-plans/`. {total} total.",
         "",
     ]
     for key in STATUS_ORDER:
-        entries = groups[key]
-        if not entries:
+        if not groups[key]:
             continue
-        lines.append(f"## {STATUS_LABEL[key]} ({len(entries)})")
-        lines.append("")
-        lines.append("| Title | Issue | Last updated | Summary |")
-        lines.append("| --- | --- | --- | --- |")
-        for e in entries:
-            link = f"[{e['title']}]({e['filename']})"
-            issue_link = _issue_cell(e["issue"], repo_url)
-            summary = str(e["summary"]).replace("|", "\\|")
+        lines += [f"## {STATUS_LABEL[key]} ({len(groups[key])})", ""]
+        lines += [
+            "| Title | Issue | Last updated | Summary |",
+            "| --- | --- | --- | --- |",
+        ]
+        for e in groups[key]:
+            issue = _issue_cell(e["issue"], repo_url)
             lines.append(
-                f"| {link} | {issue_link} | {e['last_updated']} | {summary} |"
+                f"| [{e['title']}]({e['filename']}) | {issue} | {e['last_updated']} | {e['summary']} |"
             )
         lines.append("")
-
-    with mkdocs_gen_files.open(
-        f"implementation-plans/{GENERATED_INDEX_NAME}", "w"
-    ) as f:
-        f.write("\n".join(lines) + "\n")
+    return "\n".join(lines)
 
 
-def _check_pages_nav() -> None:
-    """Fail the build on a `.pages` nav entry with no file behind it.
-
-    awesome-pages drops such an entry silently, and the damage is not
-    local: one dangling entry corrupted navigation in unrelated sections
-    (backend, infra and user-docs all lost pages to a single bad line).
-    """
-    for pages_file in sorted(DOCS_SRC.rglob(".pages")):
-        meta, _ = _parse_frontmatter("---\n" + pages_file.read_text(encoding="utf-8") + "\n---\n")
-        nav = meta.get("nav")
-        if not isinstance(nav, list):
-            continue
-        for entry in nav:
-            if not isinstance(entry, str) or entry == "...":
-                continue
-            if entry == GENERATED_INDEX_NAME:
-                continue  # written by mkdocs-gen-files, never on disk
-            if not (pages_file.parent / entry).exists():
-                log.warning(
-                    "%s: nav entry %r has no file behind it — awesome-pages "
-                    "drops it silently and can break other sections too",
-                    pages_file.relative_to(DOCS_SRC),
-                    entry,
-                )
+def main() -> None:
+    for section in ("architecture", "backend", "frontend"):
+        index = DOCS_SRC / section / GENERATED_INDEX_NAME
+        index.write_text(_section_index(section), encoding="utf-8")
+    (PLANS_DIR / GENERATED_INDEX_NAME).write_text(_plans_index(), encoding="utf-8")
 
 
-_check_pages_nav()
-for _section in ("architecture", "backend", "frontend"):
-    _section_index(_section)
-_plans_index()
+if __name__ == "__main__":
+    main()

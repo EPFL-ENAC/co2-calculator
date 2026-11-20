@@ -38,7 +38,7 @@ The existing aggregation endpoints only handle equipment and don't filter by val
 ]
 ```
 
-### 1a. Repository: [data_entry_emission_repo.py](backend/app/repositories/data_entry_emission_repo.py)
+### 1a. Repository: [data_entry_emission_repo.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/repositories/data_entry_emission_repo.py)
 
 `get_validated_totals_by_unit(unit_id: int) -> list[dict]`
 
@@ -50,14 +50,14 @@ The existing aggregation endpoints only handle equipment and don't filter by val
 - No filter on `module_type_id` — sums across ALL module types
 - Returns: `[{"year": 2023, "kg_co2eq": 61700.0}, ...]` (still in kg)
 
-### 1b. Service: [unit_totals_service.py](backend/app/services/unit_totals_service.py)
+### 1b. Service: [unit_totals_service.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/services/unit_totals_service.py)
 
 `get_validated_emissions_by_unit(unit_id: int) -> list[dict]`
 
 - Delegates to the repo method and returns its result as-is (no conversion)
 - Returns: `[{"year": 2023, "kg_co2eq": 61700.0}, ...]`
 
-### 1c. Endpoint: [unit_results.py](backend/app/api/v1/unit_results.py)
+### 1c. Endpoint: [unit_results.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/api/v1/unit_results.py)
 
 `GET /{unit_id}/yearly-validated-emissions` — mounted at `/unit` prefix.
 
@@ -87,7 +87,7 @@ The existing aggregation endpoints only handle equipment and don't filter by val
 - `total_tonnes_co2eq` is the sum of all emission stats (÷1000) across all modules
 - `total_fte` is the sum of all FTE stats
 
-### 2a. Repository: [data_entry_emission_repo.py](backend/app/repositories/data_entry_emission_repo.py)
+### 2a. Repository: [data_entry_emission_repo.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/repositories/data_entry_emission_repo.py)
 
 `get_stats_by_carbon_report_id(carbon_report_id: int) -> dict[str, float]`
 
@@ -99,7 +99,7 @@ No `aggregate_by`/`aggregate_field` parameters — always groups by `module_type
 - Aggregate: `SUM(DataEntryEmission.kg_co2eq)`
 - Returns: `{"2": 15000.0, "4": 41700.0, "7": 5000.0}` (kg, string keys)
 
-### 2b. Repository: [data_entry_repo.py](backend/app/repositories/data_entry_repo.py)
+### 2b. Repository: [data_entry_repo.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/repositories/data_entry_repo.py)
 
 `get_stats_by_carbon_report_id(carbon_report_id, aggregate_by='module_type_id', aggregate_field='fte') -> dict[str, float]`
 
@@ -112,7 +112,7 @@ Generic aggregation method. Repo defaults are `aggregate_by='module_type_id'` an
 - Returns: `{"1": 15.0, "2": 10.5}` (keyed by `data_entry_type_id`)
 - Only headcount entries have FTE data; other modules' entries return null for `data["fte"]` and are excluded by SUM
 
-### 2c. Endpoint: [carbon_report_module_stats.py](backend/app/api/v1/carbon_report_module_stats.py)
+### 2c. Endpoint: [carbon_report_module_stats.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/api/v1/carbon_report_module_stats.py)
 
 `GET /{carbon_report_id}/validated-totals` — mounted at `/modules-stats` prefix.
 
@@ -166,7 +166,7 @@ The endpoint:
 - `year_comparison_percentage` is `null` when no previous year data exists
 - `equivalent_car_km = kg_co2eq / CO2_PER_KM_KG`
 
-### 3a. Service: [unit_totals_service.py](backend/app/services/unit_totals_service.py)
+### 3a. Service: [unit_totals_service.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/services/unit_totals_service.py)
 
 `get_results_summary(carbon_report_id: int) -> dict`
 
@@ -188,7 +188,7 @@ Returns raw data dict for the endpoint to format:
 }
 ```
 
-### 3b. Endpoint: [carbon_report_module_stats.py](backend/app/api/v1/carbon_report_module_stats.py)
+### 3b. Endpoint: [carbon_report_module_stats.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/api/v1/carbon_report_module_stats.py)
 
 `GET /{carbon_report_id}/results-summary` — mounted at `/modules-stats` prefix.
 
@@ -220,7 +220,7 @@ Also documented in `.env.example`.
 
 ## Frontend
 
-### API layer: [modules.ts](frontend/src/api/modules.ts)
+### API layer: [modules.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/api/modules.ts)
 
 The API module defines TypeScript interfaces and fetch functions:
 
@@ -253,13 +253,13 @@ interface ResultsSummary {
 
 **Function:** `getResultsSummary(carbonReportId: number)` — calls `GET /modules-stats/{carbonReportId}/results-summary`.
 
-### Store: [modules.ts](frontend/src/stores/modules.ts)
+### Store: [modules.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/stores/modules.ts)
 
 The Pinia store (`useModuleStore`) contains functions for endpoint 1 (yearly emissions):
 
 **Function:** `getYearlyValidatedEmissions(unitId: number)` — calls `GET /unit/{unitId}/yearly-validated-emissions`, stores result in `state.yearlyValidatedEmissions`.
 
-### ResultsPage: [ResultsPage.vue](frontend/src/pages/app/ResultsPage.vue)
+### ResultsPage: [ResultsPage.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/pages/app/ResultsPage.vue)
 
 Dedicated results page that consumes the `results-summary` endpoint:
 

@@ -33,7 +33,7 @@ for SSE streams and long exports.
   [ADR-015](../architecture-decision-records/015-claim-job-atomic-state-is-current.md)).
   Health: `/api/healthz` (liveness, always 200) and `/api/health/deps`
   (database and role provider, 503 on failure).
-- **Docs**: this MkDocs site, 1 pod.
+- **Docs**: this Zensical site, 1 pod.
 - **Migration Job**: `alembic upgrade head`, a Helm `pre-upgrade` hook, so
   a failed migration blocks the rollout.
 - **OTel Collector**: receives OTLP from backend and worker. Metrics go to

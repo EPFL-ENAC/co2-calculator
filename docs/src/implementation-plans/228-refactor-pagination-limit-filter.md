@@ -29,7 +29,7 @@ Implement lazy loading with per-submodule pagination and sorting. Load only summ
 
 #### 1. Repository Layer
 
-**File**: [backend/app/repositories/equipment_repo.py:119-188](backend/app/repositories/equipment_repo.py#L119-L188)
+**File**: [backend/app/repositories/equipment_repo.py:119-188](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/repositories/equipment_repo.py#L119-L188)
 
 - Add `sort_by` and `sort_order` parameters to `get_equipment_with_emissions()`
 - Create field mapping dict: `{"id": Equipment.id, "name": Equipment.name, "kg_co2eq": EquipmentEmission.kg_co2eq, ...}`
@@ -37,7 +37,7 @@ Implement lazy loading with per-submodule pagination and sorting. Load only summ
 
 #### 2. Service Layer
 
-**File**: [backend/app/services/equipment_service.py:35-263](backend/app/services/equipment_service.py#L35-L263)
+**File**: [backend/app/services/equipment_service.py:35-263](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/services/equipment_service.py#L35-L263)
 
 **In `get_module_data()`**:
 
@@ -50,7 +50,7 @@ Implement lazy loading with per-submodule pagination and sorting. Load only summ
 
 #### 3. API Layer
 
-**File**: [backend/app/api/v1/modules.py:22-143](backend/app/api/v1/modules.py#L22-L143)
+**File**: [backend/app/api/v1/modules.py:22-143](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/api/v1/modules.py#L22-L143)
 
 - Update `preview_limit` Query validator: `ge=0` (allow 0)
 - Pass `sort_by` and `sort_order` from submodule endpoint to service layer
@@ -61,7 +61,7 @@ Implement lazy loading with per-submodule pagination and sorting. Load only summ
 
 #### 4. Store
 
-**File**: [frontend/src/stores/modules.ts](frontend/src/stores/modules.ts)
+**File**: [frontend/src/stores/modules.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/stores/modules.ts)
 
 **State**: Add `loadedSubmodules: Record<string, boolean>`
 
@@ -85,13 +85,13 @@ Implement lazy loading with per-submodule pagination and sorting. Load only summ
 
 #### 5. ModulePage
 
-**File**: [frontend/src/pages/app/ModulePage.vue:68-86](frontend/src/pages/app/ModulePage.vue#L68-L86)
+**File**: [frontend/src/pages/app/ModulePage.vue:68-86](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/pages/app/ModulePage.vue#L68-L86)
 
 - Replace `moduleStore.getModuleData()` with `moduleStore.getModuleTotals()`
 
 #### 6. SubModuleSection
 
-**File**: [frontend/src/components/organisms/module/SubModuleSection.vue](frontend/src/components/organisms/module/SubModuleSection.vue)
+**File**: [frontend/src/components/organisms/module/SubModuleSection.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/organisms/module/SubModuleSection.vue)
 
 **Template**:
 
@@ -110,7 +110,7 @@ Implement lazy loading with per-submodule pagination and sorting. Load only summ
 
 #### 7. ModuleTable
 
-**File**: [frontend/src/components/organisms/module/ModuleTable.vue](frontend/src/components/organisms/module/ModuleTable.vue)
+**File**: [frontend/src/components/organisms/module/ModuleTable.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/organisms/module/ModuleTable.vue)
 
 **Props**: Add `submoduleId?: string`, `paginationData?: { page, limit, total, sortBy?, sortOrder? }`
 
@@ -145,16 +145,16 @@ Implement lazy loading with per-submodule pagination and sorting. Load only summ
 
 ### Backend
 
-1. [backend/app/repositories/equipment_repo.py](backend/app/repositories/equipment_repo.py)
-2. [backend/app/services/equipment_service.py](backend/app/services/equipment_service.py)
-3. [backend/app/api/v1/modules.py](backend/app/api/v1/modules.py)
+1. [backend/app/repositories/equipment_repo.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/repositories/equipment_repo.py)
+2. [backend/app/services/equipment_service.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/services/equipment_service.py)
+3. [backend/app/api/v1/modules.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/api/v1/modules.py)
 
 ### Frontend
 
-4. [frontend/src/stores/modules.ts](frontend/src/stores/modules.ts)
-5. [frontend/src/pages/app/ModulePage.vue](frontend/src/pages/app/ModulePage.vue)
-6. [frontend/src/components/organisms/module/SubModuleSection.vue](frontend/src/components/organisms/module/SubModuleSection.vue)
-7. [frontend/src/components/organisms/module/ModuleTable.vue](frontend/src/components/organisms/module/ModuleTable.vue)
+4. [frontend/src/stores/modules.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/stores/modules.ts)
+5. [frontend/src/pages/app/ModulePage.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/pages/app/ModulePage.vue)
+6. [frontend/src/components/organisms/module/SubModuleSection.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/organisms/module/SubModuleSection.vue)
+7. [frontend/src/components/organisms/module/ModuleTable.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/components/organisms/module/ModuleTable.vue)
 
 ---
 

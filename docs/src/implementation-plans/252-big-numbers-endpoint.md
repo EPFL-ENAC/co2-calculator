@@ -74,7 +74,7 @@ Currently the page hardcodes most values (`"37'250"`, `"8.2"`, `"-11.3%"`). The 
 
 ## 1. Repositories (reuse existing methods)
 
-### Emissions: [data_entry_emission_repo.py](backend/app/repositories/data_entry_emission_repo.py) — `get_stats_by_carbon_report_id()` (line 158)
+### Emissions: [data_entry_emission_repo.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/repositories/data_entry_emission_repo.py) — `get_stats_by_carbon_report_id()` (line 158)
 
 Already does exactly what we need:
 
@@ -85,7 +85,7 @@ Already does exactly what we need:
 
 Called once for current year, once for previous year (if exists).
 
-### FTE: [data_entry_repo.py](backend/app/repositories/data_entry_repo.py) — `get_stats_by_carbon_report_id()` (line 134)
+### FTE: [data_entry_repo.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/repositories/data_entry_repo.py) — `get_stats_by_carbon_report_id()` (line 134)
 
 Already does exactly what we need:
 
@@ -100,7 +100,7 @@ Called once for current year, once for previous year (if exists).
 
 ---
 
-## 2. Service: [unit_totals_service.py](backend/app/services/unit_totals_service.py)
+## 2. Service: [unit_totals_service.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/services/unit_totals_service.py)
 
 ### Add `get_results_summary(carbon_report_id: int)`
 
@@ -123,7 +123,7 @@ Total DB queries: 3 (load report + 2 stats) or 5 if previous year exists.
 
 ---
 
-## 3. Endpoint: [carbon_report_module_stats.py](backend/app/api/v1/carbon_report_module_stats.py)
+## 3. Endpoint: [carbon_report_module_stats.py](https://github.com/epfl-enac/co2-calculator/blob/HEAD/backend/app/api/v1/carbon_report_module_stats.py)
 
 ### Add `GET /{carbon_report_id}/results-summary`
 
@@ -136,7 +136,7 @@ The endpoint:
 
 ---
 
-## 4. Frontend: [ResultsPage.vue](frontend/src/pages/app/ResultsPage.vue)
+## 4. Frontend: [ResultsPage.vue](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/pages/app/ResultsPage.vue)
 
 ### Update `fetchUnitTotals` → `fetchResultsSummary`
 
@@ -149,7 +149,7 @@ The endpoint:
 - Remove hardcoded `"37'250"`, `"8.2"`, `"-11.3%"` values
 - Remove `calculateEquivalentKm` function (server-side now)
 
-### Add typed API function: [modules.ts](frontend/src/api/modules.ts)
+### Add typed API function: [modules.ts](https://github.com/epfl-enac/co2-calculator/blob/HEAD/frontend/src/api/modules.ts)
 
 ```ts
 interface ResultsSummary {

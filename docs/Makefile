@@ -24,22 +24,18 @@ install: ## Install documentation dependencies
 	@echo "Documentation dependencies installed!"
 
 
-.PHONY: pdf
-pdf: ## Build documentation with PDF export enabled
-	cd docs && $(MAKE) pdf
-	UV_NO_ISOLATION=1 ENABLE_PDF_EXPORT=1 uv run mkdocs build
-
 .PHONY: docker-build-run
 docker-build-run: ## Build and run documentation in Docker (convenience target)
 	docker build -t docs:test . && docker run --rm -p 8080:8080 docs:test
 
 .PHONY: build-docs
-build-docs: ## Build documentation
-	UV_NO_ISOLATION=1 uv run mkdocs build
+build-docs: ## Build documentation into site/, failing on any warning or dead link
+	sh build.sh
 
 .PHONY: serve-docs
-serve-docs: ## Serve documentation with live reload
-	UV_NO_ISOLATION=1 uv run mkdocs serve --dirtyreload --watch src --watch mkdocs.yml
+serve-docs: ## Serve documentation with live reload on http://127.0.0.1:8001
+	uv run python gen_indexes.py
+	uv run zensical serve
 
 .PHONY: clean
 clean: ## Clean built documentation

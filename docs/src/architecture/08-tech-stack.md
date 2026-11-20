@@ -159,7 +159,7 @@ Helm chart in `helm/` with:
 - **security.yml**: npm audit, uv audit, Bandit, TruffleHog, CodeQL
 - **quality-check.yml**: ruff, mypy, ESLint, Prettier (PRs)
 - **.gitlab-ci.yml** (gitlab.epfl.ch): Container builds + Helm chart → ghcr.io + quay for `dev`, `stage` and tags, fed by **mirror-to-gitlab.yml** ([plan 2909](../implementation-plans/2909-gitlab-dev-deploy.md))
-- **deploy-mkdocs.yml**: Documentation deployment (GitHub Pages)
+- **deploy-pages.yml**: Documentation deployment (GitHub Pages)
 - **lighthouse.yml**: Frontend performance audits (PRs)
 - **release-please.yml**: Automated semantic versioning
 
@@ -179,8 +179,9 @@ For security scanning details, see
 
 ## Documentation
 
-MkDocs with Material theme at `docs/`. Deployed to GitHub Pages via
-workflow. Supports Markdown, Mermaid diagrams, search, and git metadata.
+Zensical at `docs/`, configured in `docs/zensical.toml`. Each release
+is published to GitHub Pages. Supports Markdown, Mermaid diagrams and
+search.
 
 ---
 
