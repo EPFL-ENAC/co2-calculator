@@ -26,15 +26,15 @@ Write technical docs a reader understands in one ~10-minute sitting. This extend
 
 A multi-procedure operational runbook may exceed these. When it must, say so and offer to split it, rather than silently overrunning.
 
-## MkDocs conventions (this repo)
+## Docs site conventions (this repo)
 
 These follow from how the docs site and the Prettier hook actually behave:
 
-- **Use blockquote callouts, not `!!!` admonitions.** The repo Prettier hook strips the 4-space indentation MkDocs admonitions require and silently breaks their rendering. Write callouts as a blockquote with a bold lead-in:
+- **Use blockquote callouts, not `!!!` admonitions.** The repo Prettier hook strips the 4-space indentation that admonitions require and silently breaks their rendering. Write callouts as a blockquote with a bold lead-in:
   ```markdown
   > **⚠️ Warning.** One sentence, one line, bold lead-in.
   ```
-- **Add every new page to `mkdocs.yml` `nav:`.** A page reachable only by cross-link is orphaned — it never appears in the sidebar. Place it near its topical neighbours.
+- **Add every new page to the `nav` of `docs/zensical.toml`.** A page reachable only by cross-link is orphaned — it never appears in the sidebar. Place it near its topical neighbours.
 - **No agent-only tooling in human-facing docs.** Use plain `git` / `gh`; never `rtk` or other local wrappers the reader will not have installed.
 - **Critical operational docs:** keep commands in the runbook and policy in the policy doc — cross-link, do not restate. Density may favour inline prose over strict 72-character wrapping when the doc is operational and correctness-critical.
 
@@ -44,10 +44,11 @@ Run both, from `docs/`:
 
 ```bash
 npx prettier --check <file>.md
-uv run mkdocs build --strict
+sh build.sh
 ```
 
-`--strict` promotes warnings to errors. A doc is not done until both pass.
+`build.sh` fails on any warning, dead link or dead anchor. A doc is not
+done until both commands pass.
 
 ## Final check
 

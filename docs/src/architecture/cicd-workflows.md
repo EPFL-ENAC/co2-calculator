@@ -137,12 +137,14 @@ container from `frontend/Dockerfile.storybook`, pushes it to
 It does not publish a static Storybook site — the artifact is the
 container image plus the dispatch event.
 
-### `deploy-mkdocs.yml` — Docs (GitHub Pages)
+### `deploy-pages.yml`: Docs (GitHub Pages)
 
-**Trigger:** push to `main`, pull request into `main`, by hand. A push
-to `main` publishes the docs to GitHub Pages. A pull request only
-builds the site. Each environment serves its own docs at `/docs`, from
-the GitLab deploy.
+**Trigger:** a `vX.Y.Z` tag, or by hand with a tag. The workflow waits
+until GitLab pushes the docs image of that tag to GHCR. Then it copies
+the site out of the image and publishes it to GitHub Pages. Pages and
+prod serve the same files. Each environment serves its own docs at
+`/docs`, from the GitLab deploy. The `Docs Build` job of
+`quality-check.yml` builds the docs on every pull request.
 
 ### `release-please.yml` — Tag and Release
 
