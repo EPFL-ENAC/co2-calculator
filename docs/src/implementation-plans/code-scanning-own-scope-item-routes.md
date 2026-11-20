@@ -15,10 +15,10 @@ plan that both maintainers review before the code changes. Branch
 
 The maintainer decided this rule on 2026-11-19.
 
-| Module | A standard user sees and edits |
-| --- | --- |
-| Professional travel | the trips where they are the traveler |
-| External cloud and AI | every row of the unit, by design |
+| Module                           | A standard user sees and edits            |
+| -------------------------------- | ----------------------------------------- |
+| Professional travel              | the trips where they are the traveler     |
+| External cloud and AI            | every row of the unit, by design          |
 | Any module in an Explore sandbox | every row, because the sandbox is private |
 
 A traveler match compares `data["user_institutional_id"]` with the
