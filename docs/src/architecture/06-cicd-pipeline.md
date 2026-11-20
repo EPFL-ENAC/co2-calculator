@@ -283,7 +283,7 @@ GitHub Actions workflows in `.github/workflows/`:
 - `security.yml` - Security vulnerability scanning
 - `lighthouse.yml` - Performance and accessibility audits
 - `mirror-to-gitlab.yml` - Push `dev`, `stage` and tags to the GitLab deploy
-- `deploy-mkdocs.yml` - Documentation deployment
+- `deploy-pages.yml` - Documentation deployment
 - `release-please.yml` - Automated release management
 
 For complete workflow details, triggers, and configuration, see

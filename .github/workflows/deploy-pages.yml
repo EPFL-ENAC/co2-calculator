@@ -1,0 +1,65 @@
+name: deploy-pages
+
+# Publishes the docs of each release to GitHub Pages
+# (https://epfl-enac.github.io/co2-calculator/). The site is copied out of
+# the release's docs image, the one prod runs, so Pages shows the same
+# bytes. GitLab builds that image after mirror-to-gitlab.yml pushes the
+# tag, so this job waits for it. quality-check.yml builds the docs on PRs.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish again, for example v1.5.2
+        required: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      IMAGE: ghcr.io/epfl-enac/epfl/co2-calculator/docs:${{ inputs.tag || github.ref_name }}
+    steps:
+      # The image is public, so no login. Only "manifest unknown" means
+      # "not built yet"; any other error stops the job at once.
+      - name: Wait for the release image
+        run: |
+          for _ in $(seq 90); do
+            if err=$(docker manifest inspect "$IMAGE" 2>&1 >/dev/null); then
+              exit 0
+            fi
+            case "$err" in
+              *"manifest unknown"*|*"not found"*) sleep 30 ;;
+              *) echo "::error::$err"; exit 1 ;;
+            esac
+          done
+          echo "::error::$IMAGE did not appear within 45 minutes"
+          exit 1
+
+      - name: Copy the site out of the image
+        run: |
+          docker create --name docs "$IMAGE"
+          docker cp docs:/usr/share/nginx/html ./site
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
