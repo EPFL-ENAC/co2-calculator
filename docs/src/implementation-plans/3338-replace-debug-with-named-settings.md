@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 3338
 last_updated: 2026-11-20
 summary: Replace the DEBUG setting with settings that say what they do. The test login and the stack traces in responses get their own settings, false by default. The cookie flag and the Loki label use settings that already exist.
@@ -14,14 +14,14 @@ what it does.
 
 ## The mapping
 
-| Effect today                                            | Setting after the change                                       | Default |
-| ------------------------------------------------------- | -------------------------------------------------------------- | ------- |
-| `/auth/login-test` exists                               | `TEST_LOGIN_ROUTE_ENABLED`                                     | false   |
-| A failed OAuth login returns the stack trace in the 401 | `DEBUG_STACK_TRACE_ENABLED`                                    | false   |
-| `FastAPI(debug=...)` returns a 500 with the stack trace | `DEBUG_STACK_TRACE_ENABLED`                                    | false   |
-| The OAuth session cookie drops its Secure flag          | `COOKIE_SECURE`, which exists                                  | true    |
-| The Loki `env` label falls back to `dev`                | `LOKI_LABEL_ENV`, required at boot when `LOKI_ENABLED` is true | none    |
-| `python -m app.main` reloads with one worker            | removed, nothing runs `python -m app.main`                     | none    |
+| Effect today                                            | Setting after the change                                  | Default |
+| ------------------------------------------------------- | --------------------------------------------------------- | ------- |
+| `/auth/login-test` exists                               | `TEST_LOGIN_ROUTE_ENABLED`                                | false   |
+| A failed OAuth login returns the stack trace in the 401 | `DEBUG_STACK_TRACE_ENABLED`                               | false   |
+| `FastAPI(debug=...)` returns a 500 with the stack trace | `DEBUG_STACK_TRACE_ENABLED`                               | false   |
+| The OAuth session cookie drops its Secure flag          | `COOKIE_SECURE`, which exists                             | true    |
+| The Loki `env` label falls back to `dev`                | If `LOKI_ENABLED` is true, boot requires `LOKI_LABEL_ENV` | none    |
+| `python -m app.main` reloads with one worker            | removed, nothing runs `python -m app.main`                | none    |
 
 `DEBUG` is deleted. An old `DEBUG=true` no longer does anything, because
 the project keeps no backward-compatibility paths.
@@ -49,5 +49,5 @@ the project keeps no backward-compatibility paths.
 
 ## Subsequent step
 
-A builder makes the change on branch
-`refactor/3338-named-debug-settings`. Then the ops PR for dev opens.
+The change ships in PR #3325, with the other security audit fixes.
+Merge the dev ops PR first, then #3325.
