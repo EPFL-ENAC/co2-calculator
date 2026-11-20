@@ -33,7 +33,7 @@ runs no MkDocs plugins or hooks. Each one has a replacement:
 
 | MkDocs piece                       | Replacement                                                                                                                         |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `mkdocs.yml`                       | `zensical.toml`, same nav, flat `.html` URLs, no `site_url`                                                                         |
+| `mkdocs.yml`                       | `zensical.toml`, same nav, flat `.html` URLs, no `site_url`, modern design with a light/dark toggle                                 |
 | `gen-files` + `gen_indexes.py`     | `gen_indexes.py` runs before the build and writes gitignored `_index.md` files. An unknown plan status stops the build.             |
 | `hooks.py` (repo-file links)       | A one-time rewrite of 87 links to `blob/HEAD` URLs. `check_links.py` (from the wiki) fails the build on any new dead relative link. |
 | `--strict` link validation         | `zensical build --strict` fails on a missing page or anchor.                                                                        |

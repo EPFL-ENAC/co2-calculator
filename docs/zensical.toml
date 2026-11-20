@@ -130,8 +130,7 @@ nav = [
 ]
 
 [project.theme]
-# Keeps the Material for MkDocs look; Zensical defaults to "modern".
-variant = "classic"
+# Zensical's default "modern" design, with a light/dark toggle (as the wiki).
 language = "en"
 features = [
   "content.code.annotate",
@@ -143,16 +142,25 @@ features = [
 ]
 
 [[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
 scheme = "default"
 primary = "teal"
 accent = "cyan"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
 primary = "teal"
 accent = "cyan"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
 
 [project.markdown_extensions]
 admonition = {}
