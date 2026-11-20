@@ -104,7 +104,9 @@
   - Security scan review: on every PR (before approval)
   - Scheduled scans: weekly (every Monday)
   - Vulnerability triage: within 24 hours of detection
-  - Critical findings: fix before merge (blocking)
+  - Critical findings in a PR: fix before merge (blocking)
+  - Critical findings in a release: see the
+    [security policy](https://github.com/EPFL-ENAC/co2-calculator/blob/HEAD/SECURITY.md)
   - High findings: fix within 1 week
 
 ### Validation

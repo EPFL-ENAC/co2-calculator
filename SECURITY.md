@@ -1,21 +1,25 @@
 # Security Policy
 
-## Supported Versions
+## Our commitment
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+- We run CodeAuditor on this application every week.
+- We fix every critical finding within 7 days. That limit is firm.
+- We aim to fix a critical finding within 24 hours.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+This page is the only statement of the critical-finding timeframe. Other
+pages link here and do not repeat it.
 
-## Reporting a Vulnerability
+## Supported versions
 
-Use this section to tell people how to report a vulnerability.
+Only the latest release receives security fixes. The
+[releases page](https://github.com/EPFL-ENAC/co2-calculator/releases)
+lists it first.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+## Report a vulnerability
+
+Do not open a public issue. Use the
+[private vulnerability report form](https://github.com/EPFL-ENAC/co2-calculator/security/advisories/new)
+of this repository. Only the maintainers can read the report.
+
+The [incident response](docs/src/architecture/incident-response.md) page
+gives the severity levels and the communication timeframes.

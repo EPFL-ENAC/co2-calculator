@@ -1,9 +1,8 @@
 # Auto-index frontmatter
 
-Section indexes (`architecture/`, `backend/`, `frontend/`, `implementation-plans/`)
-are generated at build time by `docs/gen_indexes.py` (run via the
-`mkdocs-gen-files` plugin). Add YAML frontmatter to any plan or page so it
-appears in the right group with rich metadata.
+`docs/gen_indexes.py` writes the section indexes (`architecture/`,
+`backend/`, `frontend/`, `implementation-plans/`) before each build. Add
+YAML frontmatter to a plan or a page to put it in the correct group.
 
 ## Schema
 
@@ -16,26 +15,24 @@ summary: One-line description.
 ---
 ```
 
-All keys are optional. Files missing `status` land under **Uncategorized**;
-files missing `title` fall back to the first `# H1` heading, then the
-filename stem.
+All keys are optional. A file without `status` goes under
+**Uncategorized**. A file without `title` uses its first `# H1` heading,
+then its filename. An unknown `status` stops the build.
 
-## Trigger a rebuild
+## Build or preview
 
-Local preview:
+From `docs/`, build the site the way CI does:
 
 ```bash
-cd docs
-uv run mkdocs serve
+sh build.sh
 ```
 
-The `gen-files` plugin re-runs on every reload. CI builds invoke
-`uv run mkdocs build --strict` — `--strict` promotes warnings to errors,
-so missing frontmatter must still produce a valid page (the script
-guarantees this by emitting an "Uncategorized" group).
+For a live preview on <http://127.0.0.1:8001>, run `make serve-docs`.
+The indexes are written once at start. Restart the preview to update
+them.
 
 ## Where output lands
 
-Each `INDEX.md` is virtual (written via `mkdocs_gen_files.open()`), so
-it never appears on disk. Run `mkdocs build` and open
-`site/<section>/INDEX.html` to inspect output.
+The script writes `_index.md` next to the section pages, in `src/`.
+These files are gitignored. Open `site/<section>/_index.html` to see
+the result.

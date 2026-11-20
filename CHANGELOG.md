@@ -1,3 +1,22 @@
+## [1.5.3](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.5.2...v1.5.3) (2026-11-20)
+
+A security update of backend dependencies, and the docs site on Zensical. No migration, no change to the app or the deployment.
+
+### Security
+
+- Backend: authlib 1.9.8, SQLAlchemy 2.1.9 and python-multipart 0.0.34.
+- `SECURITY.md` states the rule: CodeAuditor runs every week, and a critical finding is fixed within 7 days, with 24 hours as the target. Report a vulnerability through GitHub private vulnerability reporting.
+
+### Documentation site
+
+- The docs site moves from MkDocs to Zensical, with the same navigation and URLs, and the modern design with a system, light and dark toggle. (#3333)
+- The build stops on a broken link or an unknown plan status. (#3333)
+- A release tag publishes GitHub Pages from the docs image of that tag, so Pages and prod serve the same files. (#3333)
+
+### Dependencies
+
+- Development tools: prettier 3.10.1 and stylelint-scss 7.5.0.
+
 ## [1.5.2](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.5.1...v1.5.2) (2026-11-19)
 
 A dependency release. No migration, no change to the app or the deployment.
