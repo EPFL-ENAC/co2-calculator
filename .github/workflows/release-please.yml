@@ -50,6 +50,8 @@ jobs:
           fi
           # Extracts the section between the first and second version headers
           BODY=$(awk '/^## \[?[0-9]+\.[0-9]+\.[0-9]+/{count++; if(count==2) exit} count==1{print}' CHANGELOG.md)
+          # The release page has only the source archives: name the images and chart.
+          BODY="$BODY"$'\n'"$(sh scripts/release-install-notes.sh "$VERSION")"
           # Pass multiline string safely to output
           {
             echo "body<<EOF"
