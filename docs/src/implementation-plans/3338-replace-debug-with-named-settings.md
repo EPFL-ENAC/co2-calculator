@@ -14,25 +14,25 @@ what it does.
 
 ## The mapping
 
-| Effect today                                            | Setting after the change           | Default |
-| ------------------------------------------------------- | ---------------------------------- | ------- |
-| `/auth/login-test` exists                               | `TEST_LOGIN_ROUTE_ENABLED`         | false   |
-| A failed OAuth login returns the stack trace in the 401 | `DEBUG_STACK_TRACE_ENABLED`        | false   |
-| `FastAPI(debug=...)` returns a 500 with the stack trace | `DEBUG_STACK_TRACE_ENABLED`        | false   |
-| The OAuth session cookie drops its Secure flag          | `COOKIE_SECURE`, which exists      | true    |
-| The Loki `env` label falls back to `dev`                | `LOKI_LABEL_ENV`, fallback `prod`  | `prod`  |
-| `python -m app.main` reloads with one worker            | removed, `make dev` starts uvicorn | none    |
+| Effect today                                            | Setting after the change                                       | Default |
+| ------------------------------------------------------- | -------------------------------------------------------------- | ------- |
+| `/auth/login-test` exists                               | `TEST_LOGIN_ROUTE_ENABLED`                                     | false   |
+| A failed OAuth login returns the stack trace in the 401 | `DEBUG_STACK_TRACE_ENABLED`                                    | false   |
+| `FastAPI(debug=...)` returns a 500 with the stack trace | `DEBUG_STACK_TRACE_ENABLED`                                    | false   |
+| The OAuth session cookie drops its Secure flag          | `COOKIE_SECURE`, which exists                                  | true    |
+| The Loki `env` label falls back to `dev`                | `LOKI_LABEL_ENV`, required at boot when `LOKI_ENABLED` is true | none    |
+| `python -m app.main` reloads with one worker            | removed, nothing runs `python -m app.main`                     | none    |
 
 `DEBUG` is deleted. An old `DEBUG=true` no longer does anything, because
 the project keeps no backward-compatibility paths.
 
 ## Environments
 
-| Environment                       | Change                                                                                                                       |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Stage, prod                       | None. Each new setting is false by default, and the Loki label stays `prod`. Their old `DEBUG: "False"` lines become unused. |
-| Dev                               | The ops overlay sets `TEST_LOGIN_ROUTE_ENABLED: "true"` and `LOKI_LABEL_ENV: "dev"`, and removes `DEBUG`.                    |
-| Compose, Skaffold, `.env.example` | `TEST_LOGIN_ROUTE_ENABLED` and `DEBUG_STACK_TRACE_ENABLED` are true.                                                         |
+| Environment                       | Change                                                                                                    |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Stage, prod                       | None. Each new setting is false by default. Their old `DEBUG: "False"` lines become unused.               |
+| Dev                               | The ops overlay sets `TEST_LOGIN_ROUTE_ENABLED: "true"` and `LOKI_LABEL_ENV: "dev"`, and removes `DEBUG`. |
+| Compose, Skaffold, `.env.example` | `TEST_LOGIN_ROUTE_ENABLED` and `DEBUG_STACK_TRACE_ENABLED` are true.                                      |
 
 > CAUTION: Merge the dev ops PR before this change reaches dev. If the
 > backend deploys first, dev loses the test login.
@@ -44,7 +44,8 @@ the project keeps no backward-compatibility paths.
 - A failed OAuth login has no stack trace in the response unless
   `DEBUG_STACK_TRACE_ENABLED` is true.
 - The OAuth session cookie follows `COOKIE_SECURE`.
-- With no `LOKI_LABEL_ENV`, the Loki label is `prod`.
+- If `LOKI_ENABLED` is true and `LOKI_LABEL_ENV` is empty, the app does not
+  start.
 
 ## Subsequent step
 

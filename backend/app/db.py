@@ -315,7 +315,6 @@ def _connect_args(is_sqlite: bool) -> dict:
 engine = create_async_engine(
     final_db_url,  # This has the actual password
     pool_pre_ping=True,  # Verify connections before using them
-    # echo=settings.DEBUG,  # Log SQL queries in debug mode
     connect_args=_connect_args(is_sqlite),
     json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
     **_pool_kwargs(settings, is_sqlite),

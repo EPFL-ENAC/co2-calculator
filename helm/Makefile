@@ -174,7 +174,7 @@ template-frontend-disabled: ## Render Helm templates with frontend disabled
 ## Skaffold
 ## -------------------------------
 # Named, never the current context: the kubeconfig of a maintainer also
-# holds the shared clusters, and this loop deploys DEBUG with test login.
+# holds the shared clusters, and this loop deploys the test login.
 KUBE_CONTEXT ?= docker-desktop
 
 .PHONY: skaffold-dev

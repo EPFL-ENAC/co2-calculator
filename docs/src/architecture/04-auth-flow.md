@@ -31,7 +31,8 @@ Three boundaries pinned by tests. The module docstring at
 | Cookie → backend | `decode_jwt(cookie)` payload after signature + algorithm + `exp` validation | Cookie body in transit, query params, headers carrying identity | `test_jwt_expired_rejected`, `test_jwt_tampered_signature_rejected` |
 
 `/auth/login-test` deliberately bypasses boundary 1; its only safeguard
-is `settings.DEBUG`, pinned by `test_login_test_registration_matches_debug_flag`.
+is `settings.TEST_LOGIN_ROUTE_ENABLED`, pinned by
+`test_login_test_registration_matches_test_login_flag`.
 
 ## 3. OAuth Authorization Code flow
 
@@ -152,7 +153,7 @@ Validation path in `backend/app/core/security.py`:
   development and synthetic-data flows.
 - **`AccredRoleProvider`** — fetches from the EPFL Accred API. Production.
 - **`TestRoleProvider`** — synthetic roles for `/auth/login-test`
-  (DEBUG-only route).
+  (`TEST_LOGIN_ROUTE_ENABLED` only).
 
 Selection is driven by `settings.ROLE_PROVIDER_TYPE` through the factory
 `get_role_provider(provider_type)`. F9 hardened the factory: an unknown
@@ -214,11 +215,12 @@ the failure this replaced (an empty provider response was written as
 - **`COOKIE_SECURE` env var** — defaults to `True` (correct for prod
   HTTPS). It **must** be `False` in `backend/.env` for HTTP localhost
   dev; Safari and `httpx` clients silently drop `Secure` cookies on the
-  return trip over `http://`. This decoupling from `DEBUG` was the F2
-  regression caught during PR #1310 review.
-- **`/auth/login-test` is registered only in DEBUG builds** — not a
-  runtime gate. The route literally does not exist in production
-  `app.routes`. Pinned by `test_login_test_registration_matches_debug_flag`.
+  return trip over `http://`. It also sets `https_only` on the OAuth
+  `session` cookie (#3338).
+- **`/auth/login-test` is registered only when `TEST_LOGIN_ROUTE_ENABLED`
+  is true** — not a runtime gate. The route literally does not exist in
+  production `app.routes`. Pinned by
+  `test_login_test_registration_matches_test_login_flag`.
 - **F6 deferred** — logout does not denylist the JWT. A leaked cookie
   remains valid until `exp`. A JTI denylist is the planned
   remediation; see

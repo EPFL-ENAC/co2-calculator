@@ -19,7 +19,7 @@ PostgreSQL and a web proxy on your machine. You need Docker and a clone
 of the repository. The database starts empty.
 
 > CAUTION: Do not put this setup on a network. Docker Compose sets
-> `DEBUG=True`, and the test login then gives any role with no password.
+> `TEST_LOGIN_ROUTE_ENABLED=True`, and the test login then gives any role with no password.
 
 1. Copy the example database file.
 2. Start the app.
