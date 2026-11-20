@@ -5,7 +5,8 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entryPoints.web.address=:80"
-      - "--api.insecure=true"
+      # No --api.insecure: the dashboard router below serves api@internal
+      # at http://traefik.localhost:8080 only.
       - "--entryPoints.traefik.address=:8833"  # ← isolate the API/dashboard entrypoint
       - "--api.dashboard=true"
       - "--log.level=DEBUG"
