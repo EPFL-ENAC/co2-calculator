@@ -9,7 +9,7 @@ dependencies = [
     "fastapi[standard]==0.162.7",
     "starlette==1.10.0",
     "uvicorn[standard]==0.54.0",
-    "python-multipart==0.0.33",
+    "python-multipart==0.0.34",
     "sqlalchemy[asyncio]==2.1.8",
     "psycopg[binary,pool]==3.3.9",
     "alembic==1.20.1",
