@@ -59,7 +59,12 @@ _MIN_SECRET_LENGTH = 32
 
 
 def assert_security_settings(settings) -> None:
-    """Fail closed at boot outside local/dev on missing or weak security settings."""
+    """Fail closed at boot outside local/dev on missing or weak security settings.
+
+    DEBUG is not checked on purpose: the dev deployment runs DEBUG with
+    /auth/login-test until a login without Accred is easy to set up; stage
+    and prod set DEBUG=False in their overlays.
+    """
     if settings.LOCAL_ENVIRONMENT:
         return
     missing = [
