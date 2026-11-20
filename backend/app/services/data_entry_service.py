@@ -760,14 +760,22 @@ class DataEntryService:
         return True
 
     async def get(
-        self, id: int, carbon_report_module_id: int, data_entry_type_id: int
+        self,
+        id: int,
+        carbon_report_module_id: int,
+        data_entry_type_id: int,
+        institutional_id_filter: str | None = None,
     ) -> DataEntryResponse:
         """Get an entry of the addressed module and type.
 
-        An entry elsewhere raises like a missing one, so ids can't be probed.
+        An entry elsewhere, or another traveler's trip under an own-scope
+        filter, raises like a missing one, so ids can't be probed.
         """
         entry = await self.repo.get_in_module(
-            id, carbon_report_module_id, data_entry_type_id
+            id,
+            carbon_report_module_id,
+            data_entry_type_id,
+            institutional_id_filter=institutional_id_filter,
         )
         if entry is None:
             raise ValueError(f"Data entry with id={id} not found")

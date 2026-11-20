@@ -779,4 +779,6 @@ async def test_get_entry_is_scoped_to_addressed_module_and_type():
                 1, "headcount", "member", 5, MagicMock(), MagicMock(), _user()
             )
     assert exc.value.status_code == 404
-    svc.get.assert_awaited_once_with(5, module.id, DataEntryTypeEnum.member.value)
+    svc.get.assert_awaited_once_with(
+        5, module.id, DataEntryTypeEnum.member.value, institutional_id_filter=None
+    )
