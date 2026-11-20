@@ -42,16 +42,7 @@ class Settings(BaseSettings):
     # Secure flag (main.py) and registers the /login-test auth bypass (auth.py).
     # One image ships to every env; DEBUG is set per-platform in gitops
     # (dev=true, stage/prod=false). Never flip this default to True.
-    # Outside LOCAL_ENVIRONMENT, boot refuses DEBUG unless ALLOW_DEBUG_DEPLOYMENT.
     DEBUG: bool = False
-    ALLOW_DEBUG_DEPLOYMENT: bool = Field(
-        default=False,
-        description=(
-            "Set true only on a test deployment that must run DEBUG with the "
-            "test login (the dev deployment, Skaffold); stage and prod leave "
-            "it false. Checked at boot by `assert_security_settings`."
-        ),
-    )
     LOCAL_ENVIRONMENT: bool = Field(
         default=False,
         description=(
