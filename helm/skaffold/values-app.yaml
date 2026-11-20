@@ -7,6 +7,8 @@ backend:
   env:
     # Enables the test login. Never on a shared cluster.
     DEBUG: "true"
+    # Skaffold is not LOCAL_ENVIRONMENT: boot refuses DEBUG without this opt-in.
+    ALLOW_DEBUG_DEPLOYMENT: "true"
     COOKIE_SECURE: "false"
     FRONTEND_URL: "http://localhost:8090"
     # The root filesystem is read-only; /tmp is the writable emptyDir.

@@ -27,6 +27,8 @@ from otel_sampler import SqlRatioSampler
 def _settings(**overrides) -> SimpleNamespace:
     defaults = {
         "LOCAL_ENVIRONMENT": False,
+        "DEBUG": False,
+        "ALLOW_DEBUG_DEPLOYMENT": False,
         "JWT_HMAC_KEY": "j" * 64,
         "SESSION_HMAC_KEY": "s" * 64,
         "CREDENTIALS_ENCRYPTION_KEY": "c" * 64,
@@ -142,6 +144,19 @@ def test_local_environment_accepts_the_placeholder_keys():
 def test_non_local_passes_when_all_required_settings_set():
     settings = _settings()
     assert_security_settings(settings)  # must not raise
+
+
+def test_debug_outside_local_without_opt_in_fails():
+    with pytest.raises(RuntimeError, match="DEBUG"):
+        assert_security_settings(_settings(DEBUG=True))
+
+
+def test_debug_outside_local_with_opt_in_passes():
+    assert_security_settings(_settings(DEBUG=True, ALLOW_DEBUG_DEPLOYMENT=True))
+
+
+def test_debug_in_local_environment_passes():
+    assert_security_settings(_settings(DEBUG=True, LOCAL_ENVIRONMENT=True))
 
 
 # --- assert_poller_isolation (#2220) -------------------------------------
