@@ -345,7 +345,8 @@ Security is integrated throughout the pipeline:
 
 **Vulnerability response:**
 
-- Critical: Fix within 24 hours
+- Critical: see the
+  [security policy](https://github.com/EPFL-ENAC/co2-calculator/blob/HEAD/SECURITY.md)
 - High: Fix within 7 days
 - Medium: Fix within 30 days
 - Low: Fix at next sprint
