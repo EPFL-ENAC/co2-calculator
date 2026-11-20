@@ -39,8 +39,6 @@ services:
     restart: unless-stopped
     env_file:
       - ./.database.env
-    environment:
-      POSTGRES_HOST_AUTH_METHOD: "trust"
     ports:
       - "127.0.0.1:5432:5432"
     labels:
@@ -63,15 +61,19 @@ services:
       timeout: 5s
       retries: 5
 
+  # Opt-in: PGADMIN_DEFAULT_PASSWORD=... docker compose --profile tools up pgadmin
+  # No value below: Compose passes your shell's variable, and the image exits
+  # without one on a fresh volume. A `:?` check would break every compose run.
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: co2-calculator-pgadmin
+    profiles: ["tools"]
     restart: always
     labels:
       - "traefik.enable=false"
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.org}
+      PGADMIN_DEFAULT_PASSWORD:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     ports:
