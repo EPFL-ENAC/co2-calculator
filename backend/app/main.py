@@ -61,9 +61,9 @@ _MIN_SECRET_LENGTH = 32
 def assert_security_settings(settings) -> None:
     """Fail closed at boot outside local/dev on missing or weak security settings.
 
-    DEBUG is not checked on purpose: the dev deployment runs DEBUG with
-    /auth/login-test until a login without Accred is easy to set up; stage
-    and prod set DEBUG=False in their overlays.
+    TEST_LOGIN_ROUTE_ENABLED is not checked on purpose: the dev deployment
+    keeps /auth/login-test until a login without Accred is easy to set up.
+    It defaults to False, so stage and prod need no setting (#3338).
     """
     if settings.LOCAL_ENVIRONMENT:
         return
