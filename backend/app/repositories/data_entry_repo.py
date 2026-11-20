@@ -168,6 +168,18 @@ class UnknownSortField(ValueError):
     """
 
 
+def _is_travel(data_entry_type_id: int) -> bool:
+    return data_entry_type_id in (
+        DataEntryTypeEnum.plane.value,
+        DataEntryTypeEnum.train.value,
+    )
+
+
+def _traveler_is(institutional_id: str):
+    """Own-scope clause: the trip's traveler is this user (list + item)."""
+    return DataEntry.data["user_institutional_id"].as_string() == institutional_id
+
+
 class DataEntryRepository:
     """Repository for data entry database operations."""
 
@@ -198,13 +210,20 @@ class DataEntryRepository:
         return result.one_or_none()
 
     async def get_in_module(
-        self, id: int, carbon_report_module_id: int, data_entry_type_id: int
+        self,
+        id: int,
+        carbon_report_module_id: int,
+        data_entry_type_id: int,
+        institutional_id_filter: str | None = None,
     ) -> DataEntry | None:
+        """Load one entry; a travel row must match the traveler filter."""
         statement = select(DataEntry).where(
             col(DataEntry.id) == id,
             col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
             col(DataEntry.data_entry_type_id) == data_entry_type_id,
         )
+        if institutional_id_filter is not None and _is_travel(data_entry_type_id):
+            statement = statement.where(_traveler_is(institutional_id_filter))
         result = await self.session.exec(statement)
         return result.one_or_none()
 
@@ -1436,10 +1455,7 @@ class DataEntryRepository:
         lang: str = DEFAULT_LANG,
     ) -> SubmoduleResponse:
         lang = normalize_lang(lang)
-        is_travel_entry = data_entry_type_id in (
-            DataEntryTypeEnum.plane.value,
-            DataEntryTypeEnum.train.value,
-        )
+        is_travel_entry = _is_travel(data_entry_type_id)
         is_train_entry = data_entry_type_id == DataEntryTypeEnum.train.value
         is_plane_entry = data_entry_type_id == DataEntryTypeEnum.plane.value
         OriginLocation: Any = None
@@ -1783,10 +1799,7 @@ class DataEntryRepository:
         )
 
         if institutional_id_filter is not None and is_travel_entry:
-            statement = statement.where(
-                DataEntry.data["user_institutional_id"].as_string()
-                == institutional_id_filter
-            )
+            statement = statement.where(_traveler_is(institutional_id_filter))
 
         if exclude_planner_snapshots:
             statement = statement.where(

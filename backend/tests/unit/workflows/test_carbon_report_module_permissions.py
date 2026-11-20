@@ -513,7 +513,7 @@ async def test_delete_missing_row_is_404_not_500():
     assert exc_info.value.status_code == 404
     # Scoped to the URL's module and type (#3185), not the row's own.
     data_entry_service.get.assert_awaited_once_with(
-        1, 18036, DataEntryTypeEnum.other.value
+        1, 18036, DataEntryTypeEnum.other.value, institutional_id_filter=None
     )
     data_entry_service.delete.assert_not_called()
 

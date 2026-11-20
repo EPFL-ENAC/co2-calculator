@@ -358,6 +358,6 @@ async def test_update_entry_outside_addressed_module_is_404_and_unwritten():
 
     assert exc_info.value.status_code == 404
     data_entry_service.get.assert_awaited_once_with(
-        1, 18036, DataEntryTypeEnum.other.value
+        1, 18036, DataEntryTypeEnum.other.value, institutional_id_filter=None
     )
     data_entry_service.update.assert_not_called()
