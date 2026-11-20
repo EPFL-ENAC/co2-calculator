@@ -1,7 +1,7 @@
 ---
-status: in-progress
+status: delivered
 issue: none (code-scanning alerts 1377, 1378, 1382)
-last_updated: 2026-11-19
+last_updated: 2026-11-20
 summary: The item routes of a data entry get the traveler filter of the travel lists. A standard user can then not touch the trip of another traveler. External cloud and AI stays visible to the whole unit.
 ---
 
@@ -75,7 +75,15 @@ created", which no code applies.
   The ownership check belongs on the load, so this plan does not use it.
 - Alert 1379, the Active toggle, is a separate commit on the same branch.
 
+## What shipped
+
+The maintainer approved the plan on 2026-11-20. The change follows it.
+The repository has one spelling of the traveler clause, `_traveler_is`,
+for the list and the item query. The GET item route is now 44 lines.
+The PATCH and DELETE routes were already over the limit of 40 lines.
+
 ## Subsequent step
 
-Both maintainers review this plan. After the review, a builder makes the
-change and the tests on this branch.
+Run the audit again on the branch. If it still flags external cloud and
+AI, an owner filter on `created_by_id` is the only change that removes
+the finding.
