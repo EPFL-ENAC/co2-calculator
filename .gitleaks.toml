@@ -4,6 +4,10 @@
 useDefault = true
 
 [allowlist]
-description = "Emission-factor field names, not credentials (ef_kg_co2eq_per_kg, ef_kg_co2eq_per_currency)"
+# Also applies to past commits, so findings in removed files stay quiet.
+description = "Emission-factor field names, not credentials"
 regexTarget = "line"
-regexes = ['''ef_kg_co2eq_per_''']
+regexes = [
+  '''ef_kg_co2eq_per_''',        # ef_kg_co2eq_per_kg, ef_kg_co2eq_per_currency
+  '''factor_kgco2_per_''',       # formula_key="factor_kgco2_per_eur" (history)
+]
