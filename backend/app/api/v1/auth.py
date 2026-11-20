@@ -28,7 +28,7 @@ unchanged.
 
 ``/v1/auth/login-test`` deliberately bypasses boundary 1 and constructs
 a session from a query-string ``role``. Its only gate is
-``settings.DEBUG``.
+``settings.TEST_LOGIN_ROUTE_ENABLED``.
 """
 
 import time
@@ -229,9 +229,9 @@ async def login_test(
 ):
     """Test login endpoint for development.
 
-    Registered on the router only when ``settings.DEBUG`` is true (see
-    bottom of this module). In a production build the route does not
-    exist — clients see 404 rather than 403, and the handler code is
+    Registered on the router only when ``settings.TEST_LOGIN_ROUTE_ENABLED``
+    is true (see bottom of this module). In a production build the route
+    does not exist — clients see 404 rather than 403, and the handler code is
     unreachable.
     """
     # Create a fake user ID and email based on role
@@ -476,7 +476,7 @@ async def oauth_callback(
         logger.error(
             "OAuth callback failed",
             extra={"error": str(e), "type": type(e).__name__},
-            exc_info=settings.DEBUG,
+            exc_info=settings.DEBUG_STACK_TRACE_ENABLED,
         )
         await _log_auth_audit_event(
             db=db,
@@ -491,7 +491,7 @@ async def oauth_callback(
             },
             entity_id=0,
         )
-        if settings.DEBUG:
+        if settings.DEBUG_STACK_TRACE_ENABLED:
             tb_lines = traceback.format_exc().splitlines()
             # Return stack trace in response (for dev only)
             raise HTTPException(
@@ -505,10 +505,10 @@ async def oauth_callback(
             )
 
 
-# /login-test is registered only in DEBUG builds — see the function's
-# docstring for the security rationale. In production the route does not
-# exist at all.
-if settings.DEBUG:
+# /login-test is registered only when TEST_LOGIN_ROUTE_ENABLED — see the
+# function's docstring for the security rationale. In production the route
+# does not exist at all.
+if settings.TEST_LOGIN_ROUTE_ENABLED:
     oauth_router.add_api_route("/login-test", login_test, methods=["GET"])
 
 

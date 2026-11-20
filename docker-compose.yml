@@ -90,7 +90,8 @@ services:
     container_name: co2-backend
     environment:
       # Local compose only — never True on stage/prod (see app/core/config.py).
-      DEBUG: "True"
+      TEST_LOGIN_ROUTE_ENABLED: "True"
+      DEBUG_STACK_TRACE_ENABLED: "True"
       # The committed example below, never your backend/.env: that file
       # serves `make dev` and can name a shared database or real services.
       # These win over the example: the app is behind traefik on :80, and
@@ -164,7 +165,8 @@ services:
       APP_SENTRY_DSN:
       # "development" adds the /login-test page, the only login without an
       # OIDC provider, and is the GlitchTip label of local runs, apart from
-      # the deployed "dev". Same as DEBUG above: local compose only.
+      # the deployed "dev". Same as TEST_LOGIN_ROUTE_ENABLED above: local
+      # compose only.
       APP_ENVIRONMENT: "${APP_ENVIRONMENT:-development}"
       # Matomo analytics. Without a site id, tracking stays off, so a compose
       # run never sends hits to a real Matomo site by accident.

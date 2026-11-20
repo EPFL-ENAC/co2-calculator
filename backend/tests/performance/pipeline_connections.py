@@ -165,7 +165,8 @@ class Client:
             )
             if resp.status_code != 302:
                 raise SystemExit(
-                    f"login-test returned {resp.status_code}: DEBUG build needed"
+                    f"login-test returned {resp.status_code}: "
+                    "TEST_LOGIN_ROUTE_ENABLED needed"
                 )
         session = self.http.get(f"{self.host}/v1/session").json()
         self.years = [y["year"] for y in session.get("configured_years", [])]

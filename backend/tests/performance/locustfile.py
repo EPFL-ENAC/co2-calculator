@@ -26,7 +26,7 @@ units. The backoffice admin (calco2.backoffice.admin) has no memberships
 and no modules.* permissions: use it only for workspace-home/totals reads
 across the whole seeded pool via PERF_UNIT_IDS.
 
-Auth: GET /v1/auth/login-test (DEBUG builds only) sets the auth cookie; on
+Auth: GET /v1/auth/login-test (TEST_LOGIN_ROUTE_ENABLED only) sets the auth cookie; on
 platforms without it, export PERF_AUTH_COOKIE=<auth_token JWT>. Every
 non-GET needs the Sec-Fetch-Site header or RequestOriginMiddleware 403s.
 """

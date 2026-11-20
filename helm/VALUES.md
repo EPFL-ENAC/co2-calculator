@@ -23,7 +23,6 @@ no description has only a comment in `values.yaml`. The chart
 | backend.service.targetPort | int | `8000` |  |
 | backend.service.annotations | object | `{}` |  |
 | backend.env.APP_NAME | string | `"CO2 Calculator API"` |  |
-| backend.env.DEBUG | string | `"false"` |  |
 | backend.env.COOKIE_SECURE | string | `"true"` |  |
 | backend.env.API_VERSION | string | `"/v1"` |  |
 | backend.env.API_DOCS_PREFIX | string | `"/api"` |  |

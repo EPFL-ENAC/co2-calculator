@@ -52,7 +52,7 @@
           "auth"
         ],
         "summary": "Login Test",
-        "description": "Test login endpoint for development.\n\nRegistered on the router only when ``settings.DEBUG`` is true (see\nbottom of this module). In a production build the route does not\nexist \u2014 clients see 404 rather than 403, and the handler code is\nunreachable.",
+        "description": "Test login endpoint for development.\n\nRegistered on the router only when ``settings.TEST_LOGIN_ROUTE_ENABLED``\nis true (see bottom of this module). In a production build the route\ndoes not exist \u2014 clients see 404 rather than 403, and the handler code is\nunreachable.",
         "operationId": "login_test_v1_auth_login_test_get",
         "parameters": [
           {

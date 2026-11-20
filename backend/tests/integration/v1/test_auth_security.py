@@ -408,38 +408,40 @@ def test_me_rejects_legacy_user_id_only_token(client, override_db):
 # ---------------------------------------------------------------------------
 
 
-def test_login_test_registration_matches_debug_flag():
-    """Pins F3: ``/auth/login-test`` never exists outside a DEBUG build.
+def test_login_test_registration_matches_test_login_flag():
+    """Pins F3: ``/auth/login-test`` never exists unless
+    ``TEST_LOGIN_ROUTE_ENABLED`` is set.
 
     There is no in-handler 403 gate to bypass — the route is simply not
     registered — so the security-critical direction is "present implies
-    DEBUG", and that is what this asserts.
+    TEST_LOGIN_ROUTE_ENABLED", and that is what this asserts.
 
-    It deliberately does *not* assert the converse (DEBUG implies present).
-    ``settings.DEBUG`` is read at ``app.api.v1.auth`` import time to decide
-    registration, but ``.env`` overrides real env vars by design
+    It deliberately does *not* assert the converse (flag implies present).
+    ``settings.TEST_LOGIN_ROUTE_ENABLED`` is read at ``app.api.v1.auth``
+    import time to decide registration, but ``.env`` overrides real env vars by design
     (see ``app/core/config.py``), so a developer whose ``.env`` sets
-    ``DEBUG=True`` observes a different value here than the one that governed
-    import — making the converse a statement about import ordering, not about
-    the gate. Asserting it only produced a failure that varied with whether
-    the developer had a ``.env`` at all.
+    ``TEST_LOGIN_ROUTE_ENABLED=True`` observes a different value here than
+    the one that governed import — making the converse a statement about
+    import ordering, not about the gate. Asserting it only produced a
+    failure that varied with whether the developer had a ``.env`` at all.
     """
     paths = {getattr(r, "path", None) for r in app.routes}
     actually_present = f"{API_PREFIX}/auth/login-test" in paths
     if actually_present:
-        assert auth_module.settings.DEBUG, (
-            "/auth/login-test is registered while DEBUG is off — the debug "
+        assert auth_module.settings.TEST_LOGIN_ROUTE_ENABLED, (
+            "/auth/login-test is registered while TEST_LOGIN_ROUTE_ENABLED is "
+            "off — the test "
             "login must not exist in a production build"
         )
 
 
 def test_login_test_returns_404_in_prod_build(client):
     """Concrete behaviour the previous 403-gate did not provide: an
-    unauthenticated GET in a non-DEBUG build sees the route as absent
+    unauthenticated GET without TEST_LOGIN_ROUTE_ENABLED sees the route as absent
     (404), not as forbidden (403).
     """
-    if auth_module.settings.DEBUG:
-        pytest.skip("This test asserts non-DEBUG behaviour; DEBUG is True.")
+    if auth_module.settings.TEST_LOGIN_ROUTE_ENABLED:
+        pytest.skip("Asserts the route is absent; TEST_LOGIN_ROUTE_ENABLED is True.")
     response = client.get(f"{API_PREFIX}/auth/login-test", follow_redirects=False)
     assert response.status_code == 404
 

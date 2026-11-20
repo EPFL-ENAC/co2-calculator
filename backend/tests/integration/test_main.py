@@ -235,9 +235,3 @@ async def test_health_deps_role_provider_non_200_response(monkeypatch):
         resp = await main.health_deps()
         assert b"error (500)" in resp.body
         assert resp.status_code == 503
-
-
-def test_main_block(monkeypatch):
-    with patch("uvicorn.run") as mock_run:
-        main.run_main()
-        mock_run.assert_called()

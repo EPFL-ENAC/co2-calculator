@@ -65,9 +65,9 @@ export interface paths {
          * Login Test
          * @description Test login endpoint for development.
          *
-         *     Registered on the router only when ``settings.DEBUG`` is true (see
-         *     bottom of this module). In a production build the route does not
-         *     exist — clients see 404 rather than 403, and the handler code is
+         *     Registered on the router only when ``settings.TEST_LOGIN_ROUTE_ENABLED``
+         *     is true (see bottom of this module). In a production build the route
+         *     does not exist — clients see 404 rather than 403, and the handler code is
          *     unreachable.
          */
         get: operations["login_test_v1_auth_login_test_get"];

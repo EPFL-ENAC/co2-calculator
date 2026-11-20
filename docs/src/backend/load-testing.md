@@ -113,7 +113,7 @@ make perf-report
 
 `perf-dev` points locust at `https://co2-calculator-dev.epfl.ch/api`
 (the `/api` prefix is required — the bare host is the SPA), logs every
-VU in via `login-test` (dev is a DEBUG build), and refuses the write
+VU in via `login-test` (dev sets `TEST_LOGIN_ROUTE_ENABLED`), and refuses the write
 scenarios (`PlanUser`, `ExploreCreateUser`, `CsvUploadUser`) unless
 `PERF_ALLOW_WRITES=1` — they create real data and jobs on the shared
 environment, so coordinate first.
