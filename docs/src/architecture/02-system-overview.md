@@ -151,7 +151,7 @@ flowchart TB
     subgraph OCP["EPFL OpenShift namespace"]
         FE["Frontend<br/>Vue 3 + Quasar (Nginx)"]
         BE["Backend API<br/>FastAPI + Uvicorn<br/>(in-process background tasks)"]
-        Docs["Docs<br/>MkDocs (Nginx)"]
+        Docs["Docs<br/>Zensical (Nginx)"]
         Otel["OTEL Collector"]
         DBDump[[db-dump CronJob]]
     end
@@ -194,7 +194,7 @@ flowchart TB
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Frontend**    | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                                                                        |
 | **Backend API** | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                                                              |
-| **Docs**        | This MkDocs site, served as static files.                                                                                                                      |
+| **Docs**        | This Zensical site, served as static files.                                                                                                                    |
 | **PostgreSQL**  | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached via SQLAlchemy async through a DBaaS-side PgBouncer (since 2026-09). |
 
 Stack and versions live in [Tech Stack](./08-tech-stack.md). The backend's
