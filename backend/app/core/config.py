@@ -38,11 +38,24 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "CO2 Calculator API"
     APP_VERSION: str = "0.1.0"
-    # SECURITY: must stay False on stage/prod. DEBUG drops the session cookie's
-    # Secure flag (main.py) and registers the /login-test auth bypass (auth.py).
-    # One image ships to every env; DEBUG is set per-platform in gitops
-    # (dev=true, stage/prod=false). Never flip this default to True.
-    DEBUG: bool = False
+    # SECURITY: one image ships to every env, so these defaults are the
+    # stage/prod safety net. Never flip them to True.
+    TEST_LOGIN_ROUTE_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "Register GET /v1/auth/login-test, which mints a session for any "
+            "role from a query string with no identity provider. Local runs "
+            "and the dev deployment only; stage/prod keep the default false."
+        ),
+    )
+    DEBUG_STACK_TRACE_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "Return stack traces in responses: the 401 of a failed OAuth "
+            "login and FastAPI's 500 page, and log the failed login with its "
+            "traceback. Local runs only; stage/prod keep the default false."
+        ),
+    )
     LOCAL_ENVIRONMENT: bool = Field(
         default=False,
         description=(
@@ -224,7 +237,8 @@ class Settings(BaseSettings):
     LOKI_TIMEOUT: float = 2.0  # seconds
     # default job label; falls back to APP_NAME
     LOKI_LABEL_JOB: str | None = None
-    LOKI_LABEL_ENV: str | None = None  # e.g. dev|staging|prod
+    # e.g. dev|staging|prod; required when LOKI_ENABLED (checked at boot)
+    LOKI_LABEL_ENV: str | None = None
 
     # TRAVEL API TABLEAU CONFIGURATION
     # Connection credentials (server_url, site, username, connected-app) are
@@ -338,12 +352,13 @@ class Settings(BaseSettings):
     COOKIE_SECURE: bool = Field(
         default=True,
         description=(
-            "Set the `Secure` attribute on auth cookies. Default true (correct "
-            "for prod HTTPS). MUST be overridden to false for local HTTP dev — "
-            "Safari and httpx-based clients refuse to re-send a Secure cookie "
-            "over plain http://localhost, which silently breaks /me, /refresh, "
-            "and /login-test. See .env.example. Independent of DEBUG so a debug "
-            "build behind a TLS terminator can still mint Secure cookies."
+            "Set the `Secure` attribute on the auth cookies and on the OAuth "
+            "`session` cookie that carries the state during the login round "
+            "trip. Default true (correct for prod HTTPS); stage/prod keep it. "
+            "MUST be overridden to false for local HTTP dev — Safari and "
+            "httpx-based clients refuse to re-send a Secure cookie over plain "
+            "http://localhost, which silently breaks the OAuth callback, /me, "
+            "/refresh, and /login-test. See .env.example."
         ),
     )
 

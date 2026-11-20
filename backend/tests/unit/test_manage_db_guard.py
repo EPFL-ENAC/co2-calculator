@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings, get_settings
-from scripts.manage_db import refuse_remote_host
+from scripts.manage_db import refuse_remote_host, safe_identifier
 
 
 def test_dotenv_cannot_reach_settings_under_pytest() -> None:
@@ -87,3 +87,16 @@ def test_remote_host_refused_unless_allowed() -> None:
     with pytest.raises(SystemExit, match="co2-prod.postgresql.dbaas"):
         refuse_remote_host(remote, allow_remote=False)
     refuse_remote_host(remote, allow_remote=True)
+
+
+@pytest.mark.parametrize(
+    "name", ['x"; DROP DATABASE app; --', "a b", "1db", "", None, "a" * 64]
+)
+def test_ddl_refuses_a_name_that_is_not_a_plain_identifier(name) -> None:
+    # The DDL interpolates the name: CREATE/DROP DATABASE cannot bind it.
+    with pytest.raises(ValueError, match="plain database identifier"):
+        safe_identifier(name)
+
+
+def test_ddl_accepts_a_plain_identifier() -> None:
+    assert safe_identifier("co2_calculator") == "co2_calculator"

@@ -401,6 +401,7 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        institutional_id_filter: str | None = None,
     ) -> DataEntryResponse:
         # A note is writable on any row in any state (#951), including rows the
         # backoffice has closed to data entry — annotation is not data entry.
@@ -411,7 +412,7 @@ class CarbonReportModuleWorkflow:
                 current_user,
             )
         existing_entry = await self._get_entry(
-            carbon_report_module, data_entry_type_id, item_id
+            carbon_report_module, data_entry_type_id, item_id, institutional_id_filter
         )
         existing_data = existing_entry.data
         try:
@@ -585,11 +586,15 @@ class CarbonReportModuleWorkflow:
         carbon_report_module: CarbonReportModuleRead,
         data_entry_type_id: int,
         item_id: int,
+        institutional_id_filter: str | None = None,
     ) -> DataEntryResponse:
         """Load an entry of the addressed module and type, else 404."""
         try:
             return await DataEntryService(self.session).get(
-                item_id, carbon_report_module.id, data_entry_type_id
+                item_id,
+                carbon_report_module.id,
+                data_entry_type_id,
+                institutional_id_filter=institutional_id_filter,
             )
         except ValueError as e:
             raise HTTPException(
@@ -604,9 +609,13 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        institutional_id_filter: str | None = None,
     ) -> None:
         entry = await self._get_entry(
-            carbon_report_module, data_entry_type_id, data_entry_id
+            carbon_report_module,
+            data_entry_type_id,
+            data_entry_id,
+            institutional_id_filter,
         )
         data_entry_type = DataEntryTypeEnum(entry.data_entry_type_id)
         await self._reject_when_inputs_deactivated(

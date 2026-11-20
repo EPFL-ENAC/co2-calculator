@@ -174,7 +174,7 @@ class LokiHandler(logging.Handler):
             settings = get_settings()
             labels = {
                 "job": settings.LOKI_LABEL_JOB or settings.APP_NAME,
-                "env": settings.LOKI_LABEL_ENV or ("dev" if settings.DEBUG else "prod"),
+                "env": settings.LOKI_LABEL_ENV,
                 "level": record.levelname.lower(),
                 **self.default_labels,
             }

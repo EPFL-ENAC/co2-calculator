@@ -8,11 +8,13 @@ or only their own:
 - _is_explore_report (async) — the Explore exemption (#2752)
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from fastapi import HTTPException
 
+import app.api.v1.carbon_report_module as crm
 from app.api.v1.carbon_report_module import (
     _get_professional_travel_institutional_id_filter,
     _has_global_or_principal_access_for_unit,
@@ -20,8 +22,9 @@ from app.api.v1.carbon_report_module import (
 )
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReportType
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
+from app.schemas.carbon_report import CarbonReportModuleRead
 
 UNIT_IID = "10208"
 OTHER_UNIT_IID = "99999"
@@ -270,3 +273,145 @@ async def test_is_explore_report_true_only_for_explore_projects():
     report = _make_report(carbon_project_id=5)
     assert await _is_explore_report(explore_db, report) is True
     assert await _is_explore_report(calc_db, report) is False
+
+
+# ── Item routes apply the traveler filter (code-scanning own scope) ──────────
+
+COLLEAGUE_IID = "22222"
+
+
+@pytest_asyncio.fixture
+async def seeded(db_session, make_unit, make_carbon_report, make_carbon_report_module):
+    """A unit, a trip of the user, a trip of a colleague, a colleague's cloud row."""
+    unit = await make_unit(db_session, institutional_id=UNIT_IID)
+    report = await make_carbon_report(db_session, unit_id=unit.id)
+    module = await make_carbon_report_module(db_session, carbon_report_id=report.id)
+    rows = {
+        "own_trip": (
+            DataEntryTypeEnum.plane,
+            {"user_institutional_id": USER_IID, "cabin_class": "economy"},
+        ),
+        "other_trip": (
+            DataEntryTypeEnum.plane,
+            {"user_institutional_id": COLLEAGUE_IID, "note": "theirs"},
+        ),
+        "cloud": (DataEntryTypeEnum.external_clouds, {"provider": "x"}),
+    }
+    entries = {}
+    for name, (entry_type, data) in rows.items():
+        entry = DataEntry(
+            data_entry_type_id=entry_type.value,
+            carbon_report_module_id=module.id,
+            data=data,
+        )
+        db_session.add(entry)
+        entries[name] = entry
+    await db_session.flush()
+    return report, CarbonReportModuleRead.model_validate(module), entries
+
+
+def _route_patches(report, module):
+    return (
+        patch.object(
+            crm, "resolve_report_module", AsyncMock(return_value=(report, module))
+        ),
+        patch.object(crm, "check_module_permission_for_report", AsyncMock()),
+        patch.object(crm, "get_request_context", AsyncMock(return_value={})),
+    )
+
+
+async def _call(route, db, user, seeded, entry, **kw):
+    slug = {
+        DataEntryTypeEnum.plane.value: "plane",
+        DataEntryTypeEnum.external_clouds.value: "external_clouds",
+    }[entry.data_entry_type_id]
+    p1, p2, p3 = _route_patches(*seeded[:2])
+    with p1, p2, p3:
+        return await route(
+            carbon_report_id=1,
+            module_id="professional-travel",
+            submodule_id=slug,
+            item_id=entry.id,
+            request=MagicMock(),
+            db=db,
+            current_user=user,
+            **kw,
+        )
+
+
+def _std_user():
+    user = _make_user(USER_IID, [_std_role(UNIT_IID)])
+    user.id = 1
+    user.email = "std@example.com"
+    user.display_name = "A standard user"
+    return user
+
+
+@pytest.mark.asyncio
+async def test_std_user_gets_404_on_colleague_trip(db_session, seeded):
+    entries = seeded[2]
+    other = entries["other_trip"]
+    calls = [
+        (crm.get, {}),
+        (
+            crm.update,
+            {"item_data": {"note": "mine now"}, "background_tasks": MagicMock()},
+        ),
+        (crm.delete, {"background_tasks": MagicMock()}),
+    ]
+    for route, kw in calls:
+        with pytest.raises(HTTPException) as exc:
+            await _call(route, db_session, _std_user(), seeded, other, **kw)
+        assert exc.value.status_code == 404, route.__name__
+
+    await db_session.refresh(other)
+    assert other.data == {"user_institutional_id": COLLEAGUE_IID, "note": "theirs"}
+
+
+@pytest.mark.asyncio
+async def test_std_user_reads_own_trip(db_session, seeded):
+    entries = seeded[2]
+    item = await _call(crm.get, db_session, _std_user(), seeded, entries["own_trip"])
+    assert item.id == entries["own_trip"].id
+
+
+@pytest.mark.asyncio
+async def test_principal_reads_colleague_trip(db_session, seeded):
+    entries = seeded[2]
+    user = _make_user(USER_IID, [_principal_role(UNIT_IID)])
+    item = await _call(crm.get, db_session, user, seeded, entries["other_trip"])
+    assert item.id == entries["other_trip"].id
+
+
+@pytest.mark.asyncio
+async def test_std_user_reads_colleague_cloud_row(db_session, seeded):
+    """External cloud and AI stays visible to the whole unit, by design."""
+    entries = seeded[2]
+    item = await _call(crm.get, db_session, _std_user(), seeded, entries["cloud"])
+    assert item.id == entries["cloud"].id
+
+
+@pytest.mark.asyncio
+async def test_std_user_patches_own_trip(db_session, seeded):
+    entries = seeded[2]
+    own = entries["own_trip"]
+    tasks = MagicMock()
+    item = await _call(
+        crm.update,
+        db_session,
+        _std_user(),
+        seeded,
+        own,
+        item_data={"note": "mine"},
+        background_tasks=tasks,
+    )
+    assert item.data["note"] == "mine"
+
+
+@pytest.mark.asyncio
+async def test_std_user_deletes_own_trip(db_session, seeded):
+    own = seeded[2]["own_trip"]
+    await _call(
+        crm.delete, db_session, _std_user(), seeded, own, background_tasks=MagicMock()
+    )
+    assert await db_session.get(DataEntry, own.id) is None

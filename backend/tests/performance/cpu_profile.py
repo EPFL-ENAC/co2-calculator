@@ -288,10 +288,11 @@ def require_status(response: httpx.Response, expected: int = 200) -> None:
 
 async def login(client: httpx.AsyncClient, role: str) -> None:
     """The real auth path: one login-test, then its cookie on every request."""
-    if not get_settings().DEBUG:
+    if not get_settings().TEST_LOGIN_ROUTE_ENABLED:
         raise RuntimeError(
-            "GET /v1/auth/login-test only exists when DEBUG=true: set "
-            "DEBUG=True in backend/.env (local only, never stage/prod)"
+            "GET /v1/auth/login-test only exists when TEST_LOGIN_ROUTE_ENABLED "
+            "is true: set TEST_LOGIN_ROUTE_ENABLED=True in backend/.env "
+            "(local only, never stage/prod)"
         )
     response = await client.get("/v1/auth/login-test", params={"role": role})
     require_status(response, 302)

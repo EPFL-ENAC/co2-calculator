@@ -15,6 +15,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     UploadFile,
     status,
 )
@@ -66,6 +67,7 @@ from app.services.year_config_service import (
 )
 from app.tasks._background import fire_and_forget
 from app.tasks.runner import run_job
+from app.utils.request_context import extract_ip_address
 
 logger = get_logger(__name__)
 # All six routes here already require get_current_user, and the reduction-
@@ -441,6 +443,7 @@ async def create_audit_entry(
     year: int,
     change_type: AuditChangeTypeEnum,
     user: User,
+    request: Request,
     data_snapshot: dict[str, Any],
     data_diff: dict[str, Any] | None = None,
 ) -> None:
@@ -492,8 +495,8 @@ async def create_audit_entry(
         changed_at=datetime.utcnow(),
         handler_id=user.institutional_id,
         handled_ids=[user.institutional_id],
-        ip_address="127.0.0.1",
-        route_path=f"/api/v1/year-configuration/{year}",
+        ip_address=extract_ip_address(request),
+        route_path=request.url.path,
         previous_hash=previous_hash,
         current_hash=current_hash,
     )
@@ -629,6 +632,7 @@ async def get_year_configuration(
 )
 async def create_year_configuration(
     year: int,
+    request: Request,
     payload: YearConfigurationCreate | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -710,6 +714,7 @@ async def create_year_configuration(
         year,
         AuditChangeTypeEnum.CREATE,
         current_user,
+        request,
         snapshot,
     )
 
@@ -812,6 +817,7 @@ async def create_year_configuration(
 )
 async def update_year_configuration(
     year: int,
+    request: Request,
     payload: YearConfigurationUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -923,6 +929,7 @@ async def update_year_configuration(
         year,
         AuditChangeTypeEnum.UPDATE,
         current_user,
+        request,
         new_snapshot,
         data_diff,
     )
@@ -964,6 +971,7 @@ async def update_year_configuration(
 )
 async def upload_reduction_objective_file(
     year: int,
+    request: Request,
     file: UploadFile = File(..., description="File to upload"),
     category: FileCategory = Form(..., description="File category"),
     db: AsyncSession = Depends(get_db),
@@ -1117,6 +1125,7 @@ async def upload_reduction_objective_file(
         year,
         AuditChangeTypeEnum.UPDATE,
         current_user,
+        request,
         new_snapshot,
         data_diff,
     )

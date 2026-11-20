@@ -154,7 +154,7 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 See [Auth Flow](../architecture/04-auth-flow.md) for how the OAuth/OIDC
 settings are used.
 
-For production: set `DEBUG=false`, use strong, distinct `JWT_HMAC_KEY`/`SESSION_HMAC_KEY`, and
+For production: keep `TEST_LOGIN_ROUTE_ENABLED` and `DEBUG_STACK_TRACE_ENABLED` false (the default), use strong, distinct `JWT_HMAC_KEY`/`SESSION_HMAC_KEY`, and
 restrict `CORS_ORIGINS` to your frontend domain.
 
 ## Background Processing
@@ -221,7 +221,7 @@ Set in `.env`:
 
 ```env
 LOG_LEVEL=DEBUG
-DEBUG=true
+DEBUG_STACK_TRACE_ENABLED=true
 ```
 
 View logs:
@@ -234,7 +234,7 @@ docker-compose logs -f backend
 
 Critical checklist:
 
-1. Set `DEBUG=false`
+1. Keep `TEST_LOGIN_ROUTE_ENABLED` and `DEBUG_STACK_TRACE_ENABLED` unset (false)
 2. Generate secure, distinct `JWT_HMAC_KEY` / `SESSION_HMAC_KEY`: `openssl rand -hex 32` (run twice)
 3. Rotate database credentials regularly
 4. Restrict `CORS_ORIGINS` to your frontend domain

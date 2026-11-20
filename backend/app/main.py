@@ -59,7 +59,12 @@ _MIN_SECRET_LENGTH = 32
 
 
 def assert_security_settings(settings) -> None:
-    """Fail closed at boot outside local/dev on missing or weak security settings."""
+    """Fail closed at boot outside local/dev on missing or weak security settings.
+
+    TEST_LOGIN_ROUTE_ENABLED is not checked on purpose: the dev deployment
+    keeps /auth/login-test until a login without Accred is easy to set up.
+    It defaults to False, so stage and prod need no setting (#3338).
+    """
     if settings.LOCAL_ENVIRONMENT:
         return
     missing = [
@@ -148,6 +153,16 @@ def assert_frontend_url(settings) -> None:
     )
 
 
+def assert_loki_settings(settings) -> None:
+    """Require LOKI_LABEL_ENV when the in-app Loki handler is on.
+
+    The env label tells dev logs from prod logs. Guessing one would file
+    a deployment's logs under the wrong environment with no error.
+    """
+    if settings.LOKI_ENABLED and not settings.LOKI_LABEL_ENV:
+        raise RuntimeError("LOKI_ENABLED is true but LOKI_LABEL_ENV is empty")
+
+
 def assert_accred_settings(settings) -> None:
     """Require Accred credentials at boot whenever a provider selects Accred.
 
@@ -225,6 +240,7 @@ async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_security_settings(settings)
     assert_frontend_url(settings)
+    assert_loki_settings(settings)
     assert_proxy_trust_settings()
     assert_accred_settings(settings)
     assert_poller_isolation(settings)
@@ -238,7 +254,8 @@ async def lifespan(app: FastAPI):
             "api_version": settings.API_VERSION,
             "frontend_url": settings.FRONTEND_URL,
             "api_docs_prefix": settings.API_DOCS_PREFIX,
-            "debug": settings.DEBUG,
+            "test_login_route_enabled": settings.TEST_LOGIN_ROUTE_ENABLED,
+            "debug_stack_trace_enabled": settings.DEBUG_STACK_TRACE_ENABLED,
         },
     )
     if settings.LOKI_ENABLED:
@@ -422,7 +439,7 @@ def exclude_per_chunk_asgi_spans(app: FastAPI) -> None:
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    debug=settings.DEBUG,
+    debug=settings.DEBUG_STACK_TRACE_ENABLED,
     # Prevent automatic redirect on trailing slash: Mandatory double slash handling
     redirect_slashes=False,
     description="""
@@ -567,7 +584,7 @@ app.add_middleware(
     session_cookie="session",
     max_age=60,  # 1 minute - only needed during OAuth flow
     same_site="lax",
-    https_only=not settings.DEBUG,
+    https_only=settings.COOKIE_SECURE,
 )
 
 # Registered after SessionMiddleware so it runs *before* it (Starlette builds
@@ -769,21 +786,3 @@ async def health_deps():
         status_code=status_code,
         content={"role_provider": role_provider_status},
     )
-
-
-def run_main():
-    """Run the application using Uvicorn."""
-    import uvicorn
-
-    uvicorn.run(
-        "app.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower(),
-        workers=settings.WORKERS if not settings.DEBUG else 1,
-    )
-
-
-if __name__ == "__main__":
-    run_main()

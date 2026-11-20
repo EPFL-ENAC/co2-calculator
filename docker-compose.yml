@@ -5,7 +5,8 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entryPoints.web.address=:80"
-      - "--api.insecure=true"
+      # No --api.insecure: the dashboard router below serves api@internal
+      # at http://traefik.localhost:8080 only.
       - "--entryPoints.traefik.address=:8833"  # ← isolate the API/dashboard entrypoint
       - "--api.dashboard=true"
       - "--log.level=DEBUG"
@@ -39,8 +40,6 @@ services:
     restart: unless-stopped
     env_file:
       - ./.database.env
-    environment:
-      POSTGRES_HOST_AUTH_METHOD: "trust"
     ports:
       - "127.0.0.1:5432:5432"
     labels:
@@ -63,15 +62,19 @@ services:
       timeout: 5s
       retries: 5
 
+  # Opt-in: PGADMIN_DEFAULT_PASSWORD=... docker compose --profile tools up pgadmin
+  # No value below: Compose passes your shell's variable, and the image exits
+  # without one on a fresh volume. A `:?` check would break every compose run.
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: co2-calculator-pgadmin
+    profiles: ["tools"]
     restart: always
     labels:
       - "traefik.enable=false"
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.org}
+      PGADMIN_DEFAULT_PASSWORD:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     ports:
@@ -87,7 +90,8 @@ services:
     container_name: co2-backend
     environment:
       # Local compose only — never True on stage/prod (see app/core/config.py).
-      DEBUG: "True"
+      TEST_LOGIN_ROUTE_ENABLED: "True"
+      DEBUG_STACK_TRACE_ENABLED: "True"
       # The committed example below, never your backend/.env: that file
       # serves `make dev` and can name a shared database or real services.
       # These win over the example: the app is behind traefik on :80, and
@@ -161,7 +165,8 @@ services:
       APP_SENTRY_DSN:
       # "development" adds the /login-test page, the only login without an
       # OIDC provider, and is the GlitchTip label of local runs, apart from
-      # the deployed "dev". Same as DEBUG above: local compose only.
+      # the deployed "dev". Same as TEST_LOGIN_ROUTE_ENABLED above: local
+      # compose only.
       APP_ENVIRONMENT: "${APP_ENVIRONMENT:-development}"
       # Matomo analytics. Without a site id, tracking stays off, so a compose
       # run never sends hits to a real Matomo site by accident.

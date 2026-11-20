@@ -1,0 +1,15 @@
+# gitleaks reads this file from the repository root. CI scans with
+# TruffleHog; this file is for the gitleaks step of external audits.
+[extend]
+useDefault = true
+
+[allowlist]
+# Also applies to past commits, so findings in removed files stay quiet.
+description = "Emission-factor field names, not credentials"
+regexTarget = "line"
+regexes = [
+  '''ef_kg_co2eq_per_''',        # ef_kg_co2eq_per_kg, ef_kg_co2eq_per_currency
+  # formula_key="kg_co2eq_per_fte", quantity_key="distance_km" in past
+  # test and schema code: the value is a lowercase identifier, not a secret.
+  '''(formula|quantity|multiplier)_key\s*=\s*["'][a-z0-9_]*["']''',
+]
