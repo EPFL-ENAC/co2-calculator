@@ -54,9 +54,13 @@
       </q-card>
 
       <!-- Project information box -->
+      <!-- Locked while the prefill runs: it wipes and rebuilds the year
+           modules, so an edit made now would be lost (#2778). -->
       <planner-project-info
         :key="plan.id"
         :plan="plan"
+        :inert="plansStore.prefillRunning"
+        data-testid="planner-project-info"
         @updated="onPlanUpdated"
       />
 
@@ -76,7 +80,11 @@
 
       <!-- One section per year of the range -->
       <template v-if="plansStore.planYears.length">
-        <div class="year-sections">
+        <div
+          class="year-sections"
+          :inert="plansStore.prefillRunning"
+          data-testid="planner-year-sections"
+        >
           <planner-year-section
             v-for="yearData in plansStore.planYears"
             :key="yearData.id"
@@ -426,7 +434,11 @@ onMounted(async () => {
     notFound.value = true;
     return;
   }
+  const { id, prefill_job_id: prefillJobId } = plan.value;
   await Promise.all([
+    // A reload must keep waiting on the prefill the PATCH queued (#2778);
+    // called first so the lock is on before the sections render.
+    prefillJobId != null ? plansStore.resumePrefill(id, prefillJobId) : null,
     plansStore.fetchPlanYears(plan.value.id),
     plansStore.fetchAggregateStats(plan.value.id),
     yearConfigStore.fetchConfiguredYears(),
