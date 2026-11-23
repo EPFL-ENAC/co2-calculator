@@ -18,7 +18,7 @@ dependencies = [
     # "python-dotenv==1.0.0",
     "pydantic==2.14.3",
     "pydantic-settings==2.16.3",
-    "email-validator==2.3.0",
+    "email-validator==2.4.0",
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
     "joserfc>=1.8.0",
