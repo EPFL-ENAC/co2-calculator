@@ -28,10 +28,10 @@
     "maplibre-gl": "^6.17.0",
     "pinia": "=4.1.0",
     "pinia-plugin-persistedstate": "=4.7.1",
-    "quasar": "^2.35.4",
+    "quasar": "^2.35.5",
     "vue": "=3.5.45",
     "vue-echarts": "=8.3.2",
-    "vue-i18n": "=11.4.20",
+    "vue-i18n": "=11.4.23",
     "vue-router": "^5.5.0"
   },
   "devDependencies": {
@@ -42,7 +42,7 @@
     "@types/node": "=26.6.6",
     "@vue/eslint-config-typescript": "=14.9.0",
     "autoprefixer": "=10.6.2",
-    "eslint": "=10.14.0",
+    "eslint": "=10.15.0",
     "eslint-config-prettier": "=10.1.8",
     "eslint-plugin-vue": "=10.12.1",
     "globals": "=17.14.0",

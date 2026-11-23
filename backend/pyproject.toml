@@ -6,19 +6,19 @@ requires-python = ">=3.14,<3.15"
 dependencies = [
     "itsdangerous==2.2.0",
     "aiosqlite>=0.21.0",                # fall back for when no external db is provided
-    "fastapi[standard]==0.162.7",
+    "fastapi[standard]==0.163.1",
     "starlette==1.10.0",
     "uvicorn[standard]==0.54.0",
     "python-multipart==0.0.34",
     "sqlalchemy[asyncio]==2.1.9",
     "psycopg[binary,pool]==3.3.9",
     "alembic==1.20.1",
-    "authlib==1.9.8",
+    "authlib==1.9.9",
     # to remove once, we use entra or keycloak
     # "python-dotenv==1.0.0",
-    "pydantic==2.14.3",
+    "pydantic==2.14.4",
     "pydantic-settings==2.16.3",
-    "email-validator==2.3.0",
+    "email-validator==2.4.0",
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
     "joserfc>=1.8.0",
@@ -145,15 +145,15 @@ dev = [
     "pytest-asyncio>=1.5.0",
     "pytest-cov>=7.1",
     "pytest-benchmark>=5.3.1",
-    "ruff>=0.17.5",
+    "ruff>=0.17.6",
     "httpx>=0.28",
     "locust>=2.47.0",
-    "pytest-env>=1.8.5",
+    "pytest-env>=1.8.7",
     "faker>=40.54.0",
     "docker>=7.2.0",
     "asyncpg>=0.32.0",
     "types-pyyaml>=6.0.12.20261111",
-    "ty>=0.0.102",
+    "ty>=0.0.107",
 ]
 
 [tool.alembic]
