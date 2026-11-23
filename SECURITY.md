@@ -3,8 +3,14 @@
 ## Our commitment
 
 - We run CodeAuditor on this application every week.
-- We fix every critical finding within 7 days. That limit is firm.
-- We aim to fix a critical finding within 24 hours.
+- We fix every critical finding that affects this application within 7
+  days. That limit is firm.
+- We aim to fix such a finding within 24 hours.
+
+These limits apply to findings that affect this application. A
+vulnerability in a dependency counts only when the application uses the
+vulnerable code in a way that exposes it. Other dependency findings are
+fixed with routine dependency updates.
 
 This page is the only statement of the critical-finding timeframe. Other
 pages link here and do not repeat it.
