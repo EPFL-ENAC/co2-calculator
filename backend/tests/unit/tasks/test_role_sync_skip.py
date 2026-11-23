@@ -58,3 +58,43 @@ async def test_default_provider_user_roles_survive_background_sync(
 
     await db_session.refresh(user)
     assert user.roles_raw == seeded_roles
+
+
+@pytest.mark.asyncio
+async def test_background_sync_releases_connection_during_provider_call(
+    db_session, monkeypatch
+):
+    """#2160: the task's own user lookup autobegins a transaction; it must
+    be closed before the provider call, not held across it.
+    """
+    user = User(
+        id=1,
+        institutional_id="USR000042",
+        email="perf-user@example.org",
+        provider=UserProvider.ACCRED,
+        roles_raw=[],
+        last_roles_sync_at=None,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    seen_in_transaction: list[bool] = []
+
+    class _RecordingProvider:
+        supports_background_sync = True
+
+        async def get_user_by_user_id(self, _institutional_id: str) -> dict:
+            seen_in_transaction.append(db_session.in_transaction())
+            return {"roles": []}
+
+    @asynccontextmanager
+    async def _session_ctx():
+        yield db_session
+
+    monkeypatch.setattr(role_sync_tasks, "SessionLocal", _session_ctx)
+    monkeypatch.setattr(
+        role_sync_tasks, "get_role_provider", lambda _p: _RecordingProvider()
+    )
+
+    await role_sync_tasks.trigger_role_sync_for_user(user.id, force=True)
+
+    assert seen_in_transaction == [False]
