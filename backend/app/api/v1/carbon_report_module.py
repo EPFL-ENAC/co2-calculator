@@ -1027,10 +1027,19 @@ async def get(
         f"module_id={sanitize(module_id)}, item_id={sanitize(item_id)}"
     )
     data_entry_type = _entry_type_from_slug(submodule_id)
+    institutional_id_filter = await _get_professional_travel_institutional_id_filter(
+        db=db,
+        report=report,
+        current_user=current_user,
+        data_entry_type_id=data_entry_type,
+    )
     item: HeadcountItemResponse | DataEntryResponse
     try:
         item = await DataEntryService(db).get(
-            item_id, _module.id, data_entry_type.value
+            item_id,
+            _module.id,
+            data_entry_type.value,
+            institutional_id_filter=institutional_id_filter,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -1074,6 +1083,12 @@ async def update(
     )
     data_entry_type = _entry_type_from_slug(submodule_id)
     data_entry_type_id = data_entry_type.value
+    institutional_id_filter = await _get_professional_travel_institutional_id_filter(
+        db=db,
+        report=report,
+        current_user=current_user,
+        data_entry_type_id=data_entry_type,
+    )
 
     request_context = await get_request_context(request)
 
@@ -1085,6 +1100,7 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        institutional_id_filter=institutional_id_filter,
     )
     await EmbodiedEnergyWorkflow(db).post_update(
         carbon_report_module,
@@ -1133,6 +1149,12 @@ async def delete(
         f"user={sanitize(current_user.id)}"
     )
     data_entry_type = _entry_type_from_slug(submodule_id)
+    institutional_id_filter = await _get_professional_travel_institutional_id_filter(
+        db=db,
+        report=report,
+        current_user=current_user,
+        data_entry_type_id=data_entry_type,
+    )
     try:
         request_context = await get_request_context(request)
 
@@ -1143,6 +1165,7 @@ async def delete(
             current_user=UserRead.model_validate(current_user),
             request_context=request_context,
             background_tasks=background_tasks,
+            institutional_id_filter=institutional_id_filter,
         )
         await EmbodiedEnergyWorkflow(db).post_delete(
             carbon_report_module,

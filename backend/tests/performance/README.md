@@ -44,8 +44,8 @@ That is the whole recipe. `perf-dev` targets `PERF_DEV_HOST`, which has
 no default and must be set (for example
 `https://co2-calculator-dev.example.org/api` — the `/api` prefix matters:
 the bare host is the SPA and answers every path with `index.html`),
-logs each VU in through `/v1/auth/login-test` (dev is a DEBUG build, so
-the endpoint exists), and refuses `PlanUser` / `ExploreCreateUser` /
+logs each VU in through `/v1/auth/login-test` (dev sets
+`TEST_LOGIN_ROUTE_ENABLED`, so the endpoint exists), and refuses `PlanUser` / `ExploreCreateUser` /
 `CsvUploadUser` unless `PERF_ALLOW_WRITES=1` — those enqueue real jobs
 on dev's worker pods. Reports land in `reports/dev_*`.
 
@@ -54,7 +54,7 @@ Seeded-user JWT minting is local-only: it needs the target's
 `JWT_HMAC_KEY`, so `perf-dev` switches it off.
 
 If a target has **no** `login-test` (stage, prod, or dev with
-`DEBUG=false`), copy the `auth_token` cookie from a logged-in browser
+`TEST_LOGIN_ROUTE_ENABLED=false`), copy the `auth_token` cookie from a logged-in browser
 tab (DevTools → Application → Cookies) and pass it explicitly — it takes
 precedence over every other auth path:
 
@@ -160,8 +160,8 @@ VUs share the cookie: N concurrent logins upsert one test-user row and
 serialise on its lock while holding bouncer slots (200 logins = 43 s max). Principal
 users drive module reads/uploads/plans; standard users only own
 travel/cloud entries. Against a remote host, export
-`PERF_AUTH_COOKIE=<auth_token JWT>` instead (login-test only exists on
-DEBUG builds). Read the multi-request `FLOW` rows for plan-lifecycle and
+`PERF_AUTH_COOKIE=<auth_token JWT>` instead (login-test only exists with
+`TEST_LOGIN_ROUTE_ENABLED`). Read the multi-request `FLOW` rows for plan-lifecycle and
 upload-to-ingested wall times, and always p95/p99, never averages.
 
 ## Local ceilings to know about (found the hard way)

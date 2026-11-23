@@ -58,7 +58,7 @@ otel/         OpenTelemetry collector config
 
 ## Architecture notes
 
-- **Postgres** via Docker Compose (port 5432). Admin via pgadmin (port 5050).
+- **Postgres** via Docker Compose (port 5432). pgadmin (port 5050) is opt-in: `PGADMIN_DEFAULT_PASSWORD=<choose one> docker compose --profile tools up -d pgadmin`.
 - **Reverse proxy**: Traefik in Docker Compose routes `/api` → backend, `/` → frontend.
 - **i18n**: `frontend/src/i18n/` — always update **both** `en-US` and `fr-CH` locale files together.
 - **Storybook**: `frontend/storybook/` — serves component docs and isolated testing.

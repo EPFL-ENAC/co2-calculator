@@ -134,7 +134,7 @@ docker-compose with services:
 - `backend` (FastAPI on port 8000)
 - `frontend` (Nginx on port 8080)
 - `postgres` (PostgreSQL 18-alpine)
-- `pgadmin` (database UI)
+- `pgadmin` (database UI, opt-in: `PGADMIN_DEFAULT_PASSWORD=<choose one> docker compose --profile tools up -d pgadmin`)
 - `reverse-proxy` (Traefik — routes `/api/*` to backend, `/*` to frontend)
 
 ### Production (Kubernetes)

@@ -1,16 +1,31 @@
 """Tests for year_configuration.py pure helper functions."""
 
+import io
+from datetime import datetime
 from types import SimpleNamespace
 
+import pytest
+from fastapi import UploadFile
+from sqlmodel import col, select
+from starlette.requests import Request
+
+from app.api.v1 import year_configuration as year_config_module
 from app.api.v1.year_configuration import (
     _build_job_lookup,
     _deep_merge,
     _enrich_config_with_jobs,
     _pick_latest_job,
+    create_year_configuration,
     generate_unique_filename,
     get_files_storage_path,
+    update_year_configuration,
+    upload_reduction_objective_file,
 )
+from app.models.audit import AuditDocument
 from app.models.data_ingestion import EntityType
+from app.models.year_configuration import YearConfiguration
+from app.schemas.year_configuration import YearConfigurationUpdate
+from app.services.year_config_service import generate_default_year_config
 
 # ---------------------------------------------------------------------------
 # Helpers — fake job objects
@@ -305,3 +320,100 @@ class TestGetFilesStoragePath:
     def test_from_env(self, monkeypatch):
         monkeypatch.setenv("FILES_STORAGE_PATH", "/custom/path")
         assert get_files_storage_path() == "/custom/path"
+
+
+# ---------------------------------------------------------------------------
+# Audit entries record the real client IP and request path (alert 1387)
+# ---------------------------------------------------------------------------
+CLIENT_IP = "203.0.113.7"
+
+
+def _request(method: str, path: str) -> Request:
+    return Request(
+        {
+            "type": "http",
+            "method": method,
+            "path": path,
+            "headers": [],
+            "query_string": b"",
+            "client": (CLIENT_IP, 50000),
+        }
+    )
+
+
+@pytest.fixture
+def allow_edit(monkeypatch, tmp_path):
+    """Skip OPA, the job runner, and write uploads to a temp dir."""
+
+    async def _allow(*_args, **_kwargs) -> bool:
+        return True
+
+    monkeypatch.setattr(year_config_module, "check_permission", _allow)
+    monkeypatch.setattr(year_config_module, "fire_and_forget", lambda c, **_: c.close())
+    monkeypatch.setenv("FILES_STORAGE_PATH", str(tmp_path))
+
+
+async def _current_audit(db_session) -> AuditDocument:
+    stmt = select(AuditDocument).where(col(AuditDocument.is_current))
+    return (await db_session.exec(stmt)).one()
+
+
+async def _seed_config(db_session, user, year: int) -> None:
+    """Insert a config row without an audit, so the route's audit is the
+    only one (SQLite drops the partial unique index's ``is_current`` filter).
+    """
+    db_session.add(
+        YearConfiguration(
+            year=year, provider=user.provider, config=generate_default_year_config()
+        )
+    )
+    await db_session.flush()
+
+
+class TestAuditRequestContext:
+    async def test_create_records_client_ip_and_path(
+        self, db_session, make_user, allow_edit
+    ):
+        user = await make_user(db_session)
+        year = datetime.now().year
+        path = f"/api/v1/year-configuration/{year}"
+
+        await create_year_configuration(
+            year, _request("POST", path), None, db_session, user
+        )
+
+        audit = await _current_audit(db_session)
+        assert (audit.ip_address, audit.route_path) == (CLIENT_IP, path)
+
+    async def test_update_records_client_ip_and_path(
+        self, db_session, make_user, allow_edit
+    ):
+        user = await make_user(db_session)
+        await _seed_config(db_session, user, 2025)
+        path = "/api/v1/year-configuration/2025"
+
+        await update_year_configuration(
+            2025,
+            _request("PATCH", path),
+            YearConfigurationUpdate(is_started=True),
+            db_session,
+            user,
+        )
+
+        audit = await _current_audit(db_session)
+        assert (audit.ip_address, audit.route_path) == (CLIENT_IP, path)
+
+    async def test_upload_records_client_ip_and_path(
+        self, db_session, make_user, allow_edit
+    ):
+        user = await make_user(db_session)
+        await _seed_config(db_session, user, 2025)
+        path = "/api/v1/year-configuration/2025/upload"
+        upload = UploadFile(io.BytesIO(b"%PDF-1.4"), filename="objectives.pdf")
+
+        await upload_reduction_objective_file(
+            2025, _request("POST", path), upload, "footprint", db_session, user
+        )
+
+        audit = await _current_audit(db_session)
+        assert (audit.ip_address, audit.route_path) == (CLIENT_IP, path)

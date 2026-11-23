@@ -32,7 +32,6 @@ backend:
     APP_NAME: "CO2 Calculator API"
     # No APP_VERSION: the image sets it from the root package.json at build
     # time (scripts/app-version.sh). A value here replaced it with "0.1.0".
-    DEBUG: "false"
     # Governs the cookie `Secure` attribute AND the OAuth redirect_uri scheme.
     # Keep "true" wherever a TLS terminator fronts the pods (all clusters);
     # only local plain-http dev sets it "false". See infra OAuth post-mortem.

@@ -1034,7 +1034,9 @@ async def get_jobs_by_status(
 async def get_jobs_by_year(
     year: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_module_or_config_view()),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "view")
+    ),
 ) -> list:
     """Get all sync jobs for a specific year.
 
@@ -1068,7 +1070,9 @@ async def get_jobs_by_year(
 async def get_latest_jobs_by_year(
     year: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_module_or_config_view()),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "view")
+    ),
 ) -> list:
     """Get the current job for each (module_type_id, target_type) combination.
 

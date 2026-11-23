@@ -16,6 +16,7 @@ from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
 from app.main import (
     assert_frontend_url,
+    assert_loki_settings,
     assert_poller_isolation,
     assert_proxy_trust_settings,
     assert_security_settings,
@@ -286,3 +287,15 @@ def test_frontend_url_without_http_scheme_refuses_to_boot(url):
 )
 def test_absolute_frontend_url_boots(url):
     assert_frontend_url(SimpleNamespace(FRONTEND_URL=url))
+
+
+def test_loki_without_env_label_refuses_to_boot():
+    with pytest.raises(RuntimeError, match="LOKI_LABEL_ENV"):
+        assert_loki_settings(SimpleNamespace(LOKI_ENABLED=True, LOKI_LABEL_ENV=None))
+
+
+@pytest.mark.parametrize(
+    ("enabled", "label"), [(True, "dev"), (False, None), (False, "")]
+)
+def test_loki_settings_that_boot(enabled, label):
+    assert_loki_settings(SimpleNamespace(LOKI_ENABLED=enabled, LOKI_LABEL_ENV=label))

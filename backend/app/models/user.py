@@ -267,8 +267,10 @@ def calculate_user_permissions(roles: list[Role]) -> dict:
                 )
 
         elif role_name == RoleName.CO2_USER_STD.value:
-            # Standard user is own-scoped: own records only. The "/<unit>/own"
-            # key keeps them out of unit-level gates (e.g. PATCH module status).
+            # The "/<unit>/own" key keeps standard users out of unit-level gates
+            # (e.g. PATCH module status). Row visibility differs per module:
+            # travel rows are filtered on the traveler; external cloud and AI
+            # rows are unit-visible by design (06-PERMISSION-SYSTEM.md).
             if scope.kind == "own":
                 permissions[f"modules.professional_travel{scope_key}"] = merge_actions(
                     permissions.get(f"modules.professional_travel{scope_key}"),

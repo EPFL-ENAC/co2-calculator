@@ -40,8 +40,8 @@ needs editing:
 | `.database.env`       | ✅ (from `.database.env.example`) | Nothing — credentials for the Dockerized PostgreSQL, already matching the `DB_URL` above             |
 | `frontend/.env.local` | ❌ (copy `frontend/.env.example`) | Optional — only needed for Sentry/GlitchTip and other `APP_*` extras; the app runs fine without it   |
 
-Keep the defaults from `backend/.env.example` — in particular `DEBUG=True`,
-which enables the test login used below. No OAuth/OIDC or Accred credentials
+Keep the defaults from `backend/.env.example` — in particular
+`TEST_LOGIN_ROUTE_ENABLED=True`, which enables the test login used below. No OAuth/OIDC or Accred credentials
 are needed for local development.
 
 > [!WARNING]
@@ -85,8 +85,8 @@ test role.
 - The language prefix is required — a bare `/login-test` is a 404.
 - The default `/login` page goes through the real OAuth flow, which is not
   configured locally (it fails with `Missing "authorize_url"`).
-- The test login page only exists when the backend runs with `DEBUG=True` and
-  is never available in production builds.
+- The test login page only exists when the backend runs with
+  `TEST_LOGIN_ROUTE_ENABLED=True` and is never available in production builds.
 
 ### CI Validation (before pushing to dev/stage/main)
 

@@ -213,7 +213,7 @@ perf-load: ## One headless locust run: make perf-load PERF_USERS=50 PERF_CLASSES
 	fi; \
 	echo "report: file://$$(pwd)/$(PERF_REPORT_DIR)/$(PERF_TAG).html"; exit $$status
 
-# Dev serves /v1/auth/login-test (DEBUG build), so no cookie copying: each
+# Dev serves /v1/auth/login-test (TEST_LOGIN_ROUTE_ENABLED), so no cookie copying: each
 # VU logs in as the TEST-provider PERF_ROLE. Seeded-user minting is local-only
 # (PERF_USERS_FILE off), and write scenarios enqueue real jobs on dev's workers.
 # No default: set it to the dev deployment's API base (with the /api prefix).
