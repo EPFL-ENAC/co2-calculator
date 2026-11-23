@@ -5,6 +5,7 @@ Tests cover:
 - db_unavailable_handler
 """
 
+import importlib
 from unittest.mock import MagicMock, patch
 
 import psycopg
@@ -12,8 +13,10 @@ import pytest
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError, OperationalError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
+from starlette.middleware.exceptions import ExceptionMiddleware
 
 from app.core.exception_handlers import (
     db_unavailable_handler,
@@ -25,6 +28,16 @@ from app.core.exceptions import (
     RecordAccessDeniedError,
 )
 from app.main import app as main_app
+
+app_main = importlib.import_module("app.main")
+
+
+def _stack_exception_handlers(app: FastAPI) -> dict:
+    """The handlers ExceptionMiddleware actually holds in a built stack."""
+    node = app.middleware_stack
+    while not isinstance(node, ExceptionMiddleware):
+        node = node.app
+    return node._exception_handlers
 
 
 class TestPermissionDeniedHandler:
@@ -185,6 +198,29 @@ class TestDbUnavailableHandler:
         for exc_class in (SQLAlchemyTimeoutError, DBAPIError):
             assert main_app.exception_handlers[exc_class] is db_unavailable_handler
 
+    def test_handlers_survive_opentelemetry_instrument(self):
+        """#3218: prod answered 500, not 503, on a PgBouncer outage.
+
+        Under opentelemetry-instrument, exclude_per_chunk_asgi_spans() builds
+        the middleware stack mid-module, and Starlette copies the handlers
+        into ExceptionMiddleware at that moment: handlers registered after
+        it were in ``app.exception_handlers`` but never ran. Re-import
+        app.main the way prod boots it and look inside the built stack.
+        """
+        saved = dict(vars(app_main))
+        instrumentor = FastAPIInstrumentor()
+        instrumentor.instrument()
+        try:
+            importlib.reload(app_main)
+            handlers = _stack_exception_handlers(app_main.app)
+        finally:
+            instrumentor.uninstrument()
+            vars(app_main).update(saved)
+
+        for exc_class in (SQLAlchemyTimeoutError, DBAPIError):
+            assert handlers.get(exc_class) is db_unavailable_handler
+        assert handlers.get(PermissionDeniedError) is not None
+
     @pytest.mark.parametrize(
         "exc",
         [
@@ -228,6 +264,18 @@ class TestDbUnavailableHandler:
                 ),
                 id="too-many-connections-53300",
             ),
+            pytest.param(
+                OperationalError(
+                    None,
+                    None,
+                    psycopg.OperationalError(
+                        'connection failed: connection to server at "10.0.0.1", '
+                        "port 5432 failed: FATAL:  server login has been failing, "
+                        "cached error: connect failed (server_login_retry)"
+                    ),
+                ),
+                id="pgbouncer-server-login-retry-3218",
+            ),
         ],
     )
     def test_db_unavailable_is_503(self, exc):
@@ -235,10 +283,13 @@ class TestDbUnavailableHandler:
             resp = _client_raising(exc).get("/boom")
 
         assert resp.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert resp.json() == {"detail": "Database temporarily unavailable"}
-        # Answering 503 must not swallow the error: it is logged, traceback on.
+        assert resp.json() == {"detail": "database_unavailable"}
+        assert resp.headers["Retry-After"] == "30"
+        # Answering 503 must not swallow the error: one line, no traceback.
         log.error.assert_called_once()
-        assert log.error.call_args.kwargs["exc_info"] is exc
+        assert "exc_info" not in log.error.call_args.kwargs
+        assert log.error.call_args.kwargs["extra"]["event"] == "db_unavailable"
+        assert log.error.call_args.kwargs["extra"]["path"] == "/boom"
 
     @pytest.mark.parametrize(
         "exc",
