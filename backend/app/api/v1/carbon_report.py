@@ -11,7 +11,8 @@ from app.core.policy import (
     require_unit_access,
 )
 from app.db import SessionLocal
-from app.models.carbon_report import CarbonReport
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import (
@@ -300,6 +301,24 @@ async def update_carbon_report_module_status(
     return result
 
 
+# Calculator reports feed the unit totals; only plans may switch modules off.
+_SIMULATOR_TYPES = (
+    CarbonReportType.SIMULATOR_PLAN,
+    CarbonReportType.SIMULATOR_EXPLORE,
+)
+
+
+async def _require_simulator_report(db: AsyncSession, report) -> None:
+    """409 unless the report belongs to a Simulator Plan or Explore project."""
+    project = None
+    if report.carbon_project_id is not None:
+        project = await db.get(CarbonProject, report.carbon_project_id)
+    if project is None or project.carbon_report_type not in _SIMULATOR_TYPES:
+        raise HTTPException(
+            status_code=409, detail="Active only applies to Simulator plans"
+        )
+
+
 @router.patch(
     "/{carbon_report_id}/modules/{module_type_id}/active",
     response_model=CarbonReportModuleRead,
@@ -323,10 +342,7 @@ async def update_carbon_report_module_active(
         raise HTTPException(status_code=404, detail="Carbon report not found")
 
     await require_report_access(db, current_user, report, "edit")
-    if report.carbon_project_id is None:
-        raise HTTPException(
-            status_code=409, detail="Active only applies to Simulator plans"
-        )
+    await _require_simulator_report(db, report)
 
     module_service = CarbonReportModuleService(db)
     result = await module_service.update_is_active(
