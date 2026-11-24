@@ -30,6 +30,6 @@ of this repository. Only the maintainers can read the report.
 The [incident response](docs/src/architecture/incident-response.md) page
 gives the severity levels and the communication timeframes.
 
-## Detailed Security information
-[Detailed security documentation](https://epfl-enac.github.io/co2-calculator/architecture/security-documentation.html) 
-[Private repository for maintainers](https://github.com/EPFL-ENAC/co2-calculator-security-doc/blob/main/docs/Security-documentation.md)
+## Security documentation
+
+See [security documentation](https://epfl-enac.github.io/co2-calculator/architecture/security-documentation.html) for the security documentation index.
