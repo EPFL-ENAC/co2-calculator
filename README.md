@@ -10,6 +10,12 @@ for the dev / stage / pre-production URLs and deployment topology.
 > **Note:** Pre-production serves internal releases (v0.x.x) until the final
 > v1.0.0 public release. The production environment activates with v1.0.0.
 
+## Documentation
+
+- Public : https://epfl-enac.github.io/co2-calculator/
+- Prod (réseau EPFL) : https://co2-calculator.epfl.ch/docs/
+- Index sécurité : https://epfl-enac.github.io/co2-calculator/architecture/security-documentation.html
+
 ## 🚀 Quick Start
 
 ### Prerequisites

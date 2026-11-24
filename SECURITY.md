@@ -2,7 +2,7 @@
 
 ## Our commitment
 
-- We run CodeAuditor on this application every week.
+- We run EPFL's Central tool CodeAuditor on this application every week.
 - We fix every critical finding that affects this application within 7
   days. That limit is firm.
 - We aim to fix such a finding within 24 hours.
@@ -29,3 +29,7 @@ of this repository. Only the maintainers can read the report.
 
 The [incident response](docs/src/architecture/incident-response.md) page
 gives the severity levels and the communication timeframes.
+
+## Security documentation
+
+See [security documentation](https://epfl-enac.github.io/co2-calculator/architecture/security-documentation.html) for the security documentation index.

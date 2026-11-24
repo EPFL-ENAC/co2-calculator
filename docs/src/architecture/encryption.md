@@ -205,8 +205,8 @@ plaintext.
   the ability to read every object encrypted with it.
 - **Integrity** — key changes go through the vault, which is the only
   writer of the managed Secret. Vault-side audit and versioning are
-  ENAC-IT's, documented in the private
-  [security documentation repository](https://github.com/EPFL-ENAC/co2-calculator-security-doc).
+  ENAC-IT's, documented in the
+  [security documentation](https://epfl-enac.github.io/co2-calculator/architecture/security-documentation.html).
 
 ## Known gaps
 

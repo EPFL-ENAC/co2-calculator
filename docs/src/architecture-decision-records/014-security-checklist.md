@@ -500,7 +500,7 @@ not by ticking them here.
 
 ## 9. Links
 
-- [Security documentation repo](https://github.com/EPFL-ENAC/co2-calculator-security-doc)
+- [Security documentation](https://epfl-enac.github.io/co2-calculator/architecture/security-documentation.html)
 - [Workflow schedule](https://github.com/marketplace/actions/schedule-workflow)
 - [GitHub secret scanning](https://docs.github.com/en/code-security/concepts/secret-security/about-secret-scanning)
 - [SonarCloud](https://sonarcloud.io)
