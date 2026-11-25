@@ -55,6 +55,9 @@ spec:
       {{- if and $assets.image $assets.volume }}
       {{- fail "frontend.institutionAssets: set image or volume, not both" }}
       {{- end }}
+      {{- if and $assets.image $assets.subPath }}
+      {{- fail "frontend.institutionAssets.subPath goes with volume: the init container of image already copies the folder itself" }}
+      {{- end }}
       {{- with $assets.image }}
       # The institution image copies its folder into the institution
       # volume, then stops. An image carries the folder to every cluster
@@ -119,6 +122,9 @@ spec:
             # neutral defaults of the image (#3244).
             - name: institution
               mountPath: /institution
+              {{- with $assets.subPath }}
+              subPath: {{ . | quote }}
+              {{- end }}
               readOnly: true
       volumes:
         # `helm lint` turns fail into a message and keeps rendering, so the

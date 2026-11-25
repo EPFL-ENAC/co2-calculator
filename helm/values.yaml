@@ -415,8 +415,10 @@ frontend:
   institutionAssets:
     # -- Image that holds the institution folder, with its tag. An init container runs it: the image copies the folder into the volume at /out
     image: ""
-    # -- Volume source that holds the institution folder, for example a ConfigMap
+    # -- Volume source that holds the institution folder, for example a ConfigMap, or the institution image as an image volume (Kubernetes 1.35)
     volume: {}
+    # -- Folder of the volume to mount. An institution image as an image volume holds the folder at "institution"
+    subPath: ""
 
   podAnnotations: {}
 

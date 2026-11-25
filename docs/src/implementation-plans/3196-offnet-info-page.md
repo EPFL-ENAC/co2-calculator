@@ -90,9 +90,9 @@ image, to a cluster and to Docker Compose alike, with no git on the host.
   a fallback. The EPFL nodes pull the app images from the internal
   registry, and nobody tried a pull from ghcr yet. After dev proves the
   image path, the chart can leave.
-- Kubernetes 1.35 (the cluster of the maintainer's `oc` context) can
-  also mount an image as a volume, through the
-  `volume` value and with no init container. Not tried on OpenShift.
+- Kubernetes 1.35 can also mount the image as a volume, with no init
+  container: `institutionAssets.volume.image` with
+  `institutionAssets.subPath: institution`. Not tried on OpenShift yet.
 
 ## Rollout
 

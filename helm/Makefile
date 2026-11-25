@@ -140,6 +140,7 @@ lint-docs: ## Fail if VALUES.md is older than values.yaml
 SECRET = --set backend.existingSecret.name=x
 INSTITUTION_IMAGE = --set frontend.institutionAssets.image=registry.example.org/co2-institution-univ:1.0.0
 INSTITUTION_VOLUME = --set frontend.institutionAssets.volume.configMap.name=x
+INSTITUTION_IMAGE_VOLUME = --set frontend.institutionAssets.volume.image.reference=registry.example.org/co2-institution-univ:v1.0.0 --set frontend.institutionAssets.subPath=institution
 
 .PHONY: check-institution-source
 check-institution-source: ## Fail unless the institution folder comes from exactly one of image or volume
@@ -149,6 +150,9 @@ check-institution-source: ## Fail unless the institution folder comes from exact
 	@! helm template . $(SECRET) $(INSTITUTION_VOLUME) -s templates/frontend-deployment.yaml \
 		| grep -q "initContainers:" \
 		|| { echo "❌ institutionAssets.volume renders an init container"; exit 1; }
+	@helm template . $(SECRET) $(INSTITUTION_IMAGE_VOLUME) -s templates/frontend-deployment.yaml \
+		| grep -q 'subPath: "institution"' \
+		|| { echo "❌ institutionAssets.subPath is not on the mount"; exit 1; }
 	@! helm template . $(SECRET) $(INSTITUTION_IMAGE) $(INSTITUTION_VOLUME) >/dev/null 2>&1 \
 		|| { echo "❌ the chart renders with both image and volume"; exit 1; }
 	@! helm template . $(SECRET) >/dev/null 2>&1 \

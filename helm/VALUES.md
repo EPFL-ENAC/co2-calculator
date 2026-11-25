@@ -200,7 +200,8 @@ no description has only a comment in `values.yaml`. The chart
 | frontend.env.APP_DEMO_MODE | string | `"false"` |  |
 | frontend.env.APP_PRODUCTION_URL | string | `""` |  |
 | frontend.institutionAssets.image | string | `""` | Image that holds the institution folder, with its tag. An init container runs it: the image copies the folder into the volume at /out |
-| frontend.institutionAssets.volume | object | `{}` | Volume source that holds the institution folder, for example a ConfigMap |
+| frontend.institutionAssets.volume | object | `{}` | Volume source that holds the institution folder, for example a ConfigMap, or the institution image as an image volume (Kubernetes 1.35) |
+| frontend.institutionAssets.subPath | string | `""` | Folder of the volume to mount. An institution image as an image volume holds the folder at "institution" |
 | frontend.podAnnotations | object | `{}` |  |
 | frontend.podSecurityContext | string | `nil` |  |
 | frontend.securityContext.allowPrivilegeEscalation | bool | `false` |  |

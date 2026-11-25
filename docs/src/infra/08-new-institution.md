@@ -303,6 +303,20 @@ Without `image` or `volume`, the Helm chart does not render, because the
 folder gives `theme.conf`. With an empty required value, the new pods
 stop at startup and the pods of the last version continue to serve.
 
+On Kubernetes 1.35 or later, the pod can mount the image directly, with
+no init container and no copy. Give the image as a volume, with the
+folder of the image as `subPath`:
+
+```yaml
+frontend:
+  institutionAssets:
+    volume:
+      image:
+        reference: registry.example.org/co2-institution-univ:v1.0.0
+        pullPolicy: IfNotPresent
+    subPath: institution
+```
+
 ### With Docker Compose
 
 `docker-compose.deploy.yml` starts the app from published images. Set
