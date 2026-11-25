@@ -124,6 +124,11 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            {{- with .Values.clientAllowlist.allowedCidrs }}
+            # #3196: the API refuses clients outside these networks.
+            - name: CLIENT_ALLOWED_CIDRS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- if .Values.worker.enabled }}
             # #2050 Track B: worker.enabled is the single switch — API pods
             # stop executing jobs themselves the moment a worker exists to

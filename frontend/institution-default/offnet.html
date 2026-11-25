@@ -1,0 +1,134 @@
+<!doctype html>
+<!--
+  Shown by nginx, with a 403, to a client outside the allowed networks
+  (#3196). That client gets no other file of the app, so everything is in
+  this file: texts, CSS, script and icon. The institution folder can
+  replace it with its own offnet.html.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>CO₂ Calculator</title>
+    <!-- No icon request: /favicon.ico is closed to this client. -->
+    <link rel="icon" href="data:," />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+        font-family: system-ui, sans-serif;
+        color: #212121;
+        background: #f2f2f2;
+      }
+      main {
+        width: 100%;
+        max-width: 40rem;
+        background: #fff;
+        box-shadow: 0 0.25rem 1.5rem rgb(0 0 0 / 15%);
+        padding: 4rem 3rem;
+        text-align: center;
+      }
+      /* The script sets the lang of <html>. Without script, English shows. */
+      html[lang='en'] [lang='fr'],
+      html[lang='fr'] [lang='en'] {
+        display: none;
+      }
+      .app {
+        margin: 0 0 2.5rem;
+        font-size: 2rem;
+        font-weight: 500;
+      }
+      h1 {
+        font-size: 1.4rem;
+        font-weight: 500;
+        line-height: 1.5;
+        margin: 0 0 1rem;
+      }
+      .hint {
+        font-size: 1.15rem;
+        color: #707070;
+        margin: 0 0 2.5rem;
+      }
+      .retry {
+        display: block;
+        padding: 0.9rem;
+        font-size: 1.15rem;
+        font-weight: 500;
+        color: #fff;
+        background: #5a5a5a;
+        border-radius: 0.1875rem;
+        text-decoration: none;
+      }
+      .retry:hover {
+        background: #3c3c3c;
+      }
+      .languages {
+        margin-top: 2rem;
+      }
+      .languages button {
+        font: inherit;
+        color: #5a5a5a;
+        background: none;
+        border: 0;
+        padding: 0.25rem 0.5rem;
+        cursor: pointer;
+        text-decoration: underline;
+      }
+      .languages button[aria-pressed='true'] {
+        color: #212121;
+        font-weight: 700;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="app">CO₂ Calculator</p>
+      <div lang="en">
+        <h1>
+          The CO₂ calculator is only available on the institution network.
+        </h1>
+        <p class="hint">
+          Connect to that network or to its VPN, and try again.
+        </p>
+        <!-- An empty href loads this address again: no script needed. -->
+        <a class="retry" href="">Retry</a>
+      </div>
+      <div lang="fr">
+        <h1>
+          Le calculateur CO₂ n'est accessible que depuis le réseau de
+          l'institution.
+        </h1>
+        <p class="hint">
+          Connectez-vous à ce réseau ou à son VPN, puis réessayez.
+        </p>
+        <a class="retry" href="">Réessayer</a>
+      </div>
+      <div class="languages">
+        <button type="button" data-lang="en">English</button>
+        <button type="button" data-lang="fr">Français</button>
+      </div>
+    </main>
+    <script>
+      const buttons = document.querySelectorAll('.languages button');
+      const show = (lang) => {
+        document.documentElement.lang = lang;
+        buttons.forEach((button) =>
+          button.setAttribute('aria-pressed', button.dataset.lang === lang),
+        );
+      };
+      buttons.forEach((button) =>
+        button.addEventListener('click', () => show(button.dataset.lang)),
+      );
+      show(navigator.language.startsWith('fr') ? 'fr' : 'en');
+    </script>
+  </body>
+</html>

@@ -27,6 +27,8 @@ frontend:
   # and your logo, icons and fonts (docs: infra/08-new-institution.md). The
   # frontend does not start without it. Make the ConfigMap from your folder:
   #   kubectl create configmap co2-institution -n co2 --from-file=<your folder>
+  # With an image of your folder, set `image` in place of `volume`:
+  #   image: registry.example.org/co2-institution-univ:v1.0.0
   institutionAssets:
     volume:
       configMap:

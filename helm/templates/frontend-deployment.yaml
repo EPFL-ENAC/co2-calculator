@@ -40,6 +40,7 @@ spec:
         {{- with .Values.frontend.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- with include "co2-calculator.clientAllowlist.annotation" . | trim }}{{ . | nindent 8 }}{{- end }}
     spec:
       serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
       {{- with .Values.global.imagePullSecrets }}
@@ -49,6 +50,32 @@ spec:
       {{- with .Values.frontend.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $assets := .Values.frontend.institutionAssets }}
+      {{- if and $assets.image $assets.volume }}
+      {{- fail "frontend.institutionAssets: set image or volume, not both" }}
+      {{- end }}
+      {{- if and $assets.image $assets.subPath }}
+      {{- fail "frontend.institutionAssets.subPath goes with volume: the init container of image already copies the folder itself" }}
+      {{- end }}
+      {{- with $assets.image }}
+      # The institution image copies its folder into the institution
+      # volume, then stops. An image carries the folder to every cluster
+      # version and to Docker Compose alike.
+      initContainers:
+        - name: institution
+          image: {{ . | quote }}
+          securityContext:
+            {{- toYaml $.Values.frontend.securityContext | nindent 12 }}
+          resources:
+            limits:
+              memory: 32Mi
+            requests:
+              cpu: 10m
+              memory: 16Mi
+          volumeMounts:
+            - name: institution
+              mountPath: /out
       {{- end }}
       containers:
         - name: frontend
@@ -90,19 +117,25 @@ spec:
               mountPath: /var/cache/nginx
             - name: run
               mountPath: /var/run
+            {{- with include "co2-calculator.clientAllowlist.mount" . | trim }}{{ . | nindent 12 }}{{- end }}
             # Theme of the institution, and the files that replace the
             # neutral defaults of the image (#3244).
             - name: institution
               mountPath: /institution
+              {{- with $assets.subPath }}
+              subPath: {{ . | quote }}
+              {{- end }}
               readOnly: true
       volumes:
         # `helm lint` turns fail into a message and keeps rendering, so the
         # else branch must still give valid YAML.
         - name: institution
-          {{- with .Values.frontend.institutionAssets.volume }}
-          {{- toYaml . | nindent 10 }}
+          {{- if $assets.image }}
+          emptyDir: {}
+          {{- else if $assets.volume }}
+          {{- toYaml $assets.volume | nindent 10 }}
           {{- else }}
-          {{- fail "frontend.institutionAssets.volume is required: the volume with the institution theme.conf" }}
+          {{- fail "frontend.institutionAssets needs image or volume: the institution folder with theme.conf" }}
           {{- end }}
         - name: cache
           emptyDir: {}
@@ -110,6 +143,7 @@ spec:
           emptyDir: {}
         - name: tmp
           emptyDir: {}
+        {{- with include "co2-calculator.clientAllowlist.volume" . | trim }}{{ . | nindent 8 }}{{- end }}
       {{- with .Values.frontend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

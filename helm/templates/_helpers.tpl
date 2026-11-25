@@ -275,3 +275,30 @@ image pod needs (audit sync runs from the worker too). Plan #2050 Track B.
       - key: {{ .Values.backend.existingSecret.keys.elasticsearchCaCertFileKey | default "ELASTICSEARCH_CA_CERT_FILE" }}
         path: {{ .Values.backend.elasticsearch.caCert.filename | default "http_ca_test.crt" }}
 {{- end -}}
+
+{{/*
+Client allowlist of the nginx pods (#3196): the pod annotation that rolls
+them when the list changes, the volume and the mount. nginx reads the list
+at startup only.
+*/}}
+{{- define "co2-calculator.clientAllowlist.annotation" -}}
+{{- if .Values.clientAllowlist.allowedCidrs }}
+checksum/client-allowlist: {{ include (print $.Template.BasePath "/client-allowlist-configmap.yaml") . | sha256sum }}
+{{- end }}
+{{- end }}
+
+{{- define "co2-calculator.clientAllowlist.volume" -}}
+{{- if .Values.clientAllowlist.allowedCidrs }}
+- name: client-allowlist
+  configMap:
+    name: {{ include "co2-calculator.fullname" . }}-client-allowlist
+{{- end }}
+{{- end }}
+
+{{- define "co2-calculator.clientAllowlist.mount" -}}
+{{- if .Values.clientAllowlist.allowedCidrs }}
+- name: client-allowlist
+  mountPath: /etc/nginx/client-allowlist
+  readOnly: true
+{{- end }}
+{{- end }}

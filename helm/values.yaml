@@ -406,14 +406,19 @@ frontend:
     APP_DEMO_MODE: "false"
     APP_PRODUCTION_URL: ""
 
-  # Volume with the institution folder, mounted at /institution (#3244):
-  # theme.conf (required, the accent color), an optional values.env and
-  # optional assets. The image has a neutral default for the assets (logo.svg,
-  # login-illustration.svg, the favicons, font-*.woff2), and a file of the
-  # volume replaces its default. Any volume source works, for example a
-  # ConfigMap built from the institution folder.
+  # The institution folder, mounted at /institution (#3244): theme.conf
+  # (required, the accent color), an optional values.env and optional
+  # assets. The frontend image has a neutral default for each asset
+  # (logo.svg, login-illustration.svg, the favicons, font-*.woff2,
+  # offnet.html), and a file of the folder replaces its default.
+  # Set image or volume, not both.
   institutionAssets:
+    # -- Image that holds the institution folder, with its tag. An init container runs it: the image copies the folder into the volume at /out
+    image: ""
+    # -- Volume source that holds the institution folder, for example a ConfigMap, or the institution image as an image volume (Kubernetes 1.35)
     volume: {}
+    # -- Folder of the volume to mount. An institution image as an image volume holds the folder at "institution"
+    subPath: ""
 
   podAnnotations: {}
 
@@ -584,6 +589,14 @@ podDisruptionBudget:
   minAvailable: 1
   maxUnavailable: ""
 
+# Clients outside allowedCidrs get an info page on /, a redirect to it on
+# /docs and a 403 on /api (#3196). An empty list turns the check off.
+clientAllowlist:
+  # -- CIDRs of the clients the app serves, for example the campus and VPN networks
+  allowedCidrs: []
+  # -- Every proxy in front of the pods (router pods, each load balancer). The client is the right-most X-Forwarded-For address outside them, so a proxy that is missing here becomes the client: if allowedCidrs holds its address, every client gets in. Must equal backend.env.FORWARDED_ALLOW_IPS
+  trustedProxies: []
+
 networkPolicies:
   # -- Create NetworkPolicies that limit the traffic to the pods
   enabled: false
@@ -644,14 +657,14 @@ docs:
 
   livenessProbe:
     httpGet:
-      path: /
+      path: /healthz
       port: 8080
     initialDelaySeconds: 10
     periodSeconds: 10
 
   readinessProbe:
     httpGet:
-      path: /
+      path: /healthz
       port: 8080
     initialDelaySeconds: 5
     periodSeconds: 5

@@ -199,7 +199,9 @@ no description has only a comment in `values.yaml`. The chart
 | frontend.env.APP_PLANNER_MAX_YEAR | string | `""` |  |
 | frontend.env.APP_DEMO_MODE | string | `"false"` |  |
 | frontend.env.APP_PRODUCTION_URL | string | `""` |  |
-| frontend.institutionAssets.volume | object | `{}` |  |
+| frontend.institutionAssets.image | string | `""` | Image that holds the institution folder, with its tag. An init container runs it: the image copies the folder into the volume at /out |
+| frontend.institutionAssets.volume | object | `{}` | Volume source that holds the institution folder, for example a ConfigMap, or the institution image as an image volume (Kubernetes 1.35) |
+| frontend.institutionAssets.subPath | string | `""` | Folder of the volume to mount. An institution image as an image volume holds the folder at "institution" |
 | frontend.podAnnotations | object | `{}` |  |
 | frontend.podSecurityContext | string | `nil` |  |
 | frontend.securityContext.allowPrivilegeEscalation | bool | `false` |  |
@@ -271,6 +273,8 @@ no description has only a comment in `values.yaml`. The chart
 | podDisruptionBudget.enabled | bool | `false` |  |
 | podDisruptionBudget.minAvailable | int | `1` |  |
 | podDisruptionBudget.maxUnavailable | string | `""` |  |
+| clientAllowlist.allowedCidrs | list | `[]` | CIDRs of the clients the app serves, for example the campus and VPN networks |
+| clientAllowlist.trustedProxies | list | `[]` | Every proxy in front of the pods (router pods, each load balancer). The client is the right-most X-Forwarded-For address outside them, so a proxy that is missing here becomes the client: if allowedCidrs holds its address, every client gets in. Must equal backend.env.FORWARDED_ALLOW_IPS |
 | networkPolicies.enabled | bool | `false` | Create NetworkPolicies that limit the traffic to the pods |
 | networkPolicies.ingressFromRoutes | list | `[]` |  |
 | docs.enabled | bool | `true` | Deploy the developer documentation site |
@@ -290,11 +294,11 @@ no description has only a comment in `values.yaml`. The chart
 | docs.resources.limits.memory | string | `"256Mi"` |  |
 | docs.resources.requests.cpu | string | `"50m"` |  |
 | docs.resources.requests.memory | string | `"64Mi"` |  |
-| docs.livenessProbe.httpGet.path | string | `"/"` |  |
+| docs.livenessProbe.httpGet.path | string | `"/healthz"` |  |
 | docs.livenessProbe.httpGet.port | int | `8080` |  |
 | docs.livenessProbe.initialDelaySeconds | int | `10` |  |
 | docs.livenessProbe.periodSeconds | int | `10` |  |
-| docs.readinessProbe.httpGet.path | string | `"/"` |  |
+| docs.readinessProbe.httpGet.path | string | `"/healthz"` |  |
 | docs.readinessProbe.httpGet.port | int | `8080` |  |
 | docs.readinessProbe.initialDelaySeconds | int | `5` |  |
 | docs.readinessProbe.periodSeconds | int | `5` |  |

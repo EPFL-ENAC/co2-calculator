@@ -43,6 +43,7 @@ spec:
         {{- with .Values.docs.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- with include "co2-calculator.clientAllowlist.annotation" . | trim }}{{ . | nindent 8 }}{{- end }}
     spec:
       serviceAccountName: {{ include "co2-calculator.serviceAccountName" . }}
       {{- with .Values.global.imagePullSecrets }}
@@ -80,6 +81,7 @@ spec:
               mountPath: /var/cache/nginx
             - name: run
               mountPath: /var/run
+            {{- with include "co2-calculator.clientAllowlist.mount" . | trim }}{{ . | nindent 12 }}{{- end }}
       volumes:
         - name: cache
           emptyDir: {}
@@ -87,6 +89,7 @@ spec:
           emptyDir: {}
         - name: tmp
           emptyDir: {}
+        {{- with include "co2-calculator.clientAllowlist.volume" . | trim }}{{ . | nindent 8 }}{{- end }}
       {{- with .Values.docs.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

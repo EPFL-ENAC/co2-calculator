@@ -11,14 +11,38 @@ URL=http://127.0.0.1:9466
 TMP=$(mktemp -d)
 trap 'docker rm -f "$NAME" >/dev/null 2>&1; rm -rf "$TMP"' EXIT
 docker rm -f "$NAME" >/dev/null 2>&1 || true
+# The network list of the chart (#3196). The docker peer and a fake load
+# balancer are the trusted proxies: the client is the X-Forwarded-For
+# address in front of them, as on the cluster.
+cat > "$TMP/geo.conf" <<'GEO'
+proxy 172.16.0.0/12;
+proxy 192.168.0.0/16;
+proxy 10.98.42.0/24;
+proxy_recursive;
+0.0.0.0/0 1;
+::/0 1;
+198.51.100.0/24 0;
+10.0.0.0/8 0;
+172.16.0.0/12 1;
+192.168.0.0/16 1;
+10.98.42.0/24 1;
+GEO
+chmod 644 "$TMP/geo.conf"
+# A copy of the html root with a stale offnet.html, as an old build leaves
+# one: the page must come from the institution folder, never from here.
+cp -R "$DIST" "$TMP/html"
+echo stale > "$TMP/html/offnet.html"
+echo stale > "$TMP/html/offnet.html.br"
+chmod -R a+rX "$TMP/html"
 docker run -d --name "$NAME" -p 127.0.0.1:9466:8080 --read-only \
   -e APP_ENVIRONMENT=production \
   --tmpfs /tmp:uid=101,gid=101 --tmpfs /var/cache/nginx --tmpfs /var/run \
   -v "$PWD/nginx.conf:/etc/nginx/nginx.conf:ro" \
+  -v "$TMP/geo.conf:/etc/nginx/client-allowlist/geo.conf:ro" \
   -v "$PWD/docker/entrypoint.sh:/docker-entrypoint.d/40-entrypoint.sh:ro" \
   -v "$PWD/institution-default:/usr/local/share/institution/default:ro" \
   -v "$PWD/institution-example:/institution:ro" \
-  -v "$DIST:/usr/share/nginx/html:ro" \
+  -v "$TMP/html:/usr/share/nginx/html:ro" \
   nginx/nginx-unprivileged:stable-alpine-slim >/dev/null
 i=0
 until curl -sf "$URL/ready" >/dev/null; do
@@ -31,7 +55,12 @@ LONG="public, max-age=31536000, immutable"
 SHORT="no-cache, must-revalidate"
 
 # fetch PATH ACCEPT_ENCODING: headers to $TMP/h, body to $TMP/b.
-fetch() { curl -s -o "$TMP/b" -D "$TMP/h" -H "Accept-Encoding: $2" "$URL$1"; }
+# XFF is the client address chain, an allowed address unless a case sets it.
+XFF=198.51.100.1
+fetch() {
+  curl -s -o "$TMP/b" -D "$TMP/h" -H "Accept-Encoding: $2" \
+    -H "X-Forwarded-For: $XFF" "$URL$1"
+}
 header() { grep -i "^$1:" "$TMP/h" | head -1 | cut -d' ' -f2- | tr -d '\r'; }
 status() { head -1 "$TMP/h" | cut -d' ' -f2; }
 # expect LABEL NAME VALUE: NAME is a header, or "status"; VALUE "" = absent.
@@ -64,7 +93,7 @@ case_ "injectEnv br" /injectEnv.js "br, gzip" 200 gzip $JST "$SHORT" Accept-Enco
 case_ "png br" /institution/favicon-32x32.png br 200 "" image/png "$SHORT" ""
 fetch "$JS.br" br; expect "direct .br" status 404
 # A versioned font is kept one year, every fixed name revalidated.
-FONT=$(curl -s "$URL/theme.css" | sed -n 's|.*url("\(/institution/font-bold\.[0-9]*\.woff2\)").*|\1|p')
+FONT=$(curl -s -H "X-Forwarded-For: $XFF" "$URL/theme.css" | sed -n 's|.*url("\(/institution/font-bold\.[0-9]*\.woff2\)").*|\1|p')
 [ -n "$FONT" ] || { echo "FAIL versioned font: none in theme.css"; exit 1; }
 echo "ok   versioned font: $FONT"
 case_ "font versioned" "$FONT" "" 200 "" font/woff2 "$LONG" ""
@@ -85,4 +114,44 @@ expect "missing br" status 404; expect "missing br" Content-Encoding br
 expect "missing br" Vary Accept-Encoding
 fetch /assets/missing-AAAAAAAA.js ""
 expect "missing none" status 404; expect "missing none" Content-Encoding ""
+
+# Clients outside the allowed networks (#3196).
+XFF="198.51.100.59, 10.98.42.215"
+fetch / ""; expect "inside via lb" status 200
+# The page is the file of the institution folder, here the image default.
+PAGE=institution-default/offnet.html
+cmp -s "$TMP/b" "$PAGE" && { echo "FAIL inside via lb: got offnet.html"; exit 1; }
+for chain in "203.0.113.5, 10.98.42.215" "198.51.100.9, 203.0.113.5, 10.98.42.215"; do
+  XFF=$chain
+  # Every path but the page is closed: the app, its files and the probes.
+  for path in / /some/route "$JS" /healthz /ready /health /theme.css \
+    /injectEnv.js /favicon.ico /institution/logo.svg /institution/offnet.html; do
+    fetch "$path" ""; expect "outside $chain $path" status 403
+    expect "outside $chain $path" Content-Type text/html
+    expect "outside $chain $path" Cache-Control "$SHORT"
+    cmp -s "$TMP/b" "$PAGE" || { echo "FAIL outside $path: not offnet.html"; exit 1; }
+  done
+  # The /tmp copy has no .br: a stale one in the html root must not show.
+  fetch / br; expect "outside br" status 403; expect "outside br" Content-Encoding ""
+  fetch /offnet.html ""; expect "outside page" status 200
+  cmp -s "$TMP/b" "$PAGE" || { echo "FAIL outside page: not offnet.html"; exit 1; }
+  grep -qi "^content-security-policy:.*connect-src 'none'; form-action 'none'" "$TMP/h" \
+    || { echo "FAIL outside page: no page policy"; exit 1; }
+  echo "ok   outside page: page policy"
+  fetch /OFFNET.HTML ""; expect "outside page, capitals" status 403
+done
+# An allowed client through the router reaches a probe, as before #3196.
+XFF="198.51.100.59, 10.98.42.215"
+fetch /healthz ""; expect "inside probe via lb" status 200
+# No header: a direct call, as the kubelet does. Only the probes answer.
+XFF=""
+for path in /healthz /ready /health; do
+  fetch "$path" ""; expect "direct probe $path" status 200
+done
+fetch / ""; expect "no forwarded header" status 403
+# A proxy as the client, inside the wide 10.0.0.0/8: still outside.
+XFF="10.98.42.215"
+fetch / ""; expect "proxy only" status 403
+XFF="10.5.1.1, 10.98.42.215"
+fetch / ""; expect "inside 10/8 via lb" status 200
 echo "all checks passed"

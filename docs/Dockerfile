@@ -26,6 +26,11 @@ USER root
 RUN apk upgrade --no-cache
 USER 101
 
+# The base default.conf plus the client check of #3196. The geo file
+# allows every client: the chart mounts its network list over it.
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY client-allowlist.conf /etc/nginx/client-allowlist/geo.conf
+
 # Copy built documentation from builder stage
 COPY --from=builder /app/site /usr/share/nginx/html
 

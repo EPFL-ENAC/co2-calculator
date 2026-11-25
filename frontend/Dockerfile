@@ -63,6 +63,8 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
+# Allows every client. The chart mounts its network list over it (#3196).
+COPY docker/client-allowlist.conf /etc/nginx/client-allowlist/geo.conf
 
 # Values, institution assets and theme, written at startup. The base image's
 # stock entrypoint runs every /docker-entrypoint.d/*.sh before exec'ing nginx.
