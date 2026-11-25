@@ -274,7 +274,7 @@ no description has only a comment in `values.yaml`. The chart
 | podDisruptionBudget.minAvailable | int | `1` |  |
 | podDisruptionBudget.maxUnavailable | string | `""` |  |
 | clientAllowlist.allowedCidrs | list | `[]` | CIDRs of the clients the app serves, for example the campus and VPN networks |
-| clientAllowlist.trustedProxies | list | `[]` | Proxies in front of the pods (router pods, load balancer). The client is the right-most X-Forwarded-For address outside them. Keep in line with backend.env.FORWARDED_ALLOW_IPS |
+| clientAllowlist.trustedProxies | list | `[]` | Every proxy in front of the pods (router pods, each load balancer). The client is the right-most X-Forwarded-For address outside them, so a proxy that is missing here becomes the client: if allowedCidrs holds its address, every client gets in. Must equal backend.env.FORWARDED_ALLOW_IPS |
 | networkPolicies.enabled | bool | `false` | Create NetworkPolicies that limit the traffic to the pods |
 | networkPolicies.ingressFromRoutes | list | `[]` |  |
 | docs.enabled | bool | `true` | Deploy the developer documentation site |

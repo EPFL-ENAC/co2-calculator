@@ -147,23 +147,42 @@ check-institution-source: ## Fail unless the institution folder comes from exact
 	@helm template . $(SECRET) $(INSTITUTION_IMAGE) -s templates/frontend-deployment.yaml \
 		| grep -A2 "initContainers:" | grep -q "co2-institution-univ:1.0.0" \
 		|| { echo "❌ institutionAssets.image renders no init container"; exit 1; }
-	@! helm template . $(SECRET) $(INSTITUTION_VOLUME) -s templates/frontend-deployment.yaml \
-		| grep -q "initContainers:" \
+	@out=$$(helm template . $(SECRET) $(INSTITUTION_VOLUME) -s templates/frontend-deployment.yaml) || exit 1; \
+		! echo "$$out" | grep -q "initContainers:" \
 		|| { echo "❌ institutionAssets.volume renders an init container"; exit 1; }
 	@helm template . $(SECRET) $(INSTITUTION_IMAGE_VOLUME) -s templates/frontend-deployment.yaml \
 		| grep -q 'subPath: "institution"' \
 		|| { echo "❌ institutionAssets.subPath is not on the mount"; exit 1; }
-	@! helm template . $(SECRET) $(INSTITUTION_IMAGE) $(INSTITUTION_VOLUME) >/dev/null 2>&1 \
-		|| { echo "❌ the chart renders with both image and volume"; exit 1; }
-	@! helm template . $(SECRET) >/dev/null 2>&1 \
-		|| { echo "❌ the chart renders with no institution folder"; exit 1; }
+	@helm template . $(SECRET) $(INSTITUTION_IMAGE) $(INSTITUTION_VOLUME) 2>&1 \
+		| grep -q "set image or volume, not both" \
+		|| { echo "❌ the chart does not refuse image with volume"; exit 1; }
+	@helm template . $(SECRET) 2>&1 | grep -q "needs image or volume" \
+		|| { echo "❌ the chart does not refuse a missing institution folder"; exit 1; }
 	@echo "✅ the institution folder comes from one of image or volume"
+
+# The client lists (#3196). A proxy missing from one list becomes "the
+# client" there, so the two lists must be equal, and each value a CIDR.
+ALLOWLIST = $(SECRET) $(INSTITUTION_VOLUME) --set 'clientAllowlist.allowedCidrs={198.51.100.0/24}' --set 'clientAllowlist.trustedProxies={10.20.0.0/16,10.98.42.0/24}'
+
+.PHONY: check-client-allowlist
+check-client-allowlist: ## Fail unless the chart refuses client lists that differ or that are not CIDRs
+	@helm template . $(ALLOWLIST) --set-string 'backend.env.FORWARDED_ALLOW_IPS=10.20.0.0/16\,10.98.42.0/24' \
+		-s templates/client-allowlist-configmap.yaml | grep -q "198.51.100.0/24 0;" \
+		|| { echo "❌ equal client lists do not render geo.conf"; exit 1; }
+	@helm template . $(ALLOWLIST) --set-string 'backend.env.FORWARDED_ALLOW_IPS=10.20.0.0/16' 2>&1 \
+		| grep -q "must equal clientAllowlist.trustedProxies" \
+		|| { echo "❌ the chart does not refuse a proxy missing from FORWARDED_ALLOW_IPS"; exit 1; }
+	@helm template . $(ALLOWLIST) --set-string 'backend.env.FORWARDED_ALLOW_IPS=10.20.0.0/16\,10.98.42.0/24' \
+		--set 'clientAllowlist.allowedCidrs={198.51.100.0/24 0; default 0}' 2>&1 \
+		| grep -q "is not a CIDR" \
+		|| { echo "❌ the chart does not refuse a value that is not a CIDR"; exit 1; }
+	@echo "✅ the client lists are equal and hold only CIDRs"
 
 ## -------------------------------
 ## 🧪 Combined linting
 ## -------------------------------
 .PHONY: lint
-lint: lint-helm lint-examples check-api-version check-app-version check-worker-env check-frontend-env check-institution-source lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker and frontend env, VALUES.md)
+lint: lint-helm lint-examples check-api-version check-app-version check-worker-env check-frontend-env check-institution-source check-client-allowlist lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker and frontend env, VALUES.md)
 	@echo "🧭 All lint checks passed!"
 
 

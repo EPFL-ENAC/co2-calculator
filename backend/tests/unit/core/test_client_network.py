@@ -1,8 +1,9 @@
 """The API refuses clients outside the allowed networks (#3196)."""
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from app.core.client_network import ClientNetworkMiddleware
 
@@ -30,6 +31,11 @@ def _client(host: str, cidrs: str = ALLOWED, proxies: str = PROXIES) -> TestClie
     @app.post("/internal/cache/taxonomy/clear")
     def clear() -> dict:
         return {"ok": True}
+
+    @app.websocket("/ws")
+    async def ws(websocket: WebSocket) -> None:
+        await websocket.accept()
+        await websocket.close()
 
     @app.get("/health/deps")
     def deps() -> dict:
@@ -101,6 +107,34 @@ def test_list_without_proxies_fails_at_startup() -> None:
 
 def test_empty_list_turns_the_check_off() -> None:
     assert _client("203.0.113.5", cidrs="").get("/v1/units").status_code == 200
+
+
+@pytest.mark.parametrize("proxies", ["10.20.0.1/16", "router.local", "unix:/tmp/x"])
+def test_check_off_leaves_the_proxy_list_to_uvicorn(proxies: str) -> None:
+    # uvicorn accepts these FORWARDED_ALLOW_IPS shapes: with the check off,
+    # the app must start as before.
+    client = _client("203.0.113.5", cidrs="", proxies=proxies)
+    assert client.get("/v1/units").status_code == 200
+
+
+def test_outside_client_cannot_open_a_websocket() -> None:
+    with pytest.raises(WebSocketDisconnect):
+        with _client("203.0.113.5").websocket_connect("/ws"):
+            pass
+
+
+def test_inside_client_opens_a_websocket() -> None:
+    with _client("198.51.100.7").websocket_connect("/ws"):
+        pass
+
+
+def test_inside_client_through_a_proxy_reaches_the_probe() -> None:
+    # The rule only keeps outside clients away: an allowed client that
+    # comes through the router reaches the probe as before this change.
+    response = _client("198.51.100.7").get(
+        "/healthz", headers={"X-Forwarded-For": "198.51.100.7"}
+    )
+    assert response.status_code == 200
 
 
 def test_wrong_cidr_fails_at_startup() -> None:

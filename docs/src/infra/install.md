@@ -48,8 +48,7 @@ It needs no clone of a repository.
    `POSTGRES_PASSWORD` and `POSTGRES_DB`.
 3. Write `backend.env` next to it, from `backend/.env.example`. Set
    `DB_URL` to the `postgres` host with the same user and password, and
-   set `FRONTEND_URL`. Replace each `change-me` value with a new random
-   value, and choose your own database password.
+   set `FRONTEND_URL`. Choose your own database password.
 4. Set the app version and the institution image, then start the app.
 
 ```bash
@@ -57,6 +56,14 @@ export CO2_VERSION=v1.5.4
 export INSTITUTION_IMAGE=registry.example.org/co2-institution-univ:v1.0.0
 docker compose -f docker-compose.deploy.yml up -d --wait
 ```
+
+The backend does not start with an empty or `change-me` value in the
+six signing and encryption names of `backend.env`: `JWT_HMAC_KEY`,
+`SESSION_HMAC_KEY`, `CREDENTIALS_ENCRYPTION_KEY`,
+`CREDENTIALS_ENCRYPTION_SALT`, `FILES_ENCRYPTION_KEY` and
+`FILES_ENCRYPTION_SALT`. Make each one with `openssl rand -hex 32`. Also
+set `COOKIE_SECURE=True` behind a TLS proxy, and set the three
+`OTEL_*_EXPORTER` values to `none` if the host has no collector.
 
 The frontend mounts the institution image as its `/institution` folder,
 read-only. The [guide for a new institution](08-new-institution.md)

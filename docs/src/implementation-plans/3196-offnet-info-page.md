@@ -59,6 +59,19 @@ answer as on any other path. The backend applies the same rule to
 - Backend: `CLIENT_ALLOWED_CIDRS` setting. Empty means off. The client IP is
   `request.client.host`, already resolved by uvicorn from
   `FORWARDED_ALLOW_IPS`. The probe paths are `/healthz` and `/ready`.
+- The check fails open if a proxy is missing from the lists: that proxy
+  is then "the client", and if `allowedCidrs` holds its address, every
+  client gets in. So the chart fails unless
+  `backend.env.FORWARDED_ALLOW_IPS` equals `trustedProxies`, and unless
+  each value is a CIDR (`make -C helm check-client-allowlist`). The lists
+  must hold every hop: the router pods and each load balancer, the public
+  one included.
+- `/offnet.html` goes out with a sandbox policy. Its inline script runs
+  with no session, so a changed institution file cannot call the API as
+  an inside user. A side effect: a font server that checks the origin
+  refuses the page, and the page shows the system font.
+- The rule for probes and `/internal/` keeps outside clients away. An
+  allowed client that comes through the router reaches them as before.
 - A trusted proxy as the client counts as outside, in nginx and in the
   backend. A wide allowed network (`10.0.0.0/8`) can hold the proxies, and
   a request can carry no client address: this rule closes both gaps.
@@ -110,9 +123,14 @@ version in one change.
    overlay, and allow the public ingress controller in
    `ingressFromRoutes`. Each router admits its own copy, so the host works
    on both load balancers: no downtime and no order to respect.
-4. From outside, check `/`, `/api`, `/docs` and `/api/healthz`, also with
-   a forged `X-Forwarded-For`. Check the X-Forwarded-For chain of the
-   public load balancer against `trustedProxies`.
+4. Gate before the DNS change. From outside, these must give 403 or the
+   info page: `/`, `/injectEnv.js`, `/api/v1/session`, `/docs/` and
+   `/api/healthz`. Repeat with a forged `X-Forwarded-For` that holds an
+   allowed address. Read the X-Forwarded-For chain of one public request
+   in its backend span, and make sure that `trustedProxies` holds each
+   hop. The prod overlay names `128.178.211.0/24` as the public load
+   balancers: it is inside the allowed `128.178.0.0/15`, so it must be in
+   the lists.
 5. Request the DNS change for dev.
 6. Stage, then prod, with the same steps.
 
@@ -126,6 +144,12 @@ of the institution chart if the nodes cannot pull the image.
 - Whether `10.0.0.0/8` is needed. The sample VPN client was `128.179.x`.
 - The French texts other than the contact sentence are not approved.
 - An open app shows API errors after a network change until a reload.
+- The prod overlay has its NetworkPolicy off. Turn it on before prod
+  moves: the pod network is a trusted proxy, so a pod of an other
+  namespace can forge an inside address.
+- A docs image from before this change has no `/healthz`, so the docs
+  pods of the new chart do not get ready with it. Release the chart and
+  the images together.
 - `docker-compose.deploy.yml` is not tried with an OIDC login, and it
   keeps uploaded files inside the backend container, so an upgrade
   deletes them unless S3 is set. Issue #3250 owns the

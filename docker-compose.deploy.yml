@@ -57,8 +57,11 @@ services:
     env_file:
       - ./backend.env
     environment:
-      # These win over backend.env: the test login gives any role with no
-      # password, and this file is for a host on a network.
+      # These win over backend.env: this file is for a host on a network.
+      # LOCAL_ENVIRONMENT off: the backend then refuses to start with an
+      # empty or placeholder signing or encryption value. The test login
+      # gives any role with no password.
+      LOCAL_ENVIRONMENT: "False"
       TEST_LOGIN_ROUTE_ENABLED: "False"
       DEBUG_STACK_TRACE_ENABLED: "False"
       HOST: "0.0.0.0"

@@ -28,6 +28,12 @@ proxy_recursive;
 10.98.42.0/24 1;
 GEO
 chmod 644 "$TMP/geo.conf"
+# A copy of the html root with a stale offnet.html, as an old build leaves
+# one: the page must come from the institution folder, never from here.
+cp -R "$DIST" "$TMP/html"
+echo stale > "$TMP/html/offnet.html"
+echo stale > "$TMP/html/offnet.html.br"
+chmod -R a+rX "$TMP/html"
 docker run -d --name "$NAME" -p 127.0.0.1:9466:8080 --read-only \
   -e APP_ENVIRONMENT=production \
   --tmpfs /tmp:uid=101,gid=101 --tmpfs /var/cache/nginx --tmpfs /var/run \
@@ -36,7 +42,7 @@ docker run -d --name "$NAME" -p 127.0.0.1:9466:8080 --read-only \
   -v "$PWD/docker/entrypoint.sh:/docker-entrypoint.d/40-entrypoint.sh:ro" \
   -v "$PWD/institution-default:/usr/local/share/institution/default:ro" \
   -v "$PWD/institution-example:/institution:ro" \
-  -v "$DIST:/usr/share/nginx/html:ro" \
+  -v "$TMP/html:/usr/share/nginx/html:ro" \
   nginx/nginx-unprivileged:stable-alpine-slim >/dev/null
 i=0
 until curl -sf "$URL/ready" >/dev/null; do
@@ -129,7 +135,14 @@ for chain in "203.0.113.5, 10.98.42.215" "198.51.100.9, 203.0.113.5, 10.98.42.21
   fetch / br; expect "outside br" status 403; expect "outside br" Content-Encoding ""
   fetch /offnet.html ""; expect "outside page" status 200
   cmp -s "$TMP/b" "$PAGE" || { echo "FAIL outside page: not offnet.html"; exit 1; }
+  grep -qi "^content-security-policy:.*sandbox allow-scripts" "$TMP/h" \
+    || { echo "FAIL outside page: no sandbox policy"; exit 1; }
+  echo "ok   outside page: sandbox policy"
+  fetch /OFFNET.HTML ""; expect "outside page, capitals" status 403
 done
+# An allowed client through the router reaches a probe, as before #3196.
+XFF="198.51.100.59, 10.98.42.215"
+fetch /healthz ""; expect "inside probe via lb" status 200
 # No header: a direct call, as the kubelet does. Only the probes answer.
 XFF=""
 for path in /healthz /ready /health; do

@@ -25,9 +25,9 @@ def is_direct_call(scope: Scope) -> bool:
     """True for a probe or an internal path called without X-Forwarded-For.
 
     The kubelet and the other pods call the pod directly. The router and the
-    load balancer always add the header, so these paths stay closed to their
-    clients. A pod address is inside the trusted proxies, so is_allowed
-    alone refuses it.
+    load balancer always add the header, so these paths stay closed to a
+    client outside the networks. A pod address is inside the trusted
+    proxies, so is_allowed alone refuses it.
     """
     path = scope["path"]
     direct_path = path in PROBE_PATHS or path.startswith(INTERNAL_PREFIX)
@@ -68,7 +68,11 @@ class ClientNetworkMiddleware:
     def __init__(self, app: ASGIApp, allowed_cidrs: str, trusted_proxies: str) -> None:
         self.app = app
         self.networks = parse_networks(allowed_cidrs)
-        self.proxies = parse_networks(trusted_proxies)
+        # Check off: FORWARDED_ALLOW_IPS belongs to uvicorn alone, which
+        # accepts more shapes than a CIDR. Do not parse it here.
+        self.proxies: list[IPv4Network | IPv6Network] = []
+        if self.networks:
+            self.proxies = parse_networks(trusted_proxies)
         if self.networks and not self.proxies:
             # uvicorn would then see the router pod as every client.
             raise ValueError("CLIENT_ALLOWED_CIDRS needs FORWARDED_ALLOW_IPS")
@@ -77,13 +81,18 @@ class ClientNetworkMiddleware:
         client = scope.get("client")
         host = client[0] if client else None
         refused = (
-            scope["type"] == "http"
+            scope["type"] in ("http", "websocket")
             and bool(self.networks)
             and not is_direct_call(scope)
             and not is_allowed(host, self.networks, self.proxies)
         )
         if not refused:
             await self.app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            # A close before the accept: the server refuses the handshake.
+            await receive()
+            await send({"type": "websocket.close", "code": 1008})
             return
         response = JSONResponse(
             status_code=403,

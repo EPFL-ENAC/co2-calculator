@@ -594,7 +594,7 @@ podDisruptionBudget:
 clientAllowlist:
   # -- CIDRs of the clients the app serves, for example the campus and VPN networks
   allowedCidrs: []
-  # -- Proxies in front of the pods (router pods, load balancer). The client is the right-most X-Forwarded-For address outside them. Keep in line with backend.env.FORWARDED_ALLOW_IPS
+  # -- Every proxy in front of the pods (router pods, each load balancer). The client is the right-most X-Forwarded-For address outside them, so a proxy that is missing here becomes the client: if allowedCidrs holds its address, every client gets in. Must equal backend.env.FORWARDED_ALLOW_IPS
   trustedProxies: []
 
 networkPolicies:
