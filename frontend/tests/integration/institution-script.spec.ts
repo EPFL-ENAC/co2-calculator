@@ -80,6 +80,10 @@ test('a folder with only theme.conf gets every default asset', () => {
     readFileSync(join(DEFAULT_DIR, 'logo.svg')),
   );
   expect(result.stdout).toContain(`logo.svg: from ${DEFAULT_DIR}`);
+  // #3196: the page for clients outside the networks is an asset too.
+  expect(readFileSync(join(out, 'institution/offnet.html'))).toEqual(
+    readFileSync(join(DEFAULT_DIR, 'offnet.html')),
+  );
   const css = readFileSync(join(out, 'theme.css'), 'utf8');
   expect(css).toContain('--theme-accent: #0050a0;');
   expect(css).toMatch(/url\("\/institution\/font-bold\.[0-9]+\.woff2"\)/);

@@ -205,3 +205,8 @@ jobs:
 
       - name: Run the nginx test
         run: sh docker/test-nginx.sh dist/spa
+
+      # The client check of the docs image (#3196): same nginx, same geo file.
+      - name: Run the docs nginx test
+        working-directory: ./docs
+        run: sh test-nginx.sh

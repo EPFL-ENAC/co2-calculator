@@ -135,11 +135,31 @@ lint-docs: ## Fail if VALUES.md is older than values.yaml
 	fi
 
 
+# The institution folder comes from an image or from a volume, never both
+# and never none: the frontend does not start without theme.conf.
+SECRET = --set backend.existingSecret.name=x
+INSTITUTION_IMAGE = --set frontend.institutionAssets.image=registry.example.org/co2-institution-univ:1.0.0
+INSTITUTION_VOLUME = --set frontend.institutionAssets.volume.configMap.name=x
+
+.PHONY: check-institution-source
+check-institution-source: ## Fail unless the institution folder comes from exactly one of image or volume
+	@helm template . $(SECRET) $(INSTITUTION_IMAGE) -s templates/frontend-deployment.yaml \
+		| grep -A2 "initContainers:" | grep -q "co2-institution-univ:1.0.0" \
+		|| { echo "❌ institutionAssets.image renders no init container"; exit 1; }
+	@! helm template . $(SECRET) $(INSTITUTION_VOLUME) -s templates/frontend-deployment.yaml \
+		| grep -q "initContainers:" \
+		|| { echo "❌ institutionAssets.volume renders an init container"; exit 1; }
+	@! helm template . $(SECRET) $(INSTITUTION_IMAGE) $(INSTITUTION_VOLUME) >/dev/null 2>&1 \
+		|| { echo "❌ the chart renders with both image and volume"; exit 1; }
+	@! helm template . $(SECRET) >/dev/null 2>&1 \
+		|| { echo "❌ the chart renders with no institution folder"; exit 1; }
+	@echo "✅ the institution folder comes from one of image or volume"
+
 ## -------------------------------
 ## 🧪 Combined linting
 ## -------------------------------
 .PHONY: lint
-lint: lint-helm lint-examples check-api-version check-app-version check-worker-env check-frontend-env lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker and frontend env, VALUES.md)
+lint: lint-helm lint-examples check-api-version check-app-version check-worker-env check-frontend-env check-institution-source lint-docs ## Run all lint checks (helm, examples, API_VERSION, worker and frontend env, VALUES.md)
 	@echo "🧭 All lint checks passed!"
 
 

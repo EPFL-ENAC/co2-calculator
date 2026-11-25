@@ -9,8 +9,10 @@
 #
 #   injectEnv.js   the APP_* environment variables, read by the SPA as
 #                  window.injectedEnvVariable
-#   institution/   logo, browser icons, login illustration and fonts: the
-#                  defaults of the image, then the files of the mounted folder
+#   institution/   logo, browser icons, login illustration, fonts and
+#                  offnet.html (the page for clients outside the allowed
+#                  networks, #3196): the defaults of the image, then the
+#                  files of the mounted folder
 #   theme.css      colors, corner radii and fonts, from theme.conf of the
 #                  mounted folder
 #
@@ -71,6 +73,7 @@ favicon-128x128.png
 font-regular.woff2
 font-medium.woff2
 font-bold.woff2
+offnet.html
 "
 
 # The APP_* names that src/config/runtime.ts reads, and no other. awk gets

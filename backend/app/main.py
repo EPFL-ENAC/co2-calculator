@@ -21,6 +21,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.internal import router as internal_router
 from app.api.router import api_router
 from app.api.v1 import files
+from app.core.client_network import ClientNetworkMiddleware
 from app.core.config import RoleProviderType, UnitProviderType, get_settings
 from app.core.exception_handlers import (
     db_unavailable_handler,
@@ -595,6 +596,16 @@ app.add_middleware(RequestOriginMiddleware)
 # Outermost, so a renewed session cookie reaches every response shape,
 # including the ones a route builds itself (#2943).
 app.add_middleware(SessionRenewalMiddleware)
+
+# Registered last, so it runs first: a client outside the allowed networks
+# gets a 403 before any session or origin work (#3196).
+app.add_middleware(
+    ClientNetworkMiddleware,
+    allowed_cidrs=settings.CLIENT_ALLOWED_CIDRS,
+    # uvicorn's own variable, not a Settings field: see
+    # assert_proxy_trust_settings.
+    trusted_proxies=os.environ.get("FORWARDED_ALLOW_IPS", ""),
+)
 
 # Must run after every add_middleware() call above -- see the function's
 # docstring for why order here is load-bearing, not stylistic (#2397).

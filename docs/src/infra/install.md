@@ -1,16 +1,17 @@
 # Install the CO2 Calculator
 
-This page shows the four ways to run the CO2 Calculator outside the
+This page shows the five ways to run the CO2 Calculator outside the
 development setup. Use it to choose one, and to know what you must
 supply before you start. It is the first part of the deployment guide
 of issue #3250.
 
-| Way            | Use it to                             | Login      |
-| -------------- | ------------------------------------- | ---------- |
-| Docker Compose | try the app on one machine            | test login |
-| Skaffold       | try the Helm chart on a local cluster | test login |
-| Helm chart     | run the app on Kubernetes             | OIDC       |
-| Kustomize      | deploy with GitOps                    | OIDC       |
+| Way            | Use it to                              | Login      |
+| -------------- | -------------------------------------- | ---------- |
+| Docker Compose | try the app on one machine             | test login |
+| Compose images | run the app on one host, with no clone | OIDC       |
+| Skaffold       | try the Helm chart on a local cluster  | test login |
+| Helm chart     | run the app on Kubernetes              | OIDC       |
+| Kustomize      | deploy with GitOps                     | OIDC       |
 
 ## Try it with Docker Compose
 
@@ -34,6 +35,42 @@ The backend applies the database migrations at startup. Docker Compose
 gives the backend the committed `backend/.env.example` and the
 `postgres` service as its database. It does not read `backend/.env`,
 which can name a shared database or real services for `make dev`.
+
+## Run published images with Docker Compose
+
+`docker-compose.deploy.yml` starts the app from published images, with
+the test login off. The host needs a Docker version that can mount an image as a volume, and
+three files. Docker Engine 29 with Compose 5 works.
+It needs no clone of a repository.
+
+1. Copy `docker-compose.deploy.yml` to a folder of the host.
+2. Write `database.env` next to it, with `POSTGRES_USER`,
+   `POSTGRES_PASSWORD` and `POSTGRES_DB`.
+3. Write `backend.env` next to it, from `backend/.env.example`. Set
+   `DB_URL` to the `postgres` host with the same user and password, and
+   set `FRONTEND_URL`. Replace each `change-me` value with a new random
+   value, and choose your own database password.
+4. Set the app version and the institution image, then start the app.
+
+```bash
+export CO2_VERSION=v1.5.4
+export INSTITUTION_IMAGE=registry.example.org/co2-institution-univ:v1.0.0
+docker compose -f docker-compose.deploy.yml up -d --wait
+```
+
+The frontend mounts the institution image as its `/institution` folder,
+read-only. The [guide for a new institution](08-new-institution.md)
+shows how to make that image.
+
+> CAUTION: The proxy listens on HTTP, on `127.0.0.1:80`. Put a TLS proxy
+> in front of it before you open the app to a network. `HTTP_BIND`
+> changes the address.
+
+> CAUTION: Set an S3 storage in `backend.env` before people upload
+> files. Without it, the backend keeps the uploaded files inside its
+> container, and each new app version deletes them.
+
+Nobody tried an OIDC login with this file yet. Issue #3250 covers it.
 
 ## Try the chart on a local cluster with Skaffold
 

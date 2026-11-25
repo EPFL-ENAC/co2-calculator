@@ -1,0 +1,125 @@
+# The app on one host, from published images.
+#
+# Why this exists: docker-compose.yml builds the images from the source and
+# turns the test login on, so it needs a clone of the repository and must
+# stay off a network. This file needs no clone: the host has this file, two
+# env files and Docker. Every image comes from a registry, the institution
+# folder included.
+#
+# Next to this file:
+#   database.env   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+#   backend.env    the backend values (see backend/.env.example), with the
+#                  same database user and password in DB_URL, host "postgres"
+#
+# Required variables, in the shell or in a .env file next to this file:
+#   CO2_VERSION        the tag of the app images, for example v1.5.4
+#   INSTITUTION_IMAGE  the image of the institution folder, with its tag
+#
+# The proxy listens on HTTP only. Put a TLS proxy in front of HTTP_BIND
+# before you open the app to a network.
+name: co2-calculator
+
+services:
+  reverse-proxy:
+    image: traefik:v3.6.4
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entryPoints.web.address=:80"
+      - "--ping=true"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "${HTTP_BIND:-127.0.0.1:80}:80"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    env_file:
+      - ./database.env
+    volumes:
+      - postgres-data-18:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: "${CO2_REGISTRY:-ghcr.io/epfl-enac/epfl/co2-calculator}/backend:${CO2_VERSION:?set CO2_VERSION to the tag of the app images}"
+    restart: unless-stopped
+    env_file:
+      - ./backend.env
+    environment:
+      # These win over backend.env: the test login gives any role with no
+      # password, and this file is for a host on a network.
+      TEST_LOGIN_ROUTE_ENABLED: "False"
+      DEBUG_STACK_TRACE_ENABLED: "False"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+    # One backend container, so it applies the database migrations itself.
+    command: >
+      sh -c '
+        alembic upgrade head &&
+        exec opentelemetry-instrument uvicorn app.main:app --host $$HOST --port $$PORT --workers $${WORKERS:-1}
+      '
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend.priority=200"
+      - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+      - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    image: "${CO2_REGISTRY:-ghcr.io/epfl-enac/epfl/co2-calculator}/frontend:${CO2_VERSION:?set CO2_VERSION to the tag of the app images}"
+    restart: unless-stopped
+    # Same as the pod: a read-only root and three writable folders.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    # The institution folder, mounted from its image, read-only. No copy
+    # and no git on the host. Tried with Docker Engine 29 and Compose 5.
+    volumes:
+      - type: image
+        source: "${INSTITUTION_IMAGE:?set INSTITUTION_IMAGE to the image of the institution folder}"
+        target: /institution
+        image:
+          subpath: institution
+    environment:
+      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-production}"
+      # No value: Compose passes a variable of the shell, and leaves it
+      # out when the shell has none.
+      APP_SENTRY_DSN:
+      APP_MATOMO_URL:
+      APP_MATOMO_SITE_ID:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=100"
+      - "traefik.http.services.frontend.loadbalancer.server.port=8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data-18:

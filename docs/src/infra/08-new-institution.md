@@ -97,8 +97,7 @@ the environment is logged and not sent. Each `*_URL` value must start
 with `http://` or `https://`.
 
 The container reads `/institution/values.env`, then the environment of
-the pod. A variable of the environment wins over the file, also if it
-is empty. The Helm chart does not send an empty `frontend.env` value to
+the pod. A variable of the environment, empty or not, wins over the file. The Helm chart does not send an empty `frontend.env` value to
 the pod, so the value of the file stays. `APP_ENVIRONMENT` is required in the environment: the Helm chart
 gives `production`. `APP_ENVIRONMENT` and
 `APP_DEMO_MODE` in `values.env` stop the frontend, because the chart gives
@@ -126,11 +125,12 @@ keeps its default.
 | `font-regular.woff2`                         | the text font, weight 400                      |
 | `font-medium.woff2`                          | the text font, weight 500                      |
 | `font-bold.woff2`                            | the text font, weight 700                      |
+| `offnet.html`                                | the page for clients outside the networks      |
 
 The folder is flat. A subfolder stops the container.
 If the folder holds a file name that is not in this table or
-`theme.conf`, the container stops. This catches a typo, for example
-`logo.SVG`, that would show the default logo without an error. One
+`theme.conf`, the container stops. Without this stop, a typo such as `logo.SVG`
+shows the default logo and no error. One
 exception: a file whose name starts with `font-` and does not end with
 `.woff2` is allowed, for example `font-license.txt`. Use it for the
 license of a free font. The container does not serve this file. An
@@ -149,6 +149,18 @@ The login page repeats `login-illustration.svg` as a tile behind the login
 card, and it shows the file as it is. To make the illustration pale, put the
 opacity in the file. The default file draws its icons at 25 % opacity on a
 white tile.
+
+### The page for clients outside the networks
+
+If the chart sets `clientAllowlist.allowedCidrs`, a client outside these
+networks gets `offnet.html` and no other file. The default page has
+neutral texts in English and French, with no name and no contact.
+
+To replace it, write one self-contained `offnet.html`. Put the texts, the
+CSS, the script, the logo and the icon in the file. Use inline SVG or
+`data:` URLs for the images. A file of the calculator, for example
+`/theme.css` or `/institution/logo.svg`, does not load for these clients.
+A font can come from a font server on an other host.
 
 ### Fonts and licensing
 
@@ -238,24 +250,68 @@ Then test the failures:
 
 The dev server runs the same script, so it shows the same messages.
 
-## 7. Deploy to a cluster
+## 7. Make the institution image
 
-1. Make a ConfigMap from the folder. It can include `values.env`.
-2. Mount the ConfigMap with `frontend.institutionAssets.volume`.
-3. Set the per-cluster values under `frontend.env` in the Helm values.
+An image carries the folder to a cluster and to Docker Compose, with a
+version. The host needs no clone of your repository. The folder is at
+`/institution` in the image. The command of the image copies it into the
+volume at `/out`, for the init container of the Helm chart.
+
+Put this `Dockerfile` next to the folder, named `institution/` here:
+
+```dockerfile
+FROM busybox:1.37-musl
+COPY institution/ /institution/
+USER 65534
+CMD ["sh", "-c", "rm -rf /out/* && cp -R /institution/. /out/"]
+```
+
+Build the image and push it to your registry, with a version tag:
+
+```sh
+docker build -t registry.example.org/co2-institution-univ:v1.0.0 .
+docker push registry.example.org/co2-institution-univ:v1.0.0
+```
+
+The EPFL repository shows a CI job that builds and publishes the image
+for each version tag.
+
+## 8. Deploy
+
+### On a cluster
+
+1. Set `frontend.institutionAssets.image` to the image, with its tag.
+2. Set the per-cluster values under `frontend.env` in the Helm values.
+
+```yaml
+frontend:
+  institutionAssets:
+    image: registry.example.org/co2-institution-univ:v1.0.0
+```
+
+An init container runs the image before the frontend starts. A new tag
+changes the pod template, so the cluster restarts the frontend pods.
 
 You can also set the institution values under `frontend.env` instead of
 `values.env`. A variable of the environment wins over the file.
 
-The frontend reads the folder only at startup, and a change of a
-ConfigMap does not restart a pod. Change something in the pod template
-each time you change the folder. The EPFL repository shows one way: its
-chart gives its version as a label, and the overlay copies that label
-into an annotation of the frontend pods.
+Without `image` or `volume`, the Helm chart does not render, because the
+folder gives `theme.conf`. With an empty required value, the new pods
+stop at startup and the pods of the last version continue to serve.
 
-Without the volume, the Helm chart does not render, because the volume
-gives `theme.conf`. With an empty required value, the new pods stop at
-startup and the pods of the last version continue to serve.
+### With Docker Compose
+
+`docker-compose.deploy.yml` starts the app from published images. Set
+`INSTITUTION_IMAGE` to the image, with its tag. The frontend mounts the
+folder of the image directly, read-only. The
+[install page](install.md) gives the steps.
+
+### From a volume
+
+`frontend.institutionAssets.volume` takes any volume source in place of
+the image, for example a ConfigMap. The frontend reads the folder only at
+startup, and a change of a ConfigMap does not restart a pod. Change
+something in the pod template each time you change the folder.
 
 Put only the files that replace a default in the ConfigMap. The smallest
 ConfigMap holds `theme.conf` alone:

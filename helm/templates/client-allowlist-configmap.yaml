@@ -1,0 +1,33 @@
+{{- if .Values.clientAllowlist.allowedCidrs }}
+{{- if not .Values.clientAllowlist.trustedProxies }}
+{{- fail "clientAllowlist.trustedProxies is required with allowedCidrs: without it every client is the router pod" }}
+{{- end }}
+{{- if not .Values.backend.env.FORWARDED_ALLOW_IPS }}
+{{- fail "backend.env.FORWARDED_ALLOW_IPS is required with clientAllowlist.allowedCidrs: the API resolves the client with it" }}
+{{- end }}
+# geo entries of the frontend and docs nginx (#3196): the client is the
+# right-most X-Forwarded-For address outside the trusted proxies. "1" means
+# outside, the default; the allowed networks override it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "co2-calculator.fullname" . }}-client-allowlist
+  labels:
+    {{- include "co2-calculator.labels" . | nindent 4 }}
+data:
+  geo.conf: |
+    {{- range .Values.clientAllowlist.trustedProxies }}
+    proxy {{ . }};
+    {{- end }}
+    proxy_recursive;
+    0.0.0.0/0 1;
+    ::/0 1;
+    {{- range .Values.clientAllowlist.allowedCidrs }}
+    {{ . }} 0;
+    {{- end }}
+    {{- /* A proxy as the client means no client address in front of it:
+         outside, even inside a wide allowed network. More specific wins. */}}
+    {{- range .Values.clientAllowlist.trustedProxies }}
+    {{ . }} 1;
+    {{- end }}
+{{- end }}

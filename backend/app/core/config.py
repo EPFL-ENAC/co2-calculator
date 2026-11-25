@@ -274,6 +274,16 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Network gate of the API (#3196). Checked against the client address
+    # that uvicorn resolves with FORWARDED_ALLOW_IPS.
+    CLIENT_ALLOWED_CIDRS: str = Field(
+        default="",
+        description=(
+            "Comma-separated CIDRs of the clients the API answers. Others get "
+            "a 403. Empty turns the check off."
+        ),
+    )
+
     # Role/Unit provider selection — where do app roles / institutional units
     # come from. No default: invalid or missing config fails at startup
     # rather than silently picking a provider.
