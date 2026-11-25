@@ -83,10 +83,13 @@ image, to a cluster and to Docker Compose alike, with no git on the host.
 - `docker-compose.deploy.yml` runs the app from published images. The
   frontend mounts the institution image directly, read-only (Docker 28
   or later).
-- The EPFL repository keeps its ConfigMap chart and publishes the image
-  next to it, from one version tag. The EPFL clusters stay on the chart:
-  Argo CD fetches it, and the nodes pull images only from the internal
-  registry. Docker Compose uses the image.
+- Each institution has its own repository and its own image. The app
+  chart names no institution: an overlay or a compose host gives the
+  image of its institution.
+- The EPFL repository keeps its ConfigMap chart for one more release, as
+  a fallback. The EPFL nodes pull the app images from the internal
+  registry, and nobody tried a pull from ghcr yet. After dev proves the
+  image path, the chart can leave.
 - Kubernetes 1.35 (the cluster of the maintainer's `oc` context) can
   also mount an image as a volume, through the
   `volume` value and with no init container. Not tried on OpenShift.
@@ -114,8 +117,9 @@ version in one change.
 6. Stage, then prod, with the same steps.
 
 Allowed CIDRs for EPFL: `128.178.0.0/15`, `10.0.0.0/8`, `2001:620:618::/48`.
-The EPFL page is `offnet.html` in the institution repository, and the
-dev overlay gets it with version 1.1.0 of the institution chart.
+The EPFL page is `offnet.html` in the institution repository. The dev
+overlay gets it through the institution image, or through version 1.1.0
+of the institution chart if the nodes cannot pull the image.
 
 ## Open points
 

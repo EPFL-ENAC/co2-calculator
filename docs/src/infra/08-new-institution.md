@@ -292,6 +292,10 @@ frontend:
 An init container runs the image before the frontend starts. A new tag
 changes the pod template, so the cluster restarts the frontend pods.
 
+The nodes of the cluster pull the image, so they must reach its
+registry. For a private registry, name its pull secret in
+`global.imagePullSecrets`.
+
 You can also set the institution values under `frontend.env` instead of
 `values.env`. A variable of the environment wins over the file.
 
