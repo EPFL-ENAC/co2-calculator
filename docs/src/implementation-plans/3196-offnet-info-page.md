@@ -66,10 +66,13 @@ answer as on any other path. The backend applies the same rule to
   each value is a CIDR (`make -C helm check-client-allowlist`). The lists
   must hold every hop: the router pods and each load balancer, the public
   one included.
-- `/offnet.html` goes out with a sandbox policy. Its inline script runs
-  with no session, so a changed institution file cannot call the API as
-  an inside user. A side effect: a font server that checks the origin
-  refuses the page, and the page shows the system font.
+- `/offnet.html` goes out with its own content policy: inline script
+  and style, `data:` images and HTTPS fonts, and nothing else. Its script
+  cannot call the API, post a form or load a frame. The policy has no
+  `sandbox`: that gives the page a null origin, and the EPFL font server
+  then refuses the font. What stays possible for a changed institution
+  file: its script can read the browser storage of the app and can send
+  the browser to an other address.
 - The rule for probes and `/internal/` keeps outside clients away. An
   allowed client that comes through the router reaches them as before.
 - A trusted proxy as the client counts as outside, in nginx and in the

@@ -135,9 +135,9 @@ for chain in "203.0.113.5, 10.98.42.215" "198.51.100.9, 203.0.113.5, 10.98.42.21
   fetch / br; expect "outside br" status 403; expect "outside br" Content-Encoding ""
   fetch /offnet.html ""; expect "outside page" status 200
   cmp -s "$TMP/b" "$PAGE" || { echo "FAIL outside page: not offnet.html"; exit 1; }
-  grep -qi "^content-security-policy:.*sandbox allow-scripts" "$TMP/h" \
-    || { echo "FAIL outside page: no sandbox policy"; exit 1; }
-  echo "ok   outside page: sandbox policy"
+  grep -qi "^content-security-policy:.*connect-src 'none'; form-action 'none'" "$TMP/h" \
+    || { echo "FAIL outside page: no page policy"; exit 1; }
+  echo "ok   outside page: page policy"
   fetch /OFFNET.HTML ""; expect "outside page, capitals" status 403
 done
 # An allowed client through the router reaches a probe, as before #3196.
