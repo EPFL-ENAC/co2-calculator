@@ -2,9 +2,10 @@
 
 update(): 403 FIELD_NOT_EDITABLE on a changed field outside the row's
 provenance-branch policy, value-diffed (echoed-unchanged locked fields must
-not 403). delete(): 403 unless the row is user-branch. Planner-kind types
-are exempt regardless of source; planner snapshot rows are user-branch and
-additionally own percentage_of_reference_year (#2176).
+not 403). delete(): 403 on an imported row. Planner-kind types are exempt
+regardless of source. A planner snapshot row that carries a percentage is a
+reference row: only percentage_of_reference_year (#2176) and the note are
+writable (#2646); a plain copy without one stays user-branch.
 """
 
 from types import SimpleNamespace
@@ -298,6 +299,129 @@ async def test_update_planner_snapshot_row_percentage_succeeds():
     data_entry_service.update.assert_awaited_once()
 
 
+# A per-line Simulator Plan copy of an equipment row, at 40% of its
+# reference row (#2646).
+_REFERENCE_ROW_DATA = {
+    **_EXISTING_EQUIPMENT_DATA,
+    "percentage_of_reference_year": 40,
+    "source_data_entry_id": 77,
+}
+_PLANNER_SNAPSHOT_SOURCE = DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+
+
+async def _update_planner_row(existing_data: dict, item_data: dict):
+    """PATCH ``item_data`` onto a PLANNER_SNAPSHOT equipment row.
+
+    Returns the mocked DataEntryService so the caller can tell a write that
+    went through from one the policy refused.
+    """
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        existing_data, source=_PLANNER_SNAPSHOT_SOURCE
+    )
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    with p1, p2, p3:
+        try:
+            await CarbonReportModuleWorkflow(session).update(
+                carbon_report_module=SimpleNamespace(
+                    id=18036, carbon_report_id=99, module_type_id=4
+                ),
+                data_entry_type_id=DataEntryTypeEnum.other.value,
+                item_id=1,
+                item_data=item_data,
+                current_user=_CURRENT_USER,
+                request_context={},
+                background_tasks=MagicMock(),
+            )
+        except HTTPException as exc:
+            return data_entry_service, exc
+    return data_entry_service, None
+
+
+@pytest.mark.asyncio
+async def test_update_reference_row_own_field_is_403():
+    """#2646 regression: sub_class is on equipment's USER whitelist, and a
+    reference row used to inherit it — the edit saved, the cell changed, and
+    kgCO2eq stayed reference x percentage. The row's own fields are locked.
+    """
+    data_entry_service, exc = await _update_planner_row(
+        _REFERENCE_ROW_DATA, {"sub_class": "New (<12yo)"}
+    )
+
+    assert exc is not None
+    assert exc.status_code == 403
+    assert exc.detail == {"code": "FIELD_NOT_EDITABLE", "fields": ["sub_class"]}
+    data_entry_service.update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_reference_row_percentage_succeeds():
+    data_entry_service, exc = await _update_planner_row(
+        _REFERENCE_ROW_DATA, {"percentage_of_reference_year": 85}
+    )
+
+    assert exc is None
+    data_entry_service.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_reference_row_note_succeeds():
+    data_entry_service, exc = await _update_planner_row(
+        _REFERENCE_ROW_DATA, {"note": "Replaced in 2028"}
+    )
+
+    assert exc is None
+    data_entry_service.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_reference_row_cleared_percentage_is_403():
+    """Without its percentage the row would read as a plain snapshot copy,
+    i.e. user-branch — two API calls would undo the lock.
+    """
+    data_entry_service, exc = await _update_planner_row(
+        _REFERENCE_ROW_DATA, {"percentage_of_reference_year": None}
+    )
+
+    assert exc is not None
+    assert exc.status_code == 403
+    assert exc.detail == {
+        "code": "FIELD_NOT_EDITABLE",
+        "fields": ["percentage_of_reference_year"],
+    }
+    data_entry_service.update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_planner_plain_copy_row_own_field_succeeds():
+    """A snapshot row without a percentage (professional travel's plain
+    copy, #2018) is priced from its own fields — it keeps the USER whitelist.
+    """
+    data_entry_service, exc = await _update_planner_row(
+        _EXISTING_EQUIPMENT_DATA, {"sub_class": "New (<12yo)"}
+    )
+
+    assert exc is None
+    data_entry_service.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_planner_plain_copy_row_percentage_is_403():
+    """Only the plan prefill makes a reference row: a plain copy has no
+    reference row to scale, so the percentage is not writable on it.
+    """
+    data_entry_service, exc = await _update_planner_row(
+        _EXISTING_EQUIPMENT_DATA, {"percentage_of_reference_year": 50}
+    )
+
+    assert exc is not None
+    assert exc.status_code == 403
+    assert exc.detail == {
+        "code": "FIELD_NOT_EDITABLE",
+        "fields": ["percentage_of_reference_year"],
+    }
+    data_entry_service.update.assert_not_called()
+
+
 _EXISTING_PURCHASE_DATA = {
     "name": "Lab gloves",
     "supplier": "Acme",
@@ -522,6 +646,30 @@ async def test_delete_missing_row_is_404_not_500():
 async def test_delete_user_row_succeeds():
     session, data_entry_service, emission_service, module_service = _workflow_deps(
         _EXISTING_EQUIPMENT_DATA, source=None
+    )
+    p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
+    workflow = CarbonReportModuleWorkflow(session)
+
+    with p1, p2, p3:
+        await workflow.delete(
+            carbon_report_module=SimpleNamespace(
+                id=18036, carbon_report_id=99, module_type_id=4
+            ),
+            data_entry_type_id=DataEntryTypeEnum.other.value,
+            data_entry_id=1,
+            current_user=_CURRENT_USER,
+            request_context={},
+            background_tasks=MagicMock(),
+        )
+
+    data_entry_service.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_reference_row_succeeds():
+    """#2646 locks a reference row's fields, not the row itself."""
+    session, data_entry_service, emission_service, module_service = _workflow_deps(
+        _REFERENCE_ROW_DATA, source=_PLANNER_SNAPSHOT_SOURCE
     )
     p1, p2, p3 = _patched(session, data_entry_service, emission_service, module_service)
     workflow = CarbonReportModuleWorkflow(session)

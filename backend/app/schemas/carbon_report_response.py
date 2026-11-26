@@ -31,10 +31,12 @@ class RowPolicy(BaseModel):
 
 
 class DataEntryPolicies(BaseModel):
-    """#951: both provenance branches for one submodule."""
+    """#951: every provenance branch for one submodule."""
 
     user: RowPolicy
     imported: RowPolicy
+    # #2646: Simulator Plan rows priced as a percentage of the reference year.
+    reference: RowPolicy
 
 
 class SubmoduleResponse[T: BaseModel](BaseModel):
@@ -47,12 +49,12 @@ class SubmoduleResponse[T: BaseModel](BaseModel):
     )
     summary: SubmoduleSummary = Field(..., description="Submodule summary")
     has_more: bool = Field(False, description="Whether more items are available")
-    # #951: user/imported edit-rights for this submodule, keyed on row
-    # provenance (each row already carries its own ``source``). None for
+    # #951: user/imported/reference edit-rights for this submodule, keyed on
+    # row provenance (each row already carries its own ``source``). None for
     # types the data-entry permission layer doesn't cover (planner, embodied
     # energy) — see app.core.data_entry_permissions.submodule_policies.
     data_entry_policies: DataEntryPolicies | None = Field(
-        None, description="Edit rights per row provenance (user/imported)"
+        None, description="Edit rights per row provenance (user/imported/reference)"
     )
 
 

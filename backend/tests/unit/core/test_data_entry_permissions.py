@@ -16,11 +16,13 @@ from app.core.data_entry_permissions import (
     Provenance,
     can_create,
     can_delete,
+    clears_reference_percentage,
     editable_fields,
     find_uncovered_types,
     is_policy_exempt,
     provenance_of,
     submodule_policies,
+    writable_fields_for_row,
 )
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
@@ -28,23 +30,56 @@ from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEn
 
 class TestProvenanceOf:
     def test_null_source_is_user(self):
-        assert provenance_of(None) == Provenance.USER
+        assert provenance_of(None, {}) == Provenance.USER
 
     def test_user_manual_is_user(self):
-        assert provenance_of(DataEntrySourceEnum.USER_MANUAL.value) == Provenance.USER
+        assert (
+            provenance_of(DataEntrySourceEnum.USER_MANUAL.value, {}) == Provenance.USER
+        )
 
-    def test_planner_snapshot_is_user(self):
+    def test_planner_plain_copy_is_user(self):
         """Simulator Plan prefill copies a reference-year row into a plan
-        module using the SAME data_entry_type_id (e.g. `building`,
-        `energy_combustion`, equipment kinds) — not a planner-kind type, so
-        is_policy_exempt() alone doesn't cover it. A plan row is the user's
-        own editable data (percentage slider, deletable), not something
-        externally imported — must resolve to USER, not IMPORTED, or every
-        prefilled plan module's rows lock up (#951 regression, code review
-        2026-08-13).
+        module using the SAME data_entry_type_id (e.g. `plane`, `building`,
+        equipment kinds) — not a planner-kind type, so is_policy_exempt()
+        alone doesn't cover it. A plain copy (professional travel, #2018)
+        carries no percentage: it is the user's own editable data, priced
+        from its own fields — must resolve to USER, never IMPORTED (#951
+        regression, code review 2026-08-13).
         """
         assert (
-            provenance_of(DataEntrySourceEnum.PLANNER_SNAPSHOT.value) == Provenance.USER
+            provenance_of(DataEntrySourceEnum.PLANNER_SNAPSHOT.value, {})
+            == Provenance.USER
+        )
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            # Per-line copy: linked to the reference row it scales.
+            {"percentage_of_reference_year": 0, "source_data_entry_id": 12},
+            # Equipment global-percentage aggregate line (#2783): no source row.
+            {"percentage_of_reference_year": 40, "source_data_entry_id": None},
+        ],
+    )
+    def test_planner_snapshot_with_percentage_is_reference(self, data):
+        """#2646: a snapshot row that carries a percentage is priced as
+        reference kgCO2eq x percentage, so it gets its own branch — 0% is a
+        percentage like any other (every per-line copy starts there).
+        """
+        assert (
+            provenance_of(DataEntrySourceEnum.PLANNER_SNAPSHOT.value, data)
+            == Provenance.REFERENCE
+        )
+
+    def test_percentage_on_a_non_snapshot_row_is_not_reference(self):
+        """The branch keys on the source too: only the plan prefill writes
+        reference rows, a stray key on a manual row grants nothing.
+        """
+        assert (
+            provenance_of(
+                DataEntrySourceEnum.USER_MANUAL.value,
+                {"percentage_of_reference_year": 50},
+            )
+            == Provenance.USER
         )
 
     @pytest.mark.parametrize(
@@ -62,7 +97,7 @@ class TestProvenanceOf:
         Regression: Process Emissions CSV rows were uneditable and
         undeletable for the operator who uploaded them.
         """
-        assert provenance_of(source) == Provenance.USER
+        assert provenance_of(source, {}) == Provenance.USER
 
     @pytest.mark.parametrize(
         "source",
@@ -73,7 +108,7 @@ class TestProvenanceOf:
         ],
     )
     def test_backoffice_per_year_ingest_is_imported(self, source):
-        assert provenance_of(source) == Provenance.IMPORTED
+        assert provenance_of(source, {}) == Provenance.IMPORTED
 
 
 class TestCreateDeleteConstants:
@@ -84,6 +119,56 @@ class TestCreateDeleteConstants:
     def test_imported_can_never_create_or_delete(self):
         assert can_create(Provenance.IMPORTED) is False
         assert can_delete(Provenance.IMPORTED) is False
+
+    def test_reference_is_deletable_but_never_typed_in(self):
+        """#2646 locks a reference row's fields, not the row: the plan
+        prefill writes it, the user may still remove it from the scenario.
+        """
+        assert can_create(Provenance.REFERENCE) is False
+        assert can_delete(Provenance.REFERENCE) is True
+
+
+class TestReferenceBranch:
+    """#2646: a reference row's kgCO2eq never reads its own fields, so the
+    only data field worth writing is the percentage — in every module.
+    """
+
+    @pytest.mark.parametrize(
+        "module_type,data_entry_type",
+        [
+            (ModuleTypeEnum.process_emissions, DataEntryTypeEnum.process_emissions),
+            (ModuleTypeEnum.buildings, DataEntryTypeEnum.energy_combustion),
+            (ModuleTypeEnum.buildings, DataEntryTypeEnum.building),
+            (ModuleTypeEnum.equipment, DataEntryTypeEnum.scientific),
+            (ModuleTypeEnum.external_cloud_and_ai, DataEntryTypeEnum.external_ai),
+            (
+                ModuleTypeEnum.research_facilities,
+                DataEntryTypeEnum.research_facilities,
+            ),
+        ],
+    )
+    def test_only_the_percentage_and_the_note_are_writable(
+        self, module_type, data_entry_type
+    ):
+        assert writable_fields_for_row(
+            module_type, data_entry_type, Provenance.REFERENCE
+        ) == {"percentage_of_reference_year", "note"}
+
+    def test_clearing_the_percentage_is_refused_on_a_reference_row(self):
+        assert clears_reference_percentage(
+            Provenance.REFERENCE, "percentage_of_reference_year", None
+        )
+
+    def test_changing_the_percentage_is_not_a_clear(self):
+        assert not clears_reference_percentage(
+            Provenance.REFERENCE, "percentage_of_reference_year", 0
+        )
+
+    def test_a_null_elsewhere_is_not_a_clear(self):
+        assert not clears_reference_percentage(Provenance.REFERENCE, "note", None)
+        assert not clears_reference_percentage(
+            Provenance.USER, "percentage_of_reference_year", None
+        )
 
 
 class TestPolicyExemption:
@@ -311,7 +396,7 @@ def test_note_is_always_writable_and_not_in_any_matrix_entry():
 
 
 class TestSubmodulePolicies:
-    def test_equipment_carries_both_branches(self):
+    def test_equipment_carries_every_branch(self):
         policies = submodule_policies(DataEntryTypeEnum.scientific)
         assert policies is not None
         assert policies.model_dump() == {
@@ -342,6 +427,14 @@ class TestSubmodulePolicies:
                         "note",
                     }
                 ),
+            },
+            # #2646: same two fields whatever the module — an imported
+            # equipment row keeps its usage hours editable, a reference row
+            # does not.
+            "reference": {
+                "create": False,
+                "delete": True,
+                "editable_fields": ["note", "percentage_of_reference_year"],
             },
         }
 
